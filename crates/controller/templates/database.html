@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}データベースブラウザ | Mrs. Harris{% endblock %}
+
+{% block nav_database %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h2>データベースブラウザ</h2>
+        <p>MySQL データベース内のテーブル一覧、カラムスキーマ定義、およびレコード（最新100件）を参照します。</p>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 240px 1fr; gap: 24px; margin-top: 24px; align-items: start;">
+    
+    <!-- Left Sidebar: Tables List -->
+    <div class="card" style="padding: 16px;">
+        <h3 style="font-family: 'Outfit', sans-serif; font-size: 0.95rem; font-weight: 600; margin-bottom: 12px; color: var(--color-primary); display: flex; align-items: center; gap: 6px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 8px;">
+            <i data-lucide="table" style="width: 16px; height: 16px;"></i>
+            テーブル一覧
+        </h3>
+        
+        <div style="display: flex; flex-direction: column; gap: 4px; max-height: 550px; overflow-y: auto; padding-right: 4px;">
+            {% for t in tables %}
+            <a href="/database?table={{ t.name }}" class="table-link-item {% if t.is_active %}active{% endif %}" style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 6px; text-decoration: none; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; transition: all 0.2s ease;">
+                <i data-lucide="database-backup" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ t.name }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Right Area: Table Schema & Records -->
+    <div class="tab-content-container">
+        {% if let Some(table_name) = selected_table.as_ref() %}
+        
+        <!-- Table Header with Reload Button -->
+        <div class="card" style="padding: 20px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04);">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <i data-lucide="layout-grid" style="width: 24px; height: 24px; color: var(--color-primary);"></i>
+                <div>
+                    <h3 style="font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; font-weight: 600; margin: 0;">{{ table_name }}</h3>
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">構造参照 ＆ 最新レコード（最大100件）</span>
+                </div>
+            </div>
+            
+            <!-- リロードボタン (右上に配置) -->
+            <a href="/database?table={{ table_name }}" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; font-size: 0.85rem;" hx-boost="false">
+                <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+                表示を更新
+            </a>
+        </div>
+
+        <!-- Section 1: Table Columns Schema -->
+        <div class="card" style="padding: 24px; margin-bottom: 24px;">
+            <h4 style="font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">
+                <i data-lucide="info" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+                カラム構造 (Schema)
+            </h4>
+            
+            <div class="table-responsive">
+                <table class="table" style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>カラム名 (Field)</th>
+                            <th>データ型 (Type)</th>
+                            <th>NULL許可 (Null)</th>
+                            <th>キー型 (Key)</th>
+                            <th>デフォルト (Default)</th>
+                            <th>拡張属性 (Extra)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for col in columns %}
+                        <tr>
+                            <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text-primary);">{{ col.field }}</td>
+                            <td style="font-family: 'JetBrains Mono', monospace; color: var(--color-primary-light);">{{ col.type_str }}</td>
+                            <td>
+                                {% if col.null_allowed == "YES" %}
+                                <span style="color: var(--text-muted);">Yes</span>
+                                {% else %}
+                                <span style="color: #ef4444; font-weight: 600;">No</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if col.key == "PRI" %}
+                                <span style="background: rgba(14, 165, 233, 0.15); color: #0ea5e9; border: 1px solid rgba(14, 165, 233, 0.3); padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">Primary</span>
+                                {% else if col.key == "MUL" %}
+                                <span style="background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border: 1px solid rgba(139, 92, 246, 0.3); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">Index</span>
+                                {% else if col.key == "UNI" %}
+                                <span style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">Unique</span>
+                                {% else %}
+                                <span style="color: var(--text-muted);">-</span>
+                                {% endif %}
+                            </td>
+                            <td style="font-family: 'JetBrains Mono', monospace;">
+                                {% if let Some(def) = col.default_val.as_ref() %}
+                                <code>{{ def }}</code>
+                                {% else %}
+                                <span style="color: var(--text-muted); font-style: italic;">None</span>
+                                {% endif %}
+                            </td>
+                            <td style="font-size: 0.8rem; color: var(--text-muted);">{{ col.extra }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Section 2: Table Records -->
+        <div class="card" style="padding: 24px;">
+            <h4 style="font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">
+                <i data-lucide="database" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+                データレコード (最新100件)
+            </h4>
+            
+            {% if records.is_empty() %}
+            <div style="text-align: center; padding: 48px 0; color: var(--text-muted);">
+                <i data-lucide="alert-circle" style="width: 36px; height: 36px; margin: 0 auto 12px; display: block; opacity: 0.5;"></i>
+                <span>このテーブルにはレコードデータが登録されていません。</span>
+            </div>
+            {% else %}
+            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                <table class="table" style="font-size: 0.8rem; white-space: nowrap;">
+                    <thead>
+                        <tr>
+                            {% for head in headers %}
+                            <th style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">{{ head }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row_data in records %}
+                        <tr>
+                            {% for cell in row_data %}
+                            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ cell }}">
+                                {% if cell == "NULL" %}
+                                <span style="color: #ef4444; font-style: italic; opacity: 0.75; font-size: 0.75rem;">NULL</span>
+                                {% else %}
+                                {{ cell }}
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 12px; text-align: right;">
+                表示レコード数: {{ records.len() }} 件 (Limit 100)
+            </div>
+            {% endif %}
+        </div>
+
+        {% else %}
+        <!-- No Table Selected State -->
+        <div class="card" style="padding: 64px 32px; text-align: center; color: var(--text-muted);">
+            <i data-lucide="database" style="width: 48px; height: 48px; margin: 0 auto 16px; display: block; color: var(--color-primary); opacity: 0.6;"></i>
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.2rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">テーブルがありません</h3>
+            <p style="max-width: 400px; margin: 0 auto; font-size: 0.9rem;">データベース内に参照可能なテーブルが存在しません。</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    /* Table link style */
+    .table-link-item:hover {
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text-primary) !important;
+    }
+    
+    .table-link-item.active {
+        background: rgba(var(--color-primary-rgb), 0.08);
+        color: var(--color-primary) !important;
+        font-weight: 600;
+        box-shadow: inset 2px 0 0 var(--color-primary);
+        border-radius: 0 6px 6px 0;
+    }
+</style>
+{% endblock %}

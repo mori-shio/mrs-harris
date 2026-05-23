@@ -54,15 +54,7 @@
         border-radius: 50%;
     }
 
-    /* Section premium styles */
-    .form-section {
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(255, 255, 255, 0.04);
-        border-radius: var(--radius-md);
-        padding: 24px;
-        margin-bottom: 28px;
-        backdrop-filter: var(--glass-blur);
-    }
+    /* Section title premium style inside card */
     .section-title {
         font-family: 'Outfit', sans-serif;
         font-size: 1.1rem;
@@ -88,29 +80,23 @@
     <span style="color: var(--text-primary);">{% if is_edit %}編集: {{ name }}{% else %}新規作成{% endif %}</span>
 </nav>
 
-<div class="page-header" style="margin-bottom: 24px;">
-    <div class="page-title">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <a href="{% if is_edit %}/jobs/{{ job_id.unwrap() }}{% else %}/jobs{% endif %}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
-                <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
-            </a>
-            <h2>{% if is_edit %}ジョブ定義編集{% else %}新規ジョブ作成{% endif %}</h2>
-        </div>
-        <p style="margin-left: 32px;">ジョブの動作方法、起動ワーカー、スケジュール、環境変数等の詳細設定</p>
-    </div>
-</div>
-
-<div class="card" style="max-width: 850px; margin: 0 auto; padding: 32px;">
+<div style="max-width: 850px; margin: 0 auto;">
     <form action="{% if is_edit %}/jobs/{{ job_id.unwrap() }}/edit{% else %}/jobs/new{% endif %}" method="POST" hx-boost="false">
         
-        <!-- Header with Toggle Switch -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; background: rgba(255,255,255,0.02); padding: 16px 24px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.04);">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <i data-lucide="info" style="width: 20px; height: 20px; color: var(--color-primary);"></i>
-                <span style="font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 1.05rem;">ジョブステータス設定</span>
+        <div class="page-header" style="margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center;">
+            <div class="page-title">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <a href="{% if is_edit %}/jobs/{{ job_id.unwrap() }}{% else %}/jobs{% endif %}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
+                        <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+                    </a>
+                    <h2>{% if is_edit %}ジョブ定義編集{% else %}新規ジョブ作成{% endif %}</h2>
+                </div>
+                <p style="margin-left: 32px; color: var(--text-muted);">ジョブの動作方法、起動ワーカー、スケジュール、環境変数等の詳細設定</p>
             </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">ジョブの有効化</span>
+            
+            <!-- 最上部右上のジョブ有効化トグルボタン -->
+            <div style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.03); padding: 10px 18px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.06); backdrop-filter: var(--glass-blur);">
+                <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">有効化</span>
                 <label class="switch">
                     <input type="checkbox" id="is_active" name="is_active" {% if is_active %}checked{% endif %}>
                     <span class="slider round"></span>
@@ -118,8 +104,8 @@
             </div>
         </div>
 
-        <!-- # 基本情報 -->
-        <div class="form-section">
+        <!-- # 基本情報 (独立カード) -->
+        <div class="card" style="margin-bottom: 24px; padding: 24px;">
             <h3 class="section-title">
                 <i data-lucide="file-text" style="width: 18px; height: 18px;"></i>
                 基本情報
@@ -149,7 +135,7 @@
                 <span style="font-size: 0.8rem; color: var(--text-muted);">ジョブを実行するワーカーノード（自作ワーカー定義）を指定します。</span>
             </div>
 
-            <!-- ジョブタイプ (OneShot -> Cron -> DAG の順序に修正) -->
+            <!-- ジョブタイプ (OneShot -> Cron -> DAG) -->
             <div class="form-group" style="margin-top: 20px;">
                 <label for="job_type">ジョブタイプ</label>
                 <select id="job_type" name="job_type" class="form-control" onchange="toggleJobTypeFields()" {% if is_edit %}disabled{% endif %}>
@@ -172,8 +158,8 @@
             </div>
         </div>
 
-        <!-- # 環境変数 (DAG でも表示されるようにJSで制御) -->
-        <div class="form-section" id="env-section">
+        <!-- # 環境変数 (独立カード - DAG でも表示されるようJS制御) -->
+        <div class="card" id="env-section" style="margin-bottom: 24px; padding: 24px;">
             <h3 class="section-title">
                 <i data-lucide="layers" style="width: 18px; height: 18px;"></i>
                 環境変数
@@ -207,8 +193,8 @@
             </div>
         </div>
 
-        <!-- # オプション -->
-        <div class="form-section">
+        <!-- # オプション (独立カード) -->
+        <div class="card" style="margin-bottom: 24px; padding: 24px;">
             <h3 class="section-title">
                 <i data-lucide="sliders" style="width: 18px; height: 18px;"></i>
                 オプション設定
@@ -263,8 +249,8 @@
             </div>
         </div>
 
-        <!-- # シェルコマンド (Non-DAG) -->
-        <div class="form-section" id="payload-fields">
+        <!-- # シェルコマンド (独立カード - Non-DAG) -->
+        <div class="card" id="payload-fields" style="margin-bottom: 24px; padding: 24px;">
             <h3 class="section-title">
                 <i data-lucide="terminal" style="width: 18px; height: 18px;"></i>
                 シェルコマンド
@@ -279,8 +265,8 @@
             </div>
         </div>
 
-        <!-- # Slack通知設定 (シェルコマンドの下に追加) -->
-        <div class="form-section">
+        <!-- # Slack通知設定 (独立カード - シェルコマンドの下に追加) -->
+        <div class="card" style="margin-bottom: 24px; padding: 24px;">
             <h3 class="section-title">
                 <i data-lucide="bell" style="width: 18px; height: 18px;"></i>
                 Slack通知
@@ -304,8 +290,8 @@
             </div>
         </div>
 
-        <!-- DAG Task List Setup (DAG) -->
-        <div class="form-section" id="dag-fields" style="display: none;">
+        <!-- DAG Task List Setup (独立カード - DAG) -->
+        <div class="card" id="dag-fields" style="margin-bottom: 24px; padding: 24px; display: none;">
             <h3 class="section-title">
                 <i data-lucide="git-branch" style="width: 18px; height: 18px;"></i>
                 DAG タスク定義
@@ -338,7 +324,7 @@
         </div>
 
         <!-- Form Buttons -->
-        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 36px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 24px;">
+        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 36px; padding-bottom: 36px;">
             <a href="{% if is_edit %}/jobs/{{ job_id.unwrap() }}{% else %}/jobs{% endif %}" class="btn btn-secondary" hx-boost="true">キャンセル</a>
             <button type="submit" class="btn btn-primary" style="padding: 10px 30px;">
                 <i data-lucide="save" style="width: 18px; height: 18px;"></i>

@@ -4,6 +4,7 @@ use crate::app::AppState;
 pub mod auth;
 pub mod calendar;
 pub mod dashboard;
+pub mod database;
 pub mod jobs;
 pub mod runs;
 pub mod settings;
@@ -21,6 +22,7 @@ pub fn router() -> Router<AppState> {
         .merge(workers::router())
         .merge(settings::router())
         .merge(worker_definitions::router())
+        .merge(database::router())
 }
 
 /// Askama テンプレート用の IntoResponse 簡易実装マクロ
