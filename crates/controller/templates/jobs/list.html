@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}ジョブ定義 | Mrs. Harris{% endblock %}
+
+{% block nav_jobs %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h2>ジョブ定義管理</h2>
+        <p>登録されているスケジュールジョブおよびDAGパイプラインの管理</p>
+    </div>
+    <div style="display: flex; gap: 12px;">
+        <button class="btn btn-secondary" onclick="openImportModal()">
+            <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+            TOMLインポート
+        </button>
+        <a href="/jobs/new" class="btn btn-primary">
+            <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+            新規ジョブ作成
+        </a>
+    </div>
+</div>
+
+<!-- Filter controls -->
+<div class="card" style="margin-bottom: 24px; padding: 16px 24px;">
+    <form id="filter-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: flex-end;">
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="search" style="font-size: 0.8rem;">検索キーワード</label>
+            <input type="text" id="search" name="search" class="form-control" placeholder="名前や説明で検索..." 
+                   hx-get="/jobs" hx-trigger="keyup changed delay:300ms" hx-target="#jobs-list-container" hx-include="#filter-form">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="job_type" style="font-size: 0.8rem;">ジョブタイプ</label>
+            <select id="job_type" name="job_type" class="form-control" 
+                    hx-get="/jobs" hx-trigger="change" hx-target="#jobs-list-container" hx-include="#filter-form">
+                <option value="">すべて</option>
+                <option value="cron">Cron (定期実行)</option>
+                <option value="dag">DAG (依存実行)</option>
+                <option value="one_shot">OneShot (単発実行)</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="is_active" style="font-size: 0.8rem;">ステータス</label>
+            <select id="is_active" name="is_active" class="form-control" 
+                    hx-get="/jobs" hx-trigger="change" hx-target="#jobs-list-container" hx-include="#filter-form">
+                <option value="">すべて</option>
+                <option value="true">有効のみ</option>
+                <option value="false">無効のみ</option>
+            </select>
+        </div>
+    </form>
+</div>
+
+<!-- Jobs container -->
+<div id="jobs-list-container">
+    {% include "jobs/list_partial.html" %}
+</div>
+
+<!-- TOML Import Modal -->
+<div class="modal-overlay" id="import-modal">
+    <div class="modal-content" style="max-width: 650px;">
+        <div class="modal-header">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700;">TOMLジョブ定義インポート</h3>
+            <button class="modal-close" onclick="closeImportModal()">&times;</button>
+        </div>
+        <form action="/jobs/import" method="POST">
+            <div class="form-group">
+                <label for="toml_content">TOML 設定内容</label>
+                <textarea id="toml_content" name="toml_content" class="form-control" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; height: 320px;" placeholder="# 例:
+name = 'my_backup_job'
+description = 'デイリーDBバックアップ'
+job_type = 'cron'
+schedule_expr = '0 0 * * *'
+worker_type = 'lambda'
+timeout_sec = 1800
+
+[payload]
+command = 'pg_dump'
+args = ['-h', 'db', '-U', 'postgres']
+" required></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="closeImportModal()">キャンセル</button>
+                <button type="submit" class="btn btn-primary">インポート実行</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openImportModal() {
+        document.getElementById('import-modal').classList.add('active');
+    }
+    function closeImportModal() {
+        document.getElementById('import-modal').classList.remove('active');
+    }
+</script>
+{% endblock %}

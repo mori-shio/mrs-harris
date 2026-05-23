@@ -1,0 +1,101 @@
+<div class="card">
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ジョブ名</th>
+                    <th>タイプ</th>
+                    <th>スケジュール</th>
+                    <th>起動タイプ</th>
+                    <th>ステータス</th>
+                    <th>タグ</th>
+                    <th style="text-align: right;">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if jobs.is_empty() %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+                        ジョブが登録されていません
+                    </td>
+                </tr>
+                {% else %}
+                {% for job in jobs %}
+                <tr>
+                    <td style="font-weight: 600;">
+                        <a href="/jobs/{{ job.id }}" style="color: var(--text-primary); text-decoration: none; display: flex; flex-direction: column; gap: 4px;">
+                            <span>{{ job.name }}</span>
+                            {% if job.description.is_some() %}
+                            <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-muted);">{{ job.description.as_ref().unwrap() }}</span>
+                            {% endif %}
+                        </a>
+                    </td>
+                    <td>
+                        <span class="badge" style="background-color: rgba(255,255,255,0.05); color: var(--text-secondary); border-color: var(--border-color);">
+                            {{ job.job_type_ja }}
+                        </span>
+                    </td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
+                        {% if job.schedule_expr.is_some() %}
+                        {{ job.schedule_expr.as_ref().unwrap() }}
+                        {% else %}
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">なし (手動/DAGのみ)</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span style="font-size: 0.85rem; display: flex; align-items: center; gap: 6px; text-transform: uppercase;">
+                            {% if job.worker_type == "fargate" %}
+                            <i data-lucide="box" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
+                            Fargate
+                            {% else %}
+                            <i data-lucide="zap" style="width: 14px; height: 14px; color: var(--color-warning);"></i>
+                            Lambda
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        {% if job.is_active %}
+                        <span class="badge" style="background-color: var(--color-success-glow); color: var(--color-success); border-color: rgba(16,185,129,0.2); box-shadow: 0 0 8px rgba(16,185,129,0.1);">
+                            有効
+                        </span>
+                        {% else %}
+                        <span class="badge" style="background-color: rgba(148,163,184,0.05); color: var(--text-muted); border-color: var(--border-color);">
+                            無効
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                            {% for tag in job.tags %}
+                            <span style="font-size: 0.75rem; background-color: rgba(56, 189, 248, 0.05); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 4px;">
+                                {{ tag }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </td>
+                    <td style="text-align: right;">
+                        <div style="display: inline-flex; gap: 8px;">
+                            <!-- Manual run trigger via HTMX -->
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; background-color: var(--color-primary-glow); color: var(--color-primary); border-color: rgba(14, 165, 233, 0.2);"
+                                    hx-post="/api/jobs/{{ job.id }}/trigger" hx-swap="none"
+                                    onclick="event.stopPropagation(); alert('ジョブ実行をトリガーしました！ダッシュボードで確認してください。')">
+                                <i data-lucide="play" style="width: 12px; height: 12px;"></i>
+                                実行
+                            </button>
+                            <a href="/jobs/{{ job.id }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
+                                <i data-lucide="eye" style="width: 12px; height: 12px;"></i>
+                                詳細
+                            </a>
+                            <a href="/jobs/{{ job.id }}/edit" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
+                                <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i>
+                                編集
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>

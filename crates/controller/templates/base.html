@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Mrs. Harris{% endblock %}</title>
+    <!-- Premium Stylesheet -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- HTMX for AJAX and SPA transitions -->
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    {% block head %}{% endblock %}
+</head>
+<body hx-boost="true">
+    <div class="glow-orb glow-orb-1"></div>
+    <div class="glow-orb glow-orb-2"></div>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <i data-lucide="network" style="color: var(--color-primary); width: 28px; height: 28px;"></i>
+            <h1>Mrs. Harris</h1>
+        </div>
+        <ul class="sidebar-menu">
+            <li class="sidebar-item {% block nav_dashboard %}{% endblock %}">
+                <a href="/">
+                    <i data-lucide="layout-dashboard" style="width: 18px; height: 18px;"></i>
+                    ダッシュボード
+                </a>
+            </li>
+            <li class="sidebar-item {% block nav_calendar %}{% endblock %}">
+                <a href="/calendar">
+                    <i data-lucide="calendar" style="width: 18px; height: 18px;"></i>
+                    カレンダー
+                </a>
+            </li>
+            <li class="sidebar-item {% block nav_jobs %}{% endblock %}">
+                <a href="/jobs">
+                    <i data-lucide="git-pull-request" style="width: 18px; height: 18px;"></i>
+                    ジョブ定義
+                </a>
+            </li>
+            <li class="sidebar-item {% block nav_workers %}{% endblock %}">
+                <a href="/workers">
+                    <i data-lucide="cpu" style="width: 18px; height: 18px;"></i>
+                    ワーカー状態
+                </a>
+            </li>
+            <li class="sidebar-item {% block nav_worker_defs %}{% endblock %}">
+                <a href="/worker-definitions">
+                    <i data-lucide="server" style="width: 18px; height: 18px;"></i>
+                    ワーカー定義
+                </a>
+            </li>
+            <li class="sidebar-item {% block nav_settings %}{% endblock %}">
+                <a href="/settings">
+                    <i data-lucide="settings" style="width: 18px; height: 18px;"></i>
+                    システム設定
+                </a>
+            </li>
+        </ul>
+        <div class="sidebar-footer">
+            <span>Admin</span>
+            <a href="/logout" style="color: var(--text-muted); cursor: pointer;" hx-boost="false">
+                <i data-lucide="log-out" style="width: 16px; height: 16px;"></i>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+        // Initialize Lucide icons on page load and after HTMX swaps
+        function initIcons() {
+            lucide.createIcons();
+        }
+        document.addEventListener("DOMContentLoaded", initIcons);
+        document.addEventListener("htmx:afterSwap", initIcons);
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

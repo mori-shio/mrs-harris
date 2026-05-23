@@ -1,0 +1,25 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Config secrets (keep examples)
+config/controller.toml
+!config/examples/
+
+# Temporary and local debug files
+cookie.txt
+*.png

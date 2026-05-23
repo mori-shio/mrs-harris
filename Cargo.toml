@@ -1,0 +1,55 @@
+[workspace]
+members = ["crates/common", "crates/controller", "crates/worker"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Mrs. Harris Team"]
+license = "MIT"
+
+[workspace.dependencies]
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Date/Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# ID generation
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Database
+sqlx = { version = "0.8", features = [
+    "mysql",
+    "runtime-tokio",
+    "tls-rustls",
+    "migrate",
+    "chrono",
+    "uuid",
+    "json",
+] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Internal crates
+mrs-harris-common = { path = "crates/common" }
+
+[profile.release]
+opt-level = 3
+incremental = true
+codegen-units = 256
+

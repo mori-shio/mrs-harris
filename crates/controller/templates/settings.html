@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}システム設定 | Mrs. Harris{% endblock %}
+
+{% block nav_settings %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h2>システム設定</h2>
+        <p>Mrs. Harris コントローラーおよびプロバイダ(Fargate/Lambda/Lettre)の構成パラメータの参照と動作テスト</p>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 280px 1fr; gap: 24px; margin-top: 24px; align-items: start;">
+    
+    <!-- Sidebar Tabs -->
+    <div class="card" style="padding: 12px; display: flex; flex-direction: column; gap: 4px;">
+        <button class="tab-btn active" onclick="switchTab('tab-general')">
+            <i data-lucide="server" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+            一般 & データベース
+        </button>
+        <button class="tab-btn" onclick="switchTab('tab-scheduler')">
+            <i data-lucide="clock" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+            スケジューリング
+        </button>
+        <button class="tab-btn" onclick="switchTab('tab-aws')">
+            <i data-lucide="cloud" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+            AWS インフラ設定
+        </button>
+        <button class="tab-btn" onclick="switchTab('tab-auth-noti')">
+            <i data-lucide="bell" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+            認証 & 通知テスト
+        </button>
+    </div>
+
+    <!-- Tab Contents -->
+    <div class="tab-content-container">
+        
+        <!-- Tab: General -->
+        <div id="tab-general" class="tab-panel active">
+            <div class="card">
+                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; color: var(--color-primary); border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                    システム & サーバー設定
+                </h3>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="form-group">
+                        <label>ホストアドレス</label>
+                        <input type="text" class="form-control" value="{{ config.server.host }}" disabled style="opacity: 0.7;">
+                    </div>
+                    <div class="form-group">
+                        <label>稼働ポート</label>
+                        <input type="text" class="form-control" value="{{ config.server.port }}" disabled style="opacity: 0.7;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>外部コールバックURL (external_url)</label>
+                    <input type="text" class="form-control" value="{{ config.server.external_url }}" disabled style="opacity: 0.7;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">ワーカーが結果をコールバックするためのコントローラーの公開エンドポイントです。</span>
+                </div>
+
+                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-top: 32px; margin-bottom: 20px; color: var(--color-primary); border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                    データベース構成
+                </h3>
+                
+                <div class="form-group">
+                    <label>MySQL 接続文字列</label>
+                    <input type="text" class="form-control" value="{{ database_url_masked }}" disabled style="opacity: 0.7; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>最大接続プールサイズ (max_connections)</label>
+                    <input type="text" class="form-control" value="{{ config.database.max_connections }}" disabled style="opacity: 0.7; width: 120px;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Scheduler -->
+        <div id="tab-scheduler" class="tab-panel">
+            <div class="card">
+                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; color: var(--color-primary); border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                    スケジューリング間隔パラメータ
+                </h3>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="form-group">
+                        <label>ジョブポーリング間隔</label>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="text" class="form-control" value="{{ config.scheduler.poll_interval_sec }}" disabled style="opacity: 0.7; width: 100px;">
+                            <span style="color: var(--text-secondary);">秒</span>
+                        </div>
+                        <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; display: block;">
+                            DBから起動対象ジョブを検索しディスパッチする周期です。
+                        </span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>ゴーストワーカー回収間隔 (Reaper)</label>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="text" class="form-control" value="{{ config.scheduler.reaper_interval_sec }}" disabled style="opacity: 0.7; width: 100px;">
+                            <span style="color: var(--text-secondary);">秒</span>
+                        </div>
+                        <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; display: block;">
+                            応答の途絶えたワーカーや異常停止したコンテナを検知する周期です。
+                        </span>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 24px;">
+                    <label>デフォルトワーカーハートビート限界タイムアウト</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="text" class="form-control" value="{{ config.scheduler.worker_timeout_sec }}" disabled style="opacity: 0.7; width: 100px;">
+                        <span style="color: var(--text-secondary);">秒 ({{ config.scheduler.worker_timeout_sec / 60 }} 分)</span>
+                    </div>
+                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; display: block;">
+                        ワーカーのハートビートがこの秒数以上更新されない場合、自動的にタイムアウト失敗としてマークされます。
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: AWS -->
+        <div id="tab-aws" class="tab-panel">
+            <div class="card">
+                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; color: var(--color-primary); border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                    AWS Fargate 設定 (ECS)
+                </h3>
+                
+                <div class="form-group">
+                    <label>ECS クラスター ARN</label>
+                    <input type="text" class="form-control" value="{{ config.fargate.cluster_arn }}" disabled style="opacity: 0.7; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>タスク定義名 (Task Definition)</label>
+                    <input type="text" class="form-control" value="{{ config.fargate.task_definition }}" disabled style="opacity: 0.7; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 16px;">
+                    <div class="form-group">
+                        <label>VPC サブネット</label>
+                        <input type="text" class="form-control" value="{{ fargate_subnets }}" disabled style="opacity: 0.7; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
+                    </div>
+                    <div class="form-group">
+                        <label>セキュリティグループ</label>
+                        <input type="text" class="form-control" value="{{ fargate_sgs }}" disabled style="opacity: 0.7; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 16px;">
+                    <div class="form-group">
+                        <label>ワーカーコンテナ名</label>
+                        <input type="text" class="form-control" value="{{ config.fargate.container_name }}" disabled style="opacity: 0.7;">
+                    </div>
+                    <div class="form-group">
+                        <label>パブリック IP の割り当て</label>
+                        <input type="text" class="form-control" value="{% if config.fargate.assign_public_ip.unwrap_or(false) %}ENABLED{% else %}DISABLED{% endif %}" disabled style="opacity: 0.7; font-weight: 600;">
+                    </div>
+                </div>
+
+                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-top: 36px; margin-bottom: 20px; color: var(--color-primary); border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                    AWS Lambda 設定
+                </h3>
+
+                <div class="form-group">
+                    <label>ターゲット Lambda 関数名 (Function Name)</label>
+                    <input type="text" class="form-control" value="{{ config.lambda.function_name }}" disabled style="opacity: 0.7; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>エイリアス / バージョン修飾子 (Qualifier)</label>
+                    <input type="text" class="form-control" value="{% if config.lambda.qualifier.is_some() %}{{ config.lambda.qualifier.as_ref().unwrap() }}{% else %}LATEST{% endif %}" disabled style="opacity: 0.7; width: 180px;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Auth & Notification -->
+        <div id="tab-auth-noti" class="tab-panel">
+            <div class="card">
+                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; color: var(--color-primary); border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                    Web 管理認証パラメータ
+                </h3>
+                
+                <div class="form-group">
+                    <label>JWT 有効期限時間 (jwt_expiry_hours)</label>
+                    <input type="text" class="form-control" value="{{ config.auth.jwt_expiry_hours }} 時間" disabled style="opacity: 0.7; width: 120px;">
+                </div>
+
+                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-top: 36px; margin-bottom: 20px; color: var(--color-primary); border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                    Slack 通知構成 (Incoming Webhook)
+                </h3>
+
+                <form hx-post="/settings/slack" hx-target="#slack-save-result" hx-swap="outerHTML" style="margin-bottom: 32px;">
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px;">
+                        Webhook URL を直接入力するか、SSM Parameter Store から取得するように設定できます（SSMパラメータを使用する場合は、適切なAWS認証情報が必要です）。
+                    </p>
+
+                    <div class="form-group">
+                        <label for="slack_webhook_url">Slack Webhook URL (直接入力)</label>
+                        <input type="text" id="slack_webhook_url" name="webhook_url" class="form-control" placeholder="https://hooks.slack.com/services/..." value="{{ slack_webhook_url }}" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+                        <div class="form-group">
+                            <label for="slack_ssm_path">SSM パラメータパス (SSMから取得する場合)</label>
+                            <input type="text" id="slack_ssm_path" name="ssm_parameter_path" class="form-control" placeholder="/prod/slack/webhook_url" value="{{ slack_ssm_path }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="slack_ssm_region">SSM AWS リージョン</label>
+                            <input type="text" id="slack_ssm_region" name="ssm_region" class="form-control" placeholder="ap-northeast-1" value="{{ slack_ssm_region }}">
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+                        <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="save" style="width: 16px; height: 16px;"></i>
+                            Slack設定を保存
+                        </button>
+                    </div>
+                </form>
+
+                <div id="slack-save-result"></div>
+
+                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-top: 36px; margin-bottom: 20px; color: var(--color-primary); border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                    SMTP 電子メール通知構成 (Lettre)
+                </h3>
+
+                {% if config.notification.email.is_none() %}
+                <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; padding: 16px; color: #fca5a5; font-size: 0.9rem;">
+                    <i data-lucide="alert-circle" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+                    SMTP 設定が定義されていません。ジョブ実行失敗時のメール通知は動作しません。
+                </div>
+                {% else %}
+                {% let email = config.notification.email.as_ref().unwrap() %}
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+                    <div class="form-group">
+                        <label>SMTP ホスト</label>
+                        <input type="text" class="form-control" value="{{ email.smtp_host }}" disabled style="opacity: 0.7; font-family: 'JetBrains Mono', monospace;">
+                    </div>
+                    <div class="form-group">
+                        <label>ポート</label>
+                        <input type="text" class="form-control" value="{{ email.smtp_port }}" disabled style="opacity: 0.7;">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>送信元アドレス (From)</label>
+                    <input type="text" class="form-control" value="{{ email.from_address }}" disabled style="opacity: 0.7; font-family: 'JetBrains Mono', monospace;">
+                </div>
+
+                <!-- Email testing form -->
+                <div style="margin-top: 28px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 24px;">
+                    <h4 style="font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: var(--text-secondary);">メール通知のテスト送信</h4>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px;">
+                        定義されているSMTPホストを使用してテストメールを宛先に送信し、構成が正常に動作するか確認します。
+                    </p>
+                    
+                    <form hx-post="/settings/test-email" hx-target="#email-test-result" hx-swap="outerHTML" style="display: flex; gap: 12px; align-items: flex-end;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label for="test_to_address">宛先メールアドレス</label>
+                            <input type="email" id="test_to_address" name="to_address" class="form-control" placeholder="test@example.com" required style="max-width: 400px;">
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="send" style="width: 16px; height: 16px;"></i>
+                            テスト送信
+                        </button>
+                    </form>
+
+                    <!-- HTMX result area -->
+                    <div id="email-test-result" style="margin-top: 16px;"></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<style>
+    /* Tabs styling */
+    .tab-btn {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: var(--text-secondary);
+        padding: 12px 16px;
+        text-align: left;
+        border-radius: 6px;
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.95rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+    }
+    
+    .tab-btn:hover {
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text-primary);
+    }
+    
+    .tab-btn.active {
+        background: rgba(var(--color-primary-rgb), 0.08);
+        color: var(--color-primary);
+        font-weight: 600;
+        box-shadow: inset 2px 0 0 var(--color-primary);
+        border-radius: 0 6px 6px 0;
+    }
+    
+    /* Panels */
+    .tab-panel {
+        display: none;
+    }
+    
+    .tab-panel.active {
+        display: block;
+        animation: fadeIn 0.3s ease;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<script>
+    function switchTab(tabId) {
+        // Toggle tab buttons
+        const buttons = document.querySelectorAll('.tab-btn');
+        buttons.forEach(btn => {
+            if (btn.getAttribute('onclick').includes(tabId)) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        
+        // Toggle panels
+        const panels = document.querySelectorAll('.tab-panel');
+        panels.forEach(panel => {
+            if (panel.id === tabId) {
+                panel.classList.add('active');
+            } else {
+                panel.classList.remove('active');
+            }
+        });
+
+        // Initialize icons on lazy tab switch
+        lucide.createIcons();
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,413 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}ジョブ編集{% else %}新規ジョブ作成{% endif %} | Mrs. Harris{% endblock %}
+
+{% block nav_jobs %}active{% endblock %}
+
+{% block head %}
+<style>
+    /* Switch / Toggle styles */
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 48px;
+        height: 24px;
+    }
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255, 255, 255, 0.08);
+        transition: .3s;
+        border: 1px solid var(--border-color);
+    }
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 3px;
+        bottom: 3px;
+        background-color: var(--text-secondary);
+        transition: .3s;
+    }
+    input:checked + .slider {
+        background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+        border-color: transparent;
+    }
+    input:checked + .slider:before {
+        transform: translateX(24px);
+        background-color: #fff;
+    }
+    .slider.round {
+        border-radius: 24px;
+    }
+    .slider.round:before {
+        border-radius: 50%;
+    }
+
+    /* Section premium styles */
+    .form-section {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        border-radius: var(--radius-md);
+        padding: 24px;
+        margin-bottom: 28px;
+        backdrop-filter: var(--glass-blur);
+    }
+    .section-title {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--color-primary);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding-bottom: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Breadcrumbs -->
+<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
+    <a href="/" style="color: var(--text-muted); text-decoration: none;">ホーム</a>
+    <span style="margin: 0 8px;">/</span>
+    <a href="/jobs" style="color: var(--text-muted); text-decoration: none;">ジョブ定義</a>
+    <span style="margin: 0 8px;">/</span>
+    <span style="color: var(--text-primary);">{% if is_edit %}編集: {{ name }}{% else %}新規作成{% endif %}</span>
+</nav>
+
+<div class="page-header" style="margin-bottom: 24px;">
+    <div class="page-title">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <a href="{% if is_edit %}/jobs/{{ job_id.unwrap() }}{% else %}/jobs{% endif %}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
+                <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+            </a>
+            <h2>{% if is_edit %}ジョブ定義編集{% else %}新規ジョブ作成{% endif %}</h2>
+        </div>
+        <p style="margin-left: 32px;">ジョブの動作方法、起動ワーカー、スケジュール、環境変数等の詳細設定</p>
+    </div>
+</div>
+
+<div class="card" style="max-width: 850px; margin: 0 auto; padding: 32px;">
+    <form action="{% if is_edit %}/jobs/{{ job_id.unwrap() }}/edit{% else %}/jobs/new{% endif %}" method="POST" hx-boost="false">
+        
+        <!-- Header with Toggle Switch -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; background: rgba(255,255,255,0.02); padding: 16px 24px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.04);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="info" style="width: 20px; height: 20px; color: var(--color-primary);"></i>
+                <span style="font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 1.05rem;">ジョブステータス設定</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">ジョブの有効化</span>
+                <label class="switch">
+                    <input type="checkbox" id="is_active" name="is_active" {% if is_active %}checked{% endif %}>
+                    <span class="slider round"></span>
+                </label>
+            </div>
+        </div>
+
+        <!-- # 基本情報 -->
+        <div class="form-section">
+            <h3 class="section-title">
+                <i data-lucide="file-text" style="width: 18px; height: 18px;"></i>
+                基本情報
+            </h3>
+            
+            <div class="form-group">
+                <label for="name">ジョブ名 <span style="color: var(--color-danger);">*</span></label>
+                <input type="text" id="name" name="name" class="form-control" placeholder="my_backup_job" required value="{{ name }}">
+                <span style="font-size: 0.8rem; color: var(--text-muted);">一意である必要があります。スペースや特殊文字は避け、スネークケースを推奨します。</span>
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="description">説明</label>
+                <textarea id="description" name="description" class="form-control" style="min-height: 80px;" placeholder="ジョブの説明を入力してください...">{{ description }}</textarea>
+            </div>
+
+            <!-- ワーカー (起動タイプ) -->
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="worker_definition_id">実行ワーカー (ノード定義) <span style="color: var(--color-danger);">*</span></label>
+                <select id="worker_definition_id" name="worker_definition_id" class="form-control" required>
+                    {% for def in worker_defs %}
+                    <option value="{{ def.id.to_string() }}" {% if def.id.to_string() == worker_definition_id %}selected{% endif %}>
+                        {{ def.name }} ({% if def.worker_type.to_string() == "fargate" %}Fargate{% else %}Lambda{% endif %}) {% if let Some(desc) = def.description.as_ref() %}- {{ desc }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">ジョブを実行するワーカーノード（自作ワーカー定義）を指定します。</span>
+            </div>
+
+            <!-- ジョブタイプ (OneShot -> Cron -> DAG の順序に修正) -->
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="job_type">ジョブタイプ</label>
+                <select id="job_type" name="job_type" class="form-control" onchange="toggleJobTypeFields()" {% if is_edit %}disabled{% endif %}>
+                    <option value="one_shot" {% if job_type == "one_shot" %}selected{% endif %}>OneShot (単発/手動実行)</option>
+                    <option value="cron" {% if job_type == "cron" %}selected{% endif %}>Cron (定期実行)</option>
+                    <option value="dag" {% if job_type == "dag" %}selected{% endif %}>DAG (タスクパイプライン)</option>
+                </select>
+                {% if is_edit %}
+                <input type="hidden" name="job_type" value="{{ job_type }}">
+                {% endif %}
+            </div>
+
+            <!-- Cron Fields -->
+            <div class="form-group" id="cron-fields" style="margin-top: 20px; display: none;">
+                <label for="schedule_expr">Cron スケジュール式 <span style="color: var(--color-danger);">*</span></label>
+                <input type="text" id="schedule_expr" name="schedule_expr" class="form-control" placeholder="0 0 * * *" value="{{ schedule_expr }}">
+                <span style="font-size: 0.8rem; color: var(--text-muted);">
+                    標準的な 5 フィールドまたは 6 フィールドの CRON 形式 (例: `0 0 * * *` = 毎日深夜0時)
+                </span>
+            </div>
+        </div>
+
+        <!-- # 環境変数 (DAG でも表示されるようにJSで制御) -->
+        <div class="form-section" id="env-section">
+            <h3 class="section-title">
+                <i data-lucide="layers" style="width: 18px; height: 18px;"></i>
+                環境変数
+            </h3>
+
+            <div class="form-group">
+                <label for="env">直接入力 (KEY=VALUE 形式、改行区切り)</label>
+                <textarea id="env" name="env" class="form-control" style="min-height: 100px; font-family: 'JetBrains Mono', monospace;" placeholder="DB_HOST=db.local&#10;PORT=5432">{{ env }}</textarea>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius-sm); padding: 18px; margin-top: 20px;">
+                <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
+                    <i data-lucide="shield-alert" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+                    AWS SSM パラメータストアからインジェクト
+                </h4>
+                
+                <div class="form-group">
+                    <label for="ssm_region">AWS リージョン</label>
+                    <input type="text" id="ssm_region" name="ssm_region" class="form-control" placeholder="ap-northeast-1" value="{{ ssm_region }}">
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label for="ssm_path">パラメータパス</label>
+                    <input type="text" id="ssm_path" name="ssm_path" class="form-control" placeholder="/prod/app/" value="{{ ssm_path }}">
+                </div>
+
+                <div style="margin-top: 16px; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="ssm_recursive" name="ssm_recursive" style="width: 16px; height: 16px; cursor: pointer;" {% if ssm_recursive %}checked{% endif %}>
+                    <label for="ssm_recursive" style="font-weight: 500; cursor: pointer; margin-bottom: 0; user-select: none; font-size: 0.85rem; color: var(--text-secondary);">再帰的に取得する (Recursive)</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- # オプション -->
+        <div class="form-section">
+            <h3 class="section-title">
+                <i data-lucide="sliders" style="width: 18px; height: 18px;"></i>
+                オプション設定
+            </h3>
+
+            <div class="form-group">
+                <label for="timeout_sec">タイムアウト設定 (秒)</label>
+                <input type="number" id="timeout_sec" name="timeout_sec" class="form-control" min="0" max="86400" value="{{ timeout_sec }}">
+                <span style="font-size: 0.8rem; color: var(--text-muted);">※「0」に設定すると無制限になります。</span>
+            </div>
+
+            <!-- リトライを有効化の「有効化 (◯---)」左寄せレイアウト -->
+            <div class="form-group" style="margin-top: 24px;">
+                <label style="font-weight: 600; display: block; margin-bottom: 8px;">リトライ</label>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <label class="switch">
+                        <input type="checkbox" id="has_retry" name="has_retry" onchange="toggleRetryFields()" {% if has_retry %}checked{% endif %}>
+                        <span class="slider round"></span>
+                    </label>
+                    <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">有効化</span>
+                </div>
+                <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 6px;">ジョブが異常終了した際、自動リトライを実行します。</span>
+            </div>
+
+            <!-- Retry policy fields -->
+            <div id="retry-fields" style="display: none; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius-sm); padding: 18px; margin-top: 16px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="form-group">
+                        <label for="max_retries">最大リトライ回数</label>
+                        <input type="number" id="max_retries" name="max_retries" class="form-control" min="1" max="10" value="{{ max_retries }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="base_delay_sec">初期リトライ遅延 (秒)</label>
+                        <input type="number" id="base_delay_sec" name="base_delay_sec" class="form-control" min="1" max="3600" value="{{ base_delay_sec }}">
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
+                    <label for="backoff">リトライバックオフ戦略</label>
+                    <select id="backoff" name="backoff" class="form-control">
+                        <option value="fixed" {% if backoff == "fixed" %}selected{% endif %}>固定遅延 (Fixed)</option>
+                        <option value="linear" {% if backoff == "linear" %}selected{% endif %}>線形バックオフ (Linear)</option>
+                        <option value="exponential" {% if backoff == "exponential" %}selected{% endif %}>指数バックオフ (Exponential)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="tags_str">タグ (カンマ区切り)</label>
+                <input type="text" id="tags_str" name="tags_str" class="form-control" placeholder="prod, backup, sql" value="{{ tags_str }}">
+            </div>
+        </div>
+
+        <!-- # シェルコマンド (Non-DAG) -->
+        <div class="form-section" id="payload-fields">
+            <h3 class="section-title">
+                <i data-lucide="terminal" style="width: 18px; height: 18px;"></i>
+                シェルコマンド
+            </h3>
+            
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="script">実行するシェルスクリプト (複数行可能)</label>
+                <textarea id="script" name="script" class="form-control" style="min-height: 180px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;" placeholder="#!/bin/bash&#10;echo 'Hello, Mrs. Harris!'&#10;sleep 2&#10;echo 'Done.'">{{ script }}</textarea>
+                <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 8px;">
+                    コマンド、引数を1つのテキストボックスにそのまま記述できます。複数行のスクリプトも記述可能です。
+                </span>
+            </div>
+        </div>
+
+        <!-- # Slack通知設定 (シェルコマンドの下に追加) -->
+        <div class="form-section">
+            <h3 class="section-title">
+                <i data-lucide="bell" style="width: 18px; height: 18px;"></i>
+                Slack通知
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                ジョブの実行ステータス変更時に Slack で通知を受け取るイベントを選択します（事前にシステム設定で Slack Webhook URL の設定が必要です）。
+            </p>
+            <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="slack_on_running" name="slack_on_running" style="width: 18px; height: 18px; cursor: pointer;" {% if slack_on_running %}checked{% endif %}>
+                    <label for="slack_on_running" style="font-weight: 500; cursor: pointer; margin-bottom: 0; user-select: none;">実行時 (開始時)</label>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="slack_on_succeeded" name="slack_on_succeeded" style="width: 18px; height: 18px; cursor: pointer;" {% if slack_on_succeeded %}checked{% endif %}>
+                    <label for="slack_on_succeeded" style="font-weight: 500; cursor: pointer; margin-bottom: 0; user-select: none;">成功時</label>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="slack_on_failed" name="slack_on_failed" style="width: 18px; height: 18px; cursor: pointer;" {% if slack_on_failed %}checked{% endif %}>
+                    <label for="slack_on_failed" style="font-weight: 500; cursor: pointer; margin-bottom: 0; user-select: none;">失敗時 (リトライ失敗含む)</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- DAG Task List Setup (DAG) -->
+        <div class="form-section" id="dag-fields" style="display: none;">
+            <h3 class="section-title">
+                <i data-lucide="git-branch" style="width: 18px; height: 18px;"></i>
+                DAG タスク定義
+            </h3>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                タスク間の依存関係を含めたDAG構造を JSON 配列形式で定義してください。
+            </p>
+            <div class="form-group" style="margin-bottom: 0;">
+                <textarea id="dag_tasks_json" name="dag_tasks_json" class="form-control" style="min-height: 280px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;" placeholder='[
+  {
+    "name": "task1",
+    "worker_type": "lambda",
+    "payload": {
+      "command": "echo",
+      "args": ["Hello from Task 1"]
+    },
+    "depends_on": []
+  },
+  {
+    "name": "task2",
+    "worker_type": "fargate",
+    "payload": {
+      "command": "echo",
+      "args": ["Hello from Task 2"]
+    },
+    "depends_on": ["task1"]
+  }
+]'>{{ dag_tasks_json }}</textarea>
+            </div>
+        </div>
+
+        <!-- Form Buttons -->
+        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 36px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 24px;">
+            <a href="{% if is_edit %}/jobs/{{ job_id.unwrap() }}{% else %}/jobs{% endif %}" class="btn btn-secondary" hx-boost="true">キャンセル</a>
+            <button type="submit" class="btn btn-primary" style="padding: 10px 30px;">
+                <i data-lucide="save" style="width: 18px; height: 18px;"></i>
+                保存する
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    function toggleJobTypeFields() {
+        const typeSelect = document.getElementById('job_type');
+        const selected = typeSelect.value;
+        
+        const cronFields = document.getElementById('cron-fields');
+        const payloadFields = document.getElementById('payload-fields');
+        const dagFields = document.getElementById('dag-fields');
+        const envSection = document.getElementById('env-section');
+        
+        const cronInput = document.getElementById('schedule_expr');
+        const scriptInput = document.getElementById('script');
+        const dagTextarea = document.getElementById('dag_tasks_json');
+        
+        // 環境変数欄は DAG でも表示させるようにする
+        if (selected === 'cron') {
+            cronFields.style.display = 'block';
+            payloadFields.style.display = 'block';
+            dagFields.style.display = 'none';
+            envSection.style.display = 'block';
+            
+            cronInput.setAttribute('required', 'required');
+            scriptInput.setAttribute('required', 'required');
+            dagTextarea.removeAttribute('required');
+        } else if (selected === 'one_shot') {
+            cronFields.style.display = 'none';
+            payloadFields.style.display = 'block';
+            dagFields.style.display = 'none';
+            envSection.style.display = 'block';
+            
+            cronInput.removeAttribute('required');
+            scriptInput.setAttribute('required', 'required');
+            dagTextarea.removeAttribute('required');
+        } else if (selected === 'dag') {
+            cronFields.style.display = 'none';
+            payloadFields.style.display = 'none';
+            dagFields.style.display = 'block';
+            envSection.style.display = 'block'; // DAGの時も環境変数欄を表示
+            
+            cronInput.removeAttribute('required');
+            scriptInput.removeAttribute('required');
+            dagTextarea.setAttribute('required', 'required');
+        }
+    }
+    
+    function toggleRetryFields() {
+        const hasRetryCheckbox = document.getElementById('has_retry');
+        const retryFields = document.getElementById('retry-fields');
+        
+        if (hasRetryCheckbox.checked) {
+            retryFields.style.display = 'block';
+        } else {
+            retryFields.style.display = 'none';
+        }
+    }
+    
+    // Initial triggers
+    document.addEventListener("DOMContentLoaded", function() {
+        toggleJobTypeFields();
+        toggleRetryFields();
+    });
+</script>
+{% endblock %}

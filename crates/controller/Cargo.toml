@@ -1,0 +1,56 @@
+[package]
+name = "mrs-harris-controller"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "mrs-harris"
+path = "src/main.rs"
+
+[dependencies]
+mrs-harris-common = { workspace = true }
+mrs-harris-worker = { path = "../worker" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tokio = { workspace = true }
+sqlx = { workspace = true }
+reqwest = { workspace = true }
+
+# Web
+axum = { version = "0.8", features = ["ws"] }
+axum-extra = { version = "0.10", features = ["cookie", "typed-header"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
+
+# Scheduling
+cron = "0.15"
+
+# DAG
+petgraph = { version = "0.8", features = ["serde-1"] }
+
+# Templates
+askama = "0.13"
+toml = { workspace = true }
+
+# AWS SDK
+aws-config = "1"
+aws-sdk-ecs = "1"
+aws-sdk-lambda = "1"
+aws-sdk-ssm = "1"
+
+# Auth
+argon2 = "0.5"
+jsonwebtoken = "9"
+time = "0.3"
+
+# Notification
+lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }

@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}カレンダー | Mrs. Harris{% endblock %}
+
+{% block nav_calendar %}active{% endblock %}
+
+{% block content %}
+<style>
+    /* Premium style enhancements for FullCalendar */
+    .calendar-container {
+        margin-top: 24px;
+        background: var(--bg-card);
+        backdrop-filter: var(--glass-blur);
+        -webkit-backdrop-filter: var(--glass-blur);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        padding: 30px;
+    }
+    
+    .fc {
+        --fc-border-color: rgba(255, 255, 255, 0.08);
+        --fc-daygrid-event-dot-width: 8px;
+        --fc-today-bg-color: rgba(14, 165, 233, 0.05);
+        color: var(--text-primary);
+        font-family: inherit;
+    }
+
+    .fc .fc-toolbar-title {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .fc .fc-button-primary {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-color: var(--border-color);
+        color: var(--text-primary);
+        font-weight: 600;
+        transition: var(--transition-smooth);
+    }
+
+    .fc .fc-button-primary:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .fc .fc-button-primary:disabled {
+        background-color: rgba(255, 255, 255, 0.02);
+        border-color: var(--border-color);
+        opacity: 0.5;
+    }
+
+    .fc .fc-button-active {
+        background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%) !important;
+        border-color: transparent !important;
+        box-shadow: 0 4px 10px rgba(14, 165, 233, 0.3) !important;
+    }
+
+    .fc-theme-standard .fc-scrollgrid {
+        border-color: rgba(255, 255, 255, 0.08);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+    }
+
+    .fc-col-header-cell {
+        background-color: rgba(15, 23, 42, 0.4);
+    }
+
+    .fc-event {
+        cursor: pointer;
+        padding: 4px 8px !important;
+        border-radius: 6px !important;
+        font-size: 0.8rem !important;
+        font-weight: 600 !important;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15) !important;
+        border: 1px solid transparent !important;
+        transition: var(--transition-smooth);
+    }
+
+    .fc-event:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25) !important;
+        filter: brightness(1.1);
+    }
+
+    .event-succeeded {
+        background-color: rgba(16, 185, 129, 0.15) !important;
+        border-color: rgba(16, 185, 129, 0.3) !important;
+        color: #34d399 !important;
+    }
+
+    .event-failed {
+        background-color: rgba(244, 63, 94, 0.15) !important;
+        border-color: rgba(244, 63, 94, 0.3) !important;
+        color: #fb7185 !important;
+    }
+
+    .event-running {
+        background-color: rgba(59, 130, 246, 0.15) !important;
+        border-color: rgba(59, 130, 246, 0.3) !important;
+        color: #60a5fa !important;
+    }
+
+    .event-pending, .event-queued, .event-scheduled {
+        background-color: rgba(148, 163, 184, 0.1) !important;
+        border-color: rgba(148, 163, 184, 0.2) !important;
+        color: #cbd5e1 !important;
+    }
+
+    .fc-day-other {
+        background-color: rgba(0, 0, 0, 0.05);
+        opacity: 0.4;
+    }
+</style>
+
+<div class="page-header">
+    <div class="page-title">
+        <h2>実行カレンダー</h2>
+        <p>ジョブのスケジュールと過去の実行履歴をタイムラインで可視化</p>
+    </div>
+</div>
+
+<div class="calendar-container">
+    <div id="calendar"></div>
+</div>
+
+<script>
+(function() {
+    // Dynamically inject FullCalendar CSS if not already present
+    if (!document.querySelector('link[href*="fullcalendar"]')) {
+        var cssLink = document.createElement('link');
+        cssLink.rel = 'stylesheet';
+        cssLink.href = 'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.min.css';
+        document.head.appendChild(cssLink);
+    }
+
+    function initCalendar() {
+        var calendarEl = document.getElementById('calendar');
+        if (!calendarEl) return;
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'ja',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            },
+            buttonText: {
+                today: '今日',
+                month: '月',
+                week: '週',
+                day: '日'
+            },
+            firstDay: 1,
+            height: 'auto',
+            editable: false,
+            selectable: false,
+            events: function(info, successCallback, failureCallback) {
+                var from = info.start.toISOString();
+                var to = info.end.toISOString();
+                
+                fetch('/api/calendar/events?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to))
+                    .then(function(response) {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        var events = data.map(function(entry) {
+                            var start = entry.started_at || entry.scheduled_at;
+                            var end = entry.finished_at || null;
+                            
+                            var classNames = [];
+                            if (entry.status === 'succeeded') {
+                                classNames.push('event-succeeded');
+                            } else if (entry.status === 'failed' || entry.status === 'dead_letter') {
+                                classNames.push('event-failed');
+                            } else if (entry.status === 'running') {
+                                classNames.push('event-running');
+                            } else {
+                                classNames.push('event-pending');
+                            }
+
+                            var title = entry.job_name;
+                            if (entry.duration_ms) {
+                                var sec = (entry.duration_ms / 1000).toFixed(1);
+                                title += ' (' + sec + '秒)';
+                            }
+
+                            return {
+                                id: entry.run_id,
+                                title: title,
+                                start: start,
+                                end: end,
+                                classNames: classNames,
+                                extendedProps: {
+                                    jobId: entry.job_id,
+                                    status: entry.status
+                                }
+                            };
+                        });
+                        successCallback(events);
+                    })
+                    .catch(function(error) {
+                        console.error('Error fetching calendar events:', error);
+                        failureCallback(error);
+                    });
+            },
+            eventClick: function(info) {
+                window.location.href = '/runs/' + info.event.id;
+            }
+        });
+        calendar.render();
+    }
+
+    // Load FullCalendar JS dynamically if not already loaded
+    function loadAndInit() {
+        if (typeof FullCalendar !== 'undefined') {
+            initCalendar();
+        } else {
+            var script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js';
+            script.onload = function() {
+                initCalendar();
+            };
+            document.head.appendChild(script);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadAndInit);
+    } else {
+        loadAndInit();
+    }
+})();
+</script>
+{% endblock %}

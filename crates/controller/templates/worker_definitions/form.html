@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}ワーカー定義編集{% else %}新規ワーカー定義作成{% endif %} | Mrs. Harris{% endblock %}
+
+{% block nav_worker_defs %}active{% endblock %}
+
+{% block head %}
+<style>
+    /* Toggle switch styles */
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 48px;
+        height: 24px;
+    }
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255, 255, 255, 0.08);
+        transition: .3s;
+        border: 1px solid var(--border-color);
+    }
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 3px;
+        bottom: 3px;
+        background-color: var(--text-secondary);
+        transition: .3s;
+    }
+    input:checked + .slider {
+        background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+        border-color: transparent;
+    }
+    input:checked + .slider:before {
+        transform: translateX(24px);
+        background-color: #fff;
+    }
+    .slider.round {
+        border-radius: 24px;
+    }
+    .slider.round:before {
+        border-radius: 50%;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Breadcrumbs -->
+<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
+    <a href="/" style="color: var(--text-muted); text-decoration: none;">ホーム</a>
+    <span style="margin: 0 8px;">/</span>
+    <a href="/worker-definitions" style="color: var(--text-muted); text-decoration: none;">ワーカー定義</a>
+    <span style="margin: 0 8px;">/</span>
+    <span style="color: var(--text-primary);">{% if is_edit %}編集{% else %}新規作成{% endif %}</span>
+</nav>
+
+<div class="page-header">
+    <div class="page-title">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <a href="{% if is_edit %}/worker-definitions/{{ def_id.unwrap() }}{% else %}/worker-definitions{% endif %}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
+                <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+            </a>
+            <h2>{% if is_edit %}ワーカー定義編集{% else %}新規ワーカー定義作成{% endif %}</h2>
+        </div>
+        <p style="margin-left: 32px;">自作ワーカーノード（Node/Slave）のタイプ、起動パラメータ、AWS接続設定</p>
+    </div>
+</div>
+
+<div class="card" style="max-width: 800px; margin: 0 auto; padding: 32px;">
+    <form action="{% if is_edit %}/worker-definitions/{{ def_id.unwrap() }}/edit{% else %}/worker-definitions/new{% endif %}" method="POST" hx-boost="false">
+        
+        <!-- Status Switch Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; background: rgba(255,255,255,0.02); padding: 16px 24px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.04);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="shield" style="width: 20px; height: 20px; color: var(--color-primary);"></i>
+                <span style="font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 1.05rem;">ノード有効化設定</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">このノードを有効化</span>
+                <label class="switch">
+                    <input type="checkbox" id="is_active" name="is_active" {% if is_active %}checked{% endif %}>
+                    <span class="slider round"></span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Name & Description -->
+        <div class="form-group">
+            <label for="name">ノード名 (一意) <span style="color: var(--color-danger);">*</span></label>
+            <input type="text" id="name" name="name" class="form-control" placeholder="fargate-tokio-prod" required value="{{ name }}" {% if is_edit %}disabled{% endif %}>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">ワーカーを識別するユニークな名前（スペースなし、スネークケースまたはハイフン接続）</span>
+        </div>
+
+        <div class="form-group">
+            <label for="description">ノードの説明</label>
+            <textarea id="description" name="description" class="form-control" style="min-height: 80px;" placeholder="本番用のFargateタスクで構成されたワーカーノード...">{{ description }}</textarea>
+        </div>
+
+        <div class="form-group" style="margin-top: 20px;">
+            <label for="worker_type">ワーカーのバックエンド種別</label>
+            <select id="worker_type" name="worker_type" class="form-control" onchange="updateConfigPlaceholder()">
+                <option value="fargate" {% if worker_type == "fargate" %}selected{% endif %}>AWS Fargate (サーバーレスコンテナ)</option>
+                <option value="lambda" {% if worker_type == "lambda" %}selected{% endif %}>AWS Lambda (サーバーレス関数)</option>
+            </select>
+        </div>
+
+        <!-- Connection Config JSON -->
+        <div class="form-group" style="margin-top: 24px;">
+            <label for="config_json">ワーカー接続構成 (JSON 形式) <span style="color: var(--color-danger);">*</span></label>
+            <textarea id="config_json" name="config_json" class="form-control" style="min-height: 240px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;" required>{{ config_json }}</textarea>
+            <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 8px;">
+                Fargate または Lambda の接続設定を JSON 形式で入力してください。上のセレクトボックスでデフォルトテンプレートが自動選択されます。
+            </span>
+        </div>
+
+        <!-- Buttons -->
+        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 36px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 24px;">
+            <a href="/worker-definitions" class="btn btn-secondary">キャンセル</a>
+            <button type="submit" class="btn btn-primary" style="padding: 10px 30px;">
+                <i data-lucide="save" style="width: 18px; height: 18px;"></i>
+                保存する
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    const fargatePlaceholder = `{
+  "cluster_arn": "arn:aws:ecs:ap-northeast-1:ACCOUNT_ID:cluster/mrs-harris",
+  "task_definition": "mrs-harris-worker:1",
+  "subnets": ["subnet-12345678", "subnet-87654321"],
+  "security_groups": ["sg-12345678"],
+  "container_name": "mrs-harris-worker",
+  "assign_public_ip": true
+}`;
+
+    const lambdaPlaceholder = `{
+  "function_name": "mrs-harris-lambda-worker",
+  "qualifier": "LATEST"
+}`;
+
+    function updateConfigPlaceholder() {
+        const type = document.getElementById('worker_type').value;
+        const configTextarea = document.getElementById('config_json');
+        
+        // 編集画面でない（新規作成）場合、デフォルト値に差し替える
+        if (!configTextarea.value.trim() || configTextarea.value === fargatePlaceholder || configTextarea.value === lambdaPlaceholder) {
+            if (type === 'fargate') {
+                configTextarea.value = fargatePlaceholder;
+            } else {
+                configTextarea.value = lambdaPlaceholder;
+            }
+        }
+    }
+</script>
+{% endblock %}

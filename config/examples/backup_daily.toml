@@ -1,0 +1,29 @@
+# 日次データベースバックアップジョブ
+
+[job]
+name = "daily-database-backup"
+description = "データベースの日次バックアップを実行"
+job_type = "cron"
+schedule = "0 2 * * *"    # 毎日 AM 2:00
+worker_type = "fargate"
+
+[job.payload]
+command = "/opt/scripts/backup.sh"
+args = ["--full", "--compress"]
+working_dir = "/opt/backups"
+
+[job.payload.env]
+BACKUP_RETENTION = "30"
+S3_BUCKET = "my-backups"
+
+[job.retry]
+max_retries = 3
+backoff = "exponential"
+base_delay_sec = 30
+
+[job.timeout]
+seconds = 7200
+
+[job.notifications]
+channels = ["ops-slack"]
+on_events = ["failed", "dead_letter"]

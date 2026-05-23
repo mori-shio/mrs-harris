@@ -1,0 +1,54 @@
+# ETL パイプライン（DAG ワークフロー）
+
+[job]
+name = "daily-etl-pipeline"
+description = "日次 ETL パイプライン: 抽出 → 変換 → ロード"
+job_type = "dag"
+schedule = "0 6 * * *"    # 毎日 AM 6:00
+
+[[job.tasks]]
+name = "extract"
+worker_type = "fargate"
+
+[job.tasks.payload]
+command = "python3"
+args = ["scripts/extract.py"]
+
+[[job.tasks]]
+name = "transform-users"
+worker_type = "lambda"
+depends_on = ["extract"]
+
+[job.tasks.payload]
+command = "python3"
+args = ["scripts/transform_users.py"]
+
+[[job.tasks]]
+name = "transform-orders"
+worker_type = "lambda"
+depends_on = ["extract"]
+
+[job.tasks.payload]
+command = "python3"
+args = ["scripts/transform_orders.py"]
+
+[[job.tasks]]
+name = "load"
+worker_type = "fargate"
+depends_on = ["transform-users", "transform-orders"]
+
+[job.tasks.payload]
+command = "python3"
+args = ["scripts/load.py"]
+
+[job.retry]
+max_retries = 2
+backoff = "exponential"
+base_delay_sec = 60
+
+[job.timeout]
+seconds = 3600
+
+[job.notifications]
+channels = ["data-team-slack", "data-team-email"]
+on_events = ["failed", "succeeded"]

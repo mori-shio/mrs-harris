@@ -1,0 +1,131 @@
+<div id="dashboard-live" hx-get="/dashboard/live" hx-trigger="every 5s" hx-swap="outerHTML">
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+        <!-- Active Jobs -->
+        <div class="card stat-card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div class="stat-label">有効なジョブ定義</div>
+                <i data-lucide="git-pull-request" style="color: var(--color-primary); width: 20px; height: 20px;"></i>
+            </div>
+            <div class="stat-value">{{ active_jobs_count }}</div>
+            <div class="stat-meta" style="color: var(--text-muted);">
+                全 {{ total_jobs_count }} ジョブ定義中
+            </div>
+        </div>
+
+        <!-- Today's Runs -->
+        <div class="card stat-card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div class="stat-label">本日の実行回数</div>
+                <i data-lucide="play-circle" style="color: var(--color-secondary); width: 20px; height: 20px;"></i>
+            </div>
+            <div class="stat-value">{{ today_runs_count }}</div>
+            <div class="stat-meta" style="color: var(--text-muted);">
+                直近 24 時間の実行件数
+            </div>
+        </div>
+
+        <!-- Success Rate -->
+        <div class="card stat-card" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between;">
+            <div>
+                <div class="stat-label">成功率 (本日)</div>
+                <div class="stat-value" style="color: var(--color-success); text-shadow: 0 0 10px rgba(16, 185, 129, 0.2);">
+                    {{ success_rate_percent }}%
+                </div>
+                <div class="stat-meta" style="color: var(--text-muted);">
+                    成功 {{ succeeded_today }} / 失敗 {{ failed_today }}
+                </div>
+            </div>
+            <!-- Glowing Success Ring -->
+            <div style="position: relative; width: 64px; height: 64px;">
+                <svg width="64" height="64" viewBox="0 0 36 36" style="transform: rotate(-90deg);">
+                    <path stroke="rgba(255,255,255,0.04)" stroke-width="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    <path stroke="var(--color-success)" stroke-width="3" stroke-dasharray="{{ success_rate_percent }}, 100" stroke-linecap="round" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" style="filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.4));" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- Active Workers -->
+        <div class="card stat-card">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div class="stat-label">稼働中のワーカー</div>
+                <i data-lucide="cpu" style="color: var(--color-info); width: 20px; height: 20px;"></i>
+            </div>
+            <div class="stat-value">{{ active_workers_count }}</div>
+            <div class="stat-meta" style="color: var(--text-muted);">
+                Fargate / Lambda 実行数
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Runs -->
+    <div class="card" style="margin-top: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 600;">直近のジョブ実行履歴</h3>
+            <span style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="refresh-cw" class="spin" style="width: 12px; height: 12px;"></i>
+                5秒ごとに自動更新中
+            </span>
+        </div>
+        
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>実行 ID</th>
+                        <th>ジョブ名</th>
+                        <th>ステータス</th>
+                        <th>起動タイプ</th>
+                        <th>トリガー</th>
+                        <th>実行時間</th>
+                        <th>開始日時</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if recent_runs.is_empty() %}
+                    <tr>
+                        <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+                            実行履歴がありません
+                        </td>
+                    </tr>
+                    {% else %}
+                    {% for run in recent_runs %}
+                    <tr>
+                        <td>
+                            <a href="/runs/{{ run.id }}" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--color-primary); text-decoration: none;">
+                                {{ run.id.to_string()[..8] }}...
+                            </a>
+                        </td>
+                        <td style="font-weight: 600;">{{ run.job_name }}</td>
+                        <td>
+                            <span class="badge badge-{{ run.status.to_string() }}">{{ run.status_ja }}</span>
+                        </td>
+                        <td>
+                            <span style="font-size: 0.85rem; display: flex; align-items: center; gap: 6px; text-transform: uppercase;">
+                                {% if run.worker_type.to_string() == "fargate" %}
+                                <i data-lucide="box" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
+                                Fargate
+                                {% else %}
+                                <i data-lucide="zap" style="width: 14px; height: 14px; color: var(--color-warning);"></i>
+                                Lambda
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>{{ run.trigger_ja }}</td>
+                        <td>{{ run.duration_str }}</td>
+                        <td>{{ run.started_at_str }}</td>
+                        <td>
+                            <a href="/runs/{{ run.id }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
+                                <i data-lucide="terminal" style="width: 12px; height: 12px;"></i>
+                                ログを見る
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

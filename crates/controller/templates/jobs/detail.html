@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+
+{% block title %}ジョブ詳細 | Mrs. Harris{% endblock %}
+
+{% block nav_jobs %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <a href="/jobs" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
+                <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+            </a>
+            <h2>{{ job.name }}</h2>
+        </div>
+        <p style="margin-left: 32px;">ジョブの詳細、設定、および実行履歴</p>
+    </div>
+    <div style="display: flex; gap: 12px;">
+        <button class="btn btn-secondary" style="background-color: var(--color-primary-glow); color: var(--color-primary); border-color: rgba(14, 165, 233, 0.2);"
+                hx-post="/api/jobs/{{ job.id }}/trigger" hx-swap="none"
+                onclick="alert('ジョブ実行をトリガーしました！')">
+            <i data-lucide="play" style="width: 16px; height: 16px;"></i>
+            今すぐ実行
+        </button>
+        <a href="/jobs/{{ job.id }}/edit" class="btn btn-secondary">
+            <i data-lucide="edit" style="width: 16px; height: 16px;"></i>
+            編集
+        </a>
+        <button class="btn btn-danger" 
+                hx-delete="/api/jobs/{{ job.id }}" 
+                hx-confirm="本当にこのジョブ定義を削除しますか？"
+                hx-headers='{"Authorization": ""}'
+                onclick="setTimeout(() => window.location.href='/jobs', 300)">
+            <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+            削除
+        </button>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 320px; gap: 24px;">
+    <!-- Left column: Visualizer or Payload / Config -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+        
+        <!-- DAG Visualizer (If DAG type) -->
+        {% if is_dag %}
+        <div class="card">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 16px;">DAG タスクフロー</h3>
+            <div class="dag-svg-container">
+                <svg id="dag-svg" width="100%" height="320" style="overflow: visible;">
+                    <defs>
+                        <marker id="arrow" viewBox="0 0 10 10" refX="24" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M 0 1 L 10 5 L 0 9 z" fill="rgba(255,255,255,0.25)" />
+                        </marker>
+                    </defs>
+                    <g id="dag-g"></g>
+                </svg>
+            </div>
+        </div>
+        {% else %}
+        <!-- Standard Command Payload -->
+        <div class="card">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 16px;">実行ペイロード</h3>
+            
+            <div style="background-color: #030712; padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); overflow-x: auto;">
+                <pre style="font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: #38bdf8; margin-bottom: 8px;">$ {{ command_preview }}</pre>
+                {% if env_vars.is_some() %}
+                <div style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
+                    <h5 style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 6px;">環境変数:</h5>
+                    <pre style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted);">{{ env_vars.as_ref().unwrap() }}</pre>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Recent Runs of this Job -->
+        <div class="card">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 16px;">実行履歴 (直近)</h3>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>実行 ID</th>
+                            <th>ステータス</th>
+                            <th>起動タイプ</th>
+                            <th>トリガー</th>
+                            <th>実行時間</th>
+                            <th>開始日時</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if recent_runs.is_empty() %}
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px 0;">
+                                実行履歴はありません
+                            </td>
+                        </tr>
+                        {% else %}
+                        {% for run in recent_runs %}
+                        <tr>
+                            <td>
+                                <a href="/runs/{{ run.id }}" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--color-primary); text-decoration: none;">
+                                    {{ run.id_short }}
+                                </a>
+                            </td>
+                            <td>
+                                <span class="badge badge-{{ run.status_str }}">{{ run.status_ja }}</span>
+                            </td>
+                            <td style="text-transform: uppercase; font-size: 0.85rem;">{{ run.worker_type }}</td>
+                            <td>{{ run.trigger_ja }}</td>
+                            <td>{{ run.duration_str }}</td>
+                            <td>{{ run.started_at_str }}</td>
+                            <td>
+                                <a href="/runs/{{ run.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;">
+                                    ログ
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right column: Metadata details -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+        <div class="card" style="padding: 24px;">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px;">ジョブ設定</h3>
+            
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">ステータス</div>
+                    <div style="font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px;">
+                        {% if job.is_active %}
+                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: var(--color-success); box-shadow: 0 0 8px var(--color-success);"></span>
+                        有効 (稼働中)
+                        {% else %}
+                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: var(--text-muted);"></span>
+                        無効
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">ジョブタイプ</div>
+                    <div style="font-weight: 600; margin-top: 4px; text-transform: uppercase;">{{ job_type_str }}</div>
+                </div>
+
+                {% if job.schedule_expr.is_some() %}
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">定期実行スケジュール (Cron)</div>
+                    <div style="font-family: 'JetBrains Mono', monospace; font-weight: 600; margin-top: 4px; color: var(--color-primary);">
+                        {{ job.schedule_expr.as_ref().unwrap() }}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">ワーカー起動先</div>
+                    <div style="font-weight: 600; margin-top: 4px; text-transform: uppercase; display: flex; align-items: center; gap: 6px;">
+                        {% if worker_type_str == "fargate" %}
+                        <i data-lucide="box" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+                        AWS Fargate タスク
+                        {% else %}
+                        <i data-lucide="zap" style="width: 16px; height: 16px; color: var(--color-warning);"></i>
+                        AWS Lambda 関数
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">タイムアウト制限</div>
+                    <div style="font-weight: 600; margin-top: 4px;">{{ job.timeout_sec }} 秒 ({{ timeout_minutes }} 分)</div>
+                </div>
+
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">リトライポリシー</div>
+                    <div style="font-weight: 600; margin-top: 4px;">
+                        最大 {{ job.retry_policy.max_retries }} 回 / {{ retry_backoff_str }} バックオフ
+                    </div>
+                </div>
+
+                <div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">タグ</div>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;">
+                        {% for tag in job.tags %}
+                        <span style="font-size: 0.75rem; background-color: rgba(56, 189, 248, 0.05); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 4px;">
+                            {{ tag }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if is_dag %}
+    (function() {
+        function initDag() {
+            // Parse tasks and edges passed from backend
+            const tasks = {{ dag_tasks_json|safe }};
+            const edges = {{ dag_edges_json|safe }};
+            
+            const svgG = document.getElementById('dag-g');
+            const svgEl = document.getElementById('dag-svg');
+            
+            if (!tasks || tasks.length === 0) return;
+            
+            // 1. Assign layers using a simple topological layout
+            const inDegree = {};
+            const adj = {};
+            tasks.forEach(t => {
+                inDegree[t.name] = 0;
+                adj[t.name] = [];
+            });
+            
+            edges.forEach(e => {
+                if (adj[e.from] && adj[e.to]) {
+                    adj[e.from].push(e.to);
+                    inDegree[e.to]++;
+                }
+            });
+            
+            // BFS to determine layers
+            const queue = [];
+            const layers = {};
+            tasks.forEach(t => {
+                if (inDegree[t.name] === 0) {
+                    queue.push({ name: t.name, layer: 0 });
+                }
+            });
+            
+            let maxLayer = 0;
+            const layerGroups = {};
+            
+            while (queue.length > 0) {
+                const { name, layer } = queue.shift();
+                layers[name] = Math.max(layers[name] || 0, layer);
+                maxLayer = Math.max(maxLayer, layers[name]);
+                
+                adj[name].forEach(child => {
+                    queue.push({ name: child, layer: layer + 1 });
+                });
+            }
+            
+            // Group by layer
+            tasks.forEach(t => {
+                const l = layers[t.name] || 0;
+                if (!layerGroups[l]) layerGroups[l] = [];
+                layerGroups[l].push(t.name);
+            });
+            
+            // Dimensions
+            const colWidth = 180;
+            const rowHeight = 70;
+            const nodeWidth = 140;
+            const nodeHeight = 40;
+            const startX = 40;
+            const startY = 30;
+            
+            const positions = {};
+            
+            // Render Nodes
+            Object.keys(layerGroups).forEach(l => {
+                const layer = parseInt(l);
+                const nodes = layerGroups[layer];
+                const colX = startX + layer * colWidth;
+                
+                nodes.forEach((nodeName, idx) => {
+                    const nodeY = startY + idx * rowHeight;
+                    positions[nodeName] = { x: colX, y: nodeY };
+                    
+                    // Draw Node SVG Group
+                    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    g.setAttribute('class', 'dag-node');
+                    g.setAttribute('transform', `translate(${colX}, ${nodeY})`);
+                    
+                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rect.setAttribute('width', nodeWidth);
+                    rect.setAttribute('height', nodeHeight);
+                    rect.setAttribute('fill', 'rgba(15, 23, 42, 0.8)');
+                    rect.setAttribute('stroke', 'rgba(255,255,255,0.08)');
+                    rect.setAttribute('stroke-width', '2');
+                    rect.setAttribute('rx', '8');
+                    rect.setAttribute('ry', '8');
+                    g.appendChild(rect);
+                    
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', nodeWidth / 2);
+                    text.setAttribute('y', nodeHeight / 2 + 4);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('fill', '#f8fafc');
+                    text.setAttribute('style', 'font-size: 12px; font-weight: 500;');
+                    text.textContent = nodeName;
+                    g.appendChild(text);
+                    
+                    svgG.appendChild(g);
+                });
+            });
+            
+            // Render Edges (Paths)
+            edges.forEach(edge => {
+                const startNode = positions[edge.from];
+                const endNode = positions[edge.to];
+                
+                if (startNode && endNode) {
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    
+                    // Curve calculation
+                    const x1 = startNode.x + nodeWidth;
+                    const y1 = startNode.y + nodeHeight / 2;
+                    const x2 = endNode.x;
+                    const y2 = endNode.y + nodeHeight / 2;
+                    
+                    const controlX = x1 + (x2 - x1) / 2;
+                    const d = `M ${x1} ${y1} C ${controlX} ${y1}, ${controlX} ${y2}, ${x2} ${y2}`;
+                    
+                    path.setAttribute('d', d);
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('stroke', 'rgba(255,255,255,0.12)');
+                    path.setAttribute('stroke-width', '2');
+                    path.setAttribute('marker-end', 'url(#arrow)');
+                    
+                    svgG.appendChild(path);
+                }
+            });
+            
+            // Adjust SVG Height dynamically
+            let maxRowLength = 0;
+            Object.keys(layerGroups).forEach(l => {
+                maxRowLength = Math.max(maxRowLength, layerGroups[l].len || layerGroups[l].length);
+            });
+            const finalHeight = startY + maxRowLength * rowHeight;
+            svgEl.setAttribute('height', Math.max(280, finalHeight));
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initDag);
+        } else {
+            initDag();
+        }
+    })();
+</script>
+{% endif %}
+{% endblock %}

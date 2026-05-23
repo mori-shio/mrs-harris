@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}実行詳細 | Mrs. Harris{% endblock %}
+
+{% block nav_jobs %}active{% endblock %}
+
+{% block content %}
+{% include "runs/detail_live.html" %}
+
+
+<script>
+    // Initialize DAG Visualizer
+    function renderLiveDag() {
+        const scriptEl = document.getElementById('dag-data');
+        if (!scriptEl) return;
+        
+        try {
+            const data = JSON.parse(scriptEl.textContent);
+            const { tasks, edges, runs } = data;
+            
+            const svgG = document.getElementById('dag-g');
+            const svgEl = document.getElementById('dag-svg');
+            if (!svgG || !svgEl) return;
+            svgG.innerHTML = ''; // Clear previous
+            
+            // Build adjacency
+            const inDegree = {};
+            const adj = {};
+            tasks.forEach(t => {
+                inDegree[t.name] = 0;
+                adj[t.name] = [];
+            });
+            edges.forEach(e => {
+                if (adj[e.from] && adj[e.to]) {
+                    adj[e.from].push(e.to);
+                    inDegree[e.to]++;
+                }
+            });
+            
+            const queue = [];
+            const layers = {};
+            tasks.forEach(t => {
+                if (inDegree[t.name] === 0) {
+                    queue.push({ name: t.name, layer: 0 });
+                }
+            });
+            
+            let maxLayer = 0;
+            const layerGroups = {};
+            while (queue.length > 0) {
+                const { name, layer } = queue.shift();
+                layers[name] = Math.max(layers[name] || 0, layer);
+                maxLayer = Math.max(maxLayer, layers[name]);
+                
+                adj[name].forEach(child => {
+                    queue.push({ name: child, layer: layer + 1 });
+                });
+            }
+            
+            tasks.forEach(t => {
+                const l = layers[t.name] || 0;
+                if (!layerGroups[l]) layerGroups[l] = [];
+                layerGroups[l].push(t.name);
+            });
+            
+            const colWidth = 180;
+            const rowHeight = 70;
+            const nodeWidth = 140;
+            const nodeHeight = 40;
+            const startX = 40;
+            const startY = 30;
+            const positions = {};
+            
+            // Draw nodes
+            Object.keys(layerGroups).forEach(l => {
+                const layer = parseInt(l);
+                const nodes = layerGroups[layer];
+                const colX = startX + layer * colWidth;
+                
+                nodes.forEach((nodeName, idx) => {
+                    const nodeY = startY + idx * rowHeight;
+                    positions[nodeName] = { x: colX, y: nodeY };
+                    
+                    // Task Run Status Check
+                    const tr = runs.find(r => r.task_name === nodeName);
+                    const status = tr ? tr.status_str : 'pending';
+                    
+                    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    g.setAttribute('class', `dag-node dag-node-${status}`);
+                    g.setAttribute('transform', `translate(${colX}, ${nodeY})`);
+                    
+                    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    rect.setAttribute('width', nodeWidth);
+                    rect.setAttribute('height', nodeHeight);
+                    
+                    // Set color styles dynamically based on status
+                    let strokeColor = 'rgba(255,255,255,0.08)';
+                    let fillColor = 'rgba(15, 23, 42, 0.8)';
+                    let dashArray = 'none';
+                    let animate = false;
+                    
+                    if (status === 'succeeded') {
+                        strokeColor = 'var(--color-success)';
+                        fillColor = 'rgba(16, 185, 129, 0.08)';
+                    } else if (status === 'failed' || status === 'dead_letter') {
+                        strokeColor = 'var(--color-danger)';
+                        fillColor = 'rgba(244, 63, 94, 0.08)';
+                    } else if (status === 'running') {
+                        strokeColor = 'var(--color-info)';
+                        fillColor = 'rgba(59, 130, 246, 0.08)';
+                        dashArray = '4';
+                        animate = true;
+                    } else if (status === 'skipped') {
+                        strokeColor = 'var(--color-warning)';
+                        fillColor = 'rgba(245, 158, 11, 0.08)';
+                    } else if (status === 'queued') {
+                        strokeColor = '#94a3b8';
+                        fillColor = 'rgba(148, 163, 184, 0.08)';
+                    }
+                    
+                    rect.setAttribute('stroke', strokeColor);
+                    rect.setAttribute('fill', fillColor);
+                    rect.setAttribute('stroke-width', '2');
+                    rect.setAttribute('rx', '8');
+                    rect.setAttribute('ry', '8');
+                    if (dashArray !== 'none') {
+                        rect.setAttribute('stroke-dasharray', dashArray);
+                        if (animate) {
+                            const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+                            style.textContent = `@keyframes dash { to { stroke-dashoffset: -8; } }`;
+                            rect.style.animation = 'dash 1s linear infinite';
+                            g.appendChild(style);
+                        }
+                    }
+                    g.appendChild(rect);
+                    
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', nodeWidth / 2);
+                    text.setAttribute('y', nodeHeight / 2 + 4);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('fill', '#f8fafc');
+                    text.setAttribute('style', 'font-size: 12px; font-weight: 500;');
+                    text.textContent = nodeName;
+                    g.appendChild(text);
+                    
+                    svgG.appendChild(g);
+                });
+            });
+            
+            // Draw Edges
+            edges.forEach(edge => {
+                const startNode = positions[edge.from];
+                const endNode = positions[edge.to];
+                if (startNode && endNode) {
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const x1 = startNode.x + nodeWidth;
+                    const y1 = startNode.y + nodeHeight / 2;
+                    const x2 = endNode.x;
+                    const y2 = endNode.y + nodeHeight / 2;
+                    const controlX = x1 + (x2 - x1) / 2;
+                    const d = `M ${x1} ${y1} C ${controlX} ${y1}, ${controlX} ${y2}, ${x2} ${y2}`;
+                    
+                    path.setAttribute('d', d);
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('stroke', 'rgba(255,255,255,0.12)');
+                    path.setAttribute('stroke-width', '2');
+                    path.setAttribute('marker-end', 'url(#arrow)');
+                    svgG.appendChild(path);
+                }
+            });
+            
+            let maxRowLength = 0;
+            Object.keys(layerGroups).forEach(l => {
+                maxRowLength = Math.max(maxRowLength, layerGroups[l].length);
+            });
+            svgEl.setAttribute('height', Math.max(220, startY + maxRowLength * rowHeight));
+            
+        } catch (e) {
+            console.error('Error parsing DAG live data:', e);
+        }
+    }
+
+    // Auto-trigger DAG rendering on DOM load and HTMX swaps
+    document.addEventListener("DOMContentLoaded", renderLiveDag);
+    document.addEventListener("htmx:afterSwap", renderLiveDag);
+</script>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // WebSocket Log Streamer Connection
+    (function() {
+        const runId = "{{ run.id }}";
+        const logBody = document.getElementById('log-body');
+        const logStatus = document.getElementById('log-status');
+        const logIndicator = document.getElementById('log-indicator');
+        
+        if (!logBody) return;
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/runs/${runId}/logs/ws`;
+        
+        let ws;
+        
+        function connect() {
+            logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--color-warning);" id="log-indicator"></span> 接続中...';
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--color-success); box-shadow: 0 0 6px var(--color-success);" id="log-indicator"></span> リアルタイム接続中';
+                logBody.innerHTML = ''; // Clear preparation notice
+            };
+            
+            ws.onmessage = function(event) {
+                try {
+                    const logs = JSON.parse(event.data);
+                    logs.forEach(log => {
+                        const lineDiv = document.createElement('div');
+                        lineDiv.className = `log-line log-line-${log.stream}`;
+                        
+                        // Parse timestamp
+                        let timeStr = '';
+                        if (log.logged_at) {
+                            const date = new Date(log.logged_at);
+                            timeStr = date.toLocaleTimeString() + ' ';
+                        }
+
+                        // Parse prefix
+                        let prefix = '';
+                        if (log.task_name) {
+                            prefix = `[${log.task_name}] `;
+                        }
+
+                        lineDiv.textContent = `${timeStr}${prefix}${log.line}`;
+                        logBody.appendChild(lineDiv);
+                    });
+                    
+                    // Auto-scroll to bottom
+                    logBody.scrollTop = logBody.scrollHeight;
+                } catch (e) {
+                    console.error('Error parsing WS message:', e);
+                }
+            };
+            
+            ws.onclose = function(e) {
+                logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--text-muted);" id="log-indicator"></span> 接続切断 (完了)';
+            };
+            
+            ws.onerror = function(err) {
+                console.error('WS Error:', err);
+                logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--color-danger);" id="log-indicator"></span> 接続エラー';
+            };
+        }
+        
+        connect();
+    })();
+</script>
+{% endblock %}

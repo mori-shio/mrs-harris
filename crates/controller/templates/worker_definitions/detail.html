@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}ノード詳細: {{ def.name }} | Mrs. Harris{% endblock %}
+
+{% block nav_worker_defs %}active{% endblock %}
+
+{% block content %}
+<!-- Breadcrumbs -->
+<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
+    <a href="/" style="color: var(--text-muted); text-decoration: none;">ホーム</a>
+    <span style="margin: 0 8px;">/</span>
+    <a href="/worker-definitions" style="color: var(--text-muted); text-decoration: none;">ワーカー定義</a>
+    <span style="margin: 0 8px;">/</span>
+    <span style="color: var(--text-primary);">{{ def.name }}</span>
+</nav>
+
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px;">
+    <div class="page-title">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <a href="/worker-definitions" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
+                <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+            </a>
+            <h2>ワーカー定義: {{ def.name }}</h2>
+        </div>
+        <p style="margin-left: 32px;">ノード固有のパラメータ設定および構成情報</p>
+    </div>
+    
+    <div style="display: flex; gap: 12px;">
+        <a href="/worker-definitions/{{ def.id }}/edit" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px;">
+            <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
+            編集する
+        </a>
+        
+        <form action="/worker-definitions/{{ def.id }}/delete" method="POST" onsubmit="return confirm('本当にこのワーカー定義を削除しますか？紐付いているジョブの実行に影響が出る可能性があります。');" style="display: inline;">
+            <button type="submit" class="btn btn-secondary" style="background-color: rgba(244,63,94,0.1); color: #fb7185; border-color: rgba(244,63,94,0.15); display: inline-flex; align-items: center; gap: 8px;">
+                <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                削除
+            </button>
+        </form>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 28px;">
+    
+    <!-- Info Panel -->
+    <div class="card" style="padding: 24px;">
+        <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 600; margin-bottom: 18px; color: var(--color-primary); display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+            スペック情報
+        </h3>
+        
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div>
+                <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">バックエンド種別</span>
+                <span style="font-weight: 600; text-transform: uppercase;">{{ def.worker_type.to_string() }}</span>
+            </div>
+
+            <div>
+                <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">状態</span>
+                {% if def.is_active %}
+                <span class="badge" style="background-color: var(--color-success-glow); color: var(--color-success); border-color: rgba(16,185,129,0.2); margin-top: 4px;">
+                    有効
+                </span>
+                {% else %}
+                <span class="badge" style="background-color: rgba(244,63,94,0.1); color: #fb7185; border-color: rgba(244,63,94,0.2); margin-top: 4px;">
+                    無効
+                </span>
+                {% endif %}
+            </div>
+
+            <div>
+                <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">説明</span>
+                <span style="font-size: 0.9rem;">{% if let Some(desc) = def.description.as_ref() %}{{ desc }}{% else %}なし{% endif %}</span>
+            </div>
+
+            <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 16px;">
+                <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">作成日時</span>
+                <span style="font-size: 0.85rem;">{{ def.created_at.format("%Y-%m-%d %H:%M:%S").to_string() }}</span>
+            </div>
+
+            <div>
+                <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">最終更新日時</span>
+                <span style="font-size: 0.85rem;">{{ def.updated_at.format("%Y-%m-%d %H:%M:%S").to_string() }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Config JSON Panel -->
+    <div class="card" style="padding: 24px;">
+        <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 600; margin-bottom: 18px; color: var(--color-primary); display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="code" style="width: 16px; height: 16px;"></i>
+            接続構成設定 (JSON)
+        </h3>
+        
+        <div style="background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-sm); padding: 18px; overflow: auto; max-height: 480px;">
+            <pre style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5;"><code class="language-json">{{ serde_json::to_string_pretty(&def.config).unwrap() }}</code></pre>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

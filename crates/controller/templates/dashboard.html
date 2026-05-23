@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}ダッシュボード | Mrs. Harris{% endblock %}
+
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h2>システムダッシュボード</h2>
+        <p>ジョブの実行状況、システムステータスのリアルタイムモニタリング</p>
+    </div>
+    <div style="display: flex; gap: 12px;">
+        <button class="btn btn-secondary" onclick="location.reload()">
+            <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+            手動更新
+        </button>
+        <a href="/jobs/new" class="btn btn-primary">
+            <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+            新規ジョブ作成
+        </a>
+    </div>
+</div>
+
+<!-- Embedded Live Poll Dashboard Content -->
+{% include "components/dashboard_live.html" %}
+
+{% endblock %}
+
+{% block head %}
+<style>
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    .spin {
+        animation: spin 4s linear infinite;
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: REDACTED
+      MYSQL_DATABASE: mrs_harris
+      MYSQL_USER: mrs_harris
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  controller:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      RUST_LOG: "info,mrs_harris=debug"
+    volumes:
+      - ./config:/app/config:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: ["controller", "--config", "/app/config/controller-docker.toml"]
+
+volumes:
+  mysql_data:

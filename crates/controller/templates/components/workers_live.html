@@ -1,0 +1,137 @@
+<div class="metrics-grid">
+    <div class="metric-card">
+        <div class="metric-icon" style="background: rgba(var(--color-primary-rgb), 0.1); color: var(--color-primary);">
+            <i data-lucide="cpu" style="width: 24px; height: 24px;"></i>
+        </div>
+        <div class="metric-info">
+            <h3>アクティブワーカー</h3>
+            <p class="metric-value">{{ active_count }}</p>
+            <span class="metric-trend" style="color: var(--color-success);">
+                現在稼働中の分散ノード
+            </span>
+        </div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-icon" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;">
+            <i data-lucide="box" style="width: 24px; height: 24px;"></i>
+        </div>
+        <div class="metric-info">
+            <h3>AWS Fargate</h3>
+            <p class="metric-value">{{ fargate_count }}</p>
+            <span class="metric-trend" style="color: var(--text-secondary);">
+                長時間実行タスク
+            </span>
+        </div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-icon" style="background: rgba(168, 85, 247, 0.1); color: #a855f7;">
+            <i data-lucide="zap" style="width: 24px; height: 24px;"></i>
+        </div>
+        <div class="metric-info">
+            <h3>AWS Lambda</h3>
+            <p class="metric-value">{{ lambda_count }}</p>
+            <span class="metric-trend" style="color: var(--text-secondary);">
+                超並列・瞬時起動タスク
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 24px;">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 16px; margin-bottom: 20px;">
+        <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600;">ワーカー追跡履歴 (直近)</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-success); animation: pulse 2s infinite;"></span>
+            10秒ごとに自動更新
+        </span>
+    </div>
+
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ワーカーID</th>
+                    <th>起動タイプ</th>
+                    <th>ステータス</th>
+                    <th>対象ジョブ実行</th>
+                    <th>外部リソースID</th>
+                    <th>起動日時</th>
+                    <th>最終生存確認</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if workers.is_empty() %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+                        起動されたアクティブまたは履歴ワーカー情報はありません。
+                    </td>
+                </tr>
+                {% else %}
+                    {% for w in workers %}
+                    <tr>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 600; color: var(--color-primary);">
+                            {{ w.id_short }}
+                        </td>
+                        <td>
+                            {% if w.worker_type_str == "fargate" %}
+                            <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3);">
+                                <i data-lucide="box" style="width: 12px; height: 12px; display: inline; vertical-align: middle; margin-right: 4px;"></i>
+                                Fargate
+                            </span>
+                            {% else %}
+                            <span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.3);">
+                                <i data-lucide="zap" style="width: 12px; height: 12px; display: inline; vertical-align: middle; margin-right: 4px;"></i>
+                                Lambda
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if w.status_str == "running" %}
+                            <span class="badge badge-running" style="display: inline-flex; align-items: center; gap: 6px;">
+                                <span class="status-indicator status-indicator-running"></span>
+                                実行中
+                            </span>
+                            {% elif w.status_str == "completed" %}
+                            <span class="badge badge-succeeded" style="display: inline-flex; align-items: center; gap: 6px;">
+                                <i data-lucide="check" style="width: 12px; height: 12px;"></i>
+                                正常完了
+                            </span>
+                            {% elif w.status_str == "failed" %}
+                            <span class="badge badge-failed" style="display: inline-flex; align-items: center; gap: 6px;">
+                                <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                                エラー終了
+                            </span>
+                            {% else %}
+                            <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #fde047; border: 1px solid rgba(245, 158, 11, 0.3); display: inline-flex; align-items: center; gap: 6px;">
+                                <i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i>
+                                タイムアウト
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="/runs/{{ w.run_id }}" style="color: var(--text-secondary); text-decoration: underline; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;" hx-boost="true">
+                                {{ w.run_id_short }}
+                            </a>
+                        </td>
+                        <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ w.external_id }}">
+                            {{ w.external_id_short }}
+                        </td>
+                        <td style="font-size: 0.85rem;">
+                            {{ w.started_at_str }}
+                        </td>
+                        <td style="font-size: 0.85rem;">
+                            {% if w.last_heartbeat_str.is_empty() %}
+                            -
+                            {% else %}
+                            {{ w.last_heartbeat_str }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>

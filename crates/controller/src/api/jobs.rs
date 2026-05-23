@@ -1,0 +1,201 @@
+use axum::{
+    extract::{State, Path, Query},
+    http::StatusCode,
+    routing::get,
+    Json, Router,
+};
+use mrs_harris_common::models::job::{Job, NewJob, JobUpdate, JobFilter};
+use mrs_harris_common::models::user::Claims;
+use crate::app::AppState;
+use uuid::Uuid;
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/jobs", get(list_jobs).post(create_job))
+        .route("/jobs/{id}", get(get_job).put(update_job).delete(delete_job))
+        .route("/jobs/{id}/trigger", axum::routing::post(trigger_job))
+}
+
+async fn list_jobs(
+    State(state): State<AppState>,
+    _claims: Claims, // 認証必須
+    Query(filter): Query<JobFilter>,
+) -> Result<Json<Vec<Job>>, (StatusCode, Json<serde_json::Value>)> {
+    let jobs = crate::db::jobs::list_jobs(&state.db, &filter)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Database error: {}", e) })),
+            )
+        })?;
+    Ok(Json(jobs))
+}
+
+async fn create_job(
+    State(state): State<AppState>,
+    _claims: Claims,
+    Json(payload): Json<NewJob>,
+) -> Result<(StatusCode, Json<Job>), (StatusCode, Json<serde_json::Value>)> {
+    // payload (JSON の中身) の簡単なバリデーション
+    if payload.name.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Job name cannot be empty" })),
+        ));
+    }
+
+    let job = crate::db::jobs::create_job(&state.db, &payload)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Failed to create job: {}", e) })),
+            )
+        })?;
+    Ok((StatusCode::CREATED, Json(job)))
+}
+
+async fn get_job(
+    State(state): State<AppState>,
+    _claims: Claims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Job>, (StatusCode, Json<serde_json::Value>)> {
+    let job_opt = crate::db::jobs::get_job(&state.db, &id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Database error: {}", e) })),
+            )
+        })?;
+
+    match job_opt {
+        Some(job) => Ok(Json(job)),
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "Job not found" })),
+        )),
+    }
+}
+
+async fn update_job(
+    State(state): State<AppState>,
+    _claims: Claims,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<JobUpdate>,
+) -> Result<Json<Job>, (StatusCode, Json<serde_json::Value>)> {
+    // 存在チェック
+    let exists = crate::db::jobs::get_job(&state.db, &id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Database error: {}", e) })),
+            )
+        })?
+        .is_some();
+
+    if !exists {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "Job not found" })),
+        ));
+    }
+
+    let job = crate::db::jobs::update_job(&state.db, &id, &payload)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Failed to update job: {}", e) })),
+            )
+        })?;
+    Ok(Json(job))
+}
+
+async fn delete_job(
+    State(state): State<AppState>,
+    _claims: Claims,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
+    // 存在チェック
+    let exists = crate::db::jobs::get_job(&state.db, &id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Database error: {}", e) })),
+            )
+        })?
+        .is_some();
+
+    if !exists {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "Job not found" })),
+        ));
+    }
+
+    crate::db::jobs::delete_job(&state.db, &id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Failed to delete job: {}", e) })),
+            )
+        })?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn trigger_job(
+    State(state): State<AppState>,
+    _claims: Claims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<mrs_harris_common::models::run::JobRun>, (StatusCode, Json<serde_json::Value>)> {
+    // 1. ジョブ定義を取得
+    let job_opt = crate::db::jobs::get_job(&state.db, &id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Database error: {}", e) })),
+            )
+        })?;
+
+    let job = match job_opt {
+        Some(j) => j,
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": "Job not found" })),
+            ));
+        }
+    };
+
+    // 2. 新規 Run (実行履歴) の作成
+    let new_run = mrs_harris_common::models::run::NewRun {
+        job_id: job.id,
+        worker_type: job.worker_type,
+        trigger_type: mrs_harris_common::models::run::TriggerType::Manual,
+        scheduled_at: Some(chrono::Utc::now()),
+        worker_definition_id: job.worker_definition_id,
+    };
+
+    let run = crate::db::runs::create_run(&state.db, &new_run)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": format!("Failed to trigger run: {}", e) })),
+            )
+        })?;
+
+    // 3. バックグラウンドでワーカーディスパッチャーを呼ぶ
+    // (Scheduler でポーリングして queued -> running に移譲する構成をとっているため、ここでは create_run だけでOKですが、
+    //  即時に Worker Manager にディスパッチ要求を送り出すことも可能です。
+    //  ここでは scheduled_at = Utc::now() としており、スケジューラが次のループで即検知して実行します。)
+
+    Ok(Json(run))
+}
