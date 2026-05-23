@@ -64,12 +64,23 @@ struct JobDetailTemplate {
     job: Job,
     job_type_str: &'static str,
     worker_type_str: &'static str,
+    worker_definition_name: String,
     timeout_minutes: u32,
     retry_backoff_str: &'static str,
     recent_runs: Vec<JobRunRenderItem>,
     is_dag: bool,
     command_preview: String,
     env_vars: Option<String>,
+    env_vars_list: Vec<(String, String)>,
+    ssm_region: String,
+    ssm_path: String,
+    ssm_recursive: bool,
+    working_dir: Option<String>,
+    slack_on_running: bool,
+    slack_on_succeeded: bool,
+    slack_on_failed: bool,
+    created_at_str: String,
+    updated_at_str: String,
     dag_tasks_json: String,
     dag_edges_json: String,
 }
@@ -559,9 +570,46 @@ async fn job_detail_page(
     let is_dag = job.job_type == JobType::Dag;
     let mut command_preview = String::new();
     let mut env_vars = None;
+    let mut env_vars_list = Vec::new();
+    let mut ssm_region = String::new();
+    let mut ssm_path = String::new();
+    let mut ssm_recursive = false;
+    let mut working_dir: Option<String> = None;
     let mut dag_tasks_json = "[]".to_string();
     let mut dag_edges_json = "[]".to_string();
 
+    // 1. ワーカー定義名の取得
+    let mut worker_definition_name = "デフォルト (起動タイプ設定)".to_string();
+    if let Some(def_id) = job.worker_definition_id {
+        if let Ok(Some(def)) = crate::db::workers::get_worker_definition(&state.db, &def_id).await {
+            worker_definition_name = def.name;
+        }
+    }
+
+    // 2. Slack通知設定の取得
+    let noti_row = sqlx::query(
+        "SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 'c1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d'"
+    )
+    .bind(job.id.to_string())
+    .fetch_optional(&state.db)
+    .await
+    .unwrap_or_default();
+
+    let mut slack_on_running = false;
+    let mut slack_on_succeeded = false;
+    let mut slack_on_failed = false;
+
+    if let Some(row) = noti_row {
+        if let Ok(on_events_val) = row.try_get::<serde_json::Value, _>("on_events") {
+            if let Ok(on_events) = serde_json::from_value::<Vec<String>>(on_events_val) {
+                slack_on_running = on_events.contains(&"running".to_string());
+                slack_on_succeeded = on_events.contains(&"succeeded".to_string());
+                slack_on_failed = on_events.contains(&"failed".to_string()) || on_events.contains(&"dead_letter".to_string());
+            }
+        }
+    }
+
+    // 3. 環境変数・SSM設定・DAG設定の取得
     if is_dag {
         // Load DAG tasks and edges from DB
         let tasks_rows = sqlx::query(
@@ -604,6 +652,16 @@ async fn job_detail_page(
             }));
         }
         dag_edges_json = serde_json::to_string(&edges).unwrap_or_else(|_| "[]".to_string());
+
+        // DAGでも環境変数/SSM設定を復元
+        if let Some(env_map) = job.payload.get("env").and_then(|v| v.as_object()) {
+            for (k, v) in env_map {
+                env_vars_list.push((k.clone(), v.as_str().unwrap_or_default().to_string()));
+            }
+        }
+        ssm_region = job.payload.get("ssm_region").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        ssm_path = job.payload.get("ssm_path").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        ssm_recursive = job.payload.get("ssm_recursive").and_then(|v| v.as_bool()).unwrap_or(false);
     } else {
         // Parse payload as shell command
         if let Ok(shell) = serde_json::from_value::<ShellPayload>(job.payload.clone()) {
@@ -620,22 +678,46 @@ async fn job_detail_page(
                     .collect::<Vec<_>>()
                     .join("\n");
                 env_vars = Some(envs);
+
+                for (k, v) in &shell.env {
+                    env_vars_list.push((k.clone(), v.clone()));
+                }
             }
+            ssm_region = shell.ssm_region.unwrap_or_default();
+            ssm_path = shell.ssm_path.unwrap_or_default();
+            ssm_recursive = shell.ssm_recursive.unwrap_or(false);
+            working_dir = shell.working_dir;
         }
     }
 
+    env_vars_list.sort_by(|a, b| a.0.cmp(&b.0));
+
     let timeout_minutes = job.timeout_sec / 60;
+
+    let created_at_str = job.created_at.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
+    let updated_at_str = job.updated_at.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
 
     JobDetailTemplate {
         job,
         job_type_str,
         worker_type_str,
+        worker_definition_name,
         timeout_minutes,
         retry_backoff_str,
         recent_runs,
         is_dag,
         command_preview,
         env_vars,
+        env_vars_list,
+        ssm_region,
+        ssm_path,
+        ssm_recursive,
+        working_dir,
+        slack_on_running,
+        slack_on_succeeded,
+        slack_on_failed,
+        created_at_str,
+        updated_at_str,
         dag_tasks_json,
         dag_edges_json,
     }

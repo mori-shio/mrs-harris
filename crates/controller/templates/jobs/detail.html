@@ -4,49 +4,571 @@
 
 {% block nav_jobs %}active{% endblock %}
 
+{% block head %}
+<style>
+    /* Sleek EC2-style tabs navigation */
+    .ec2-tabs-nav {
+        display: flex;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        margin-top: 28px;
+        margin-bottom: 20px;
+        gap: 4px;
+        overflow-x: auto;
+        padding-bottom: 1px;
+    }
+    
+    .ec2-tab-btn {
+        background: none;
+        border: none;
+        padding: 12px 20px;
+        color: var(--text-muted);
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .ec2-tab-btn:hover {
+        color: var(--text-primary);
+        border-bottom-color: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.01);
+    }
+    
+    .ec2-tab-btn.active {
+        color: var(--color-primary);
+        border-bottom-color: var(--color-primary);
+        font-weight: 600;
+        background: rgba(var(--color-primary-rgb), 0.02);
+    }
+    
+    /* Tab panes */
+    .ec2-tab-pane {
+        display: none;
+        animation: ec2FadeIn 0.25s ease-out;
+    }
+    
+    .ec2-tab-pane.active {
+        display: block;
+    }
+    
+    @keyframes ec2FadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* EC2 summary details grid */
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px 24px;
+    }
+    
+    @media (max-width: 1024px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    
+    @media (max-width: 640px) {
+        .summary-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .summary-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .summary-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 500;
+    }
+    
+    .summary-value {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* Code block container */
+    .code-editor-container {
+        position: relative;
+        background-color: #030712;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        padding: 16px;
+        overflow: hidden;
+    }
+    
+    .code-editor-pre {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85rem;
+        color: var(--color-primary-light);
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    
+    .copy-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 4px;
+        padding: 6px;
+        cursor: pointer;
+        color: var(--text-muted);
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .copy-btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text-primary);
+        border-color: rgba(255, 255, 255, 0.15);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="page-header">
+<!-- Breadcrumbs -->
+<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
+    <a href="/" style="color: var(--text-muted); text-decoration: none;">ホーム</a>
+    <span style="margin: 0 8px;">/</span>
+    <a href="/jobs" style="color: var(--text-muted); text-decoration: none;">ジョブ定義</a>
+    <span style="margin: 0 8px;">/</span>
+    <span style="color: var(--text-primary);">{{ job.name }}</span>
+</nav>
+
+<!-- Page Header (Actions at Top-Right) -->
+<div class="page-header" style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
     <div class="page-title">
         <div style="display: flex; align-items: center; gap: 12px;">
             <a href="/jobs" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
                 <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
             </a>
-            <h2>{{ job.name }}</h2>
+            <h2 style="font-family: 'Outfit', sans-serif;">{{ job.name }}</h2>
         </div>
-        <p style="margin-left: 32px;">ジョブの詳細、設定、および実行履歴</p>
+        <p style="margin-left: 32px; color: var(--text-muted);">
+            {% if let Some(desc) = job.description.as_ref() %}{{ desc }}{% else %}このジョブ定義の詳細設定および実行ログ履歴を参照します。{% endif %}
+        </p>
     </div>
-    <div style="display: flex; gap: 12px;">
-        <button class="btn btn-secondary" style="background-color: var(--color-primary-glow); color: var(--color-primary); border-color: rgba(14, 165, 233, 0.2);"
+    
+    <!-- Action State Buttons (EC2-like Instance State operations) -->
+    <div style="display: flex; gap: 10px;">
+        <button class="btn btn-secondary" style="background-color: rgba(14, 165, 233, 0.08); color: var(--color-primary); border-color: rgba(14, 165, 233, 0.25);"
                 hx-post="/api/jobs/{{ job.id }}/trigger" hx-swap="none"
                 onclick="alert('ジョブ実行をトリガーしました！')">
-            <i data-lucide="play" style="width: 16px; height: 16px;"></i>
-            今すぐ実行
+            <i data-lucide="play" style="width: 14px; height: 14px;"></i>
+            インスタンス起動 (実行)
         </button>
-        <a href="/jobs/{{ job.id }}/edit" class="btn btn-secondary">
-            <i data-lucide="edit" style="width: 16px; height: 16px;"></i>
-            編集
+        <a href="/jobs/{{ job.id }}/edit" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
+            変更 (編集)
         </a>
         <button class="btn btn-danger" 
                 hx-delete="/api/jobs/{{ job.id }}" 
                 hx-confirm="本当にこのジョブ定義を削除しますか？"
                 hx-headers='{"Authorization": ""}'
-                onclick="setTimeout(() => window.location.href='/jobs', 300)">
-            <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                onclick="setTimeout(() => window.location.href='/jobs', 300)"
+                style="display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
             削除
         </button>
     </div>
 </div>
 
-<div style="display: grid; grid-template-columns: 1fr 320px; gap: 24px;">
-    <!-- Left column: Visualizer or Payload / Config -->
+<!-- ==================== UPPER SECTION: JOB INSTANCE SUMMARY ==================== -->
+<div class="card" style="padding: 24px; margin-bottom: 24px; border: 1px solid rgba(255, 255, 255, 0.06); background: rgba(255, 255, 255, 0.015);">
+    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600; color: var(--color-primary); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">
+        <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+        ジョブの概要 (Summary)
+    </h3>
+    
+    <div class="summary-grid">
+        <!-- Job ID -->
+        <div class="summary-item">
+            <span class="summary-label">ジョブ ID</span>
+            <div class="summary-value">
+                <span id="job-id-text" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--text-secondary);">{{ job.id }}</span>
+                <button onclick="copyToClipboard('{{ job.id }}', this)" style="background: none; border: none; padding: 2px; cursor: pointer; color: var(--text-muted); display: inline-flex; align-items: center;">
+                    <i data-lucide="copy" style="width: 13px; height: 13px;"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Status -->
+        <div class="summary-item">
+            <span class="summary-label">ステータス</span>
+            <div class="summary-value">
+                {% if job.is_active %}
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: var(--color-success); box-shadow: 0 0 8px var(--color-success);"></span>
+                <span style="color: var(--color-success);">有効 (Active)</span>
+                {% else %}
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: var(--text-muted);"></span>
+                <span style="color: var(--text-muted);">無効 (Disabled)</span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Job Type -->
+        <div class="summary-item">
+            <span class="summary-label">ジョブタイプ</span>
+            <span class="summary-value" style="font-family: 'Outfit', sans-serif; font-weight: 600;">
+                <i data-lucide="git-commit" style="width: 14px; height: 14px; color: var(--color-primary-light);"></i>
+                {{ job_type_str }}
+            </span>
+        </div>
+        
+        <!-- Worker definition -->
+        <div class="summary-item">
+            <span class="summary-label">ワーカー定義</span>
+            <span class="summary-value">
+                <i data-lucide="server" style="width: 14px; height: 14px; color: var(--color-primary-light);"></i>
+                {{ worker_definition_name }}
+            </span>
+        </div>
+        
+        <!-- Schedule Expr -->
+        <div class="summary-item">
+            <span class="summary-label">スケジュール (Cron)</span>
+            <span class="summary-value" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--color-primary-light);">
+                {% if let Some(expr) = job.schedule_expr.as_ref() %}
+                {{ expr }}
+                {% else %}
+                - (単発実行)
+                {% endif %}
+            </span>
+        </div>
+        
+        <!-- Timeout -->
+        <div class="summary-item">
+            <span class="summary-label">タイムアウト設定</span>
+            <span class="summary-value">
+                <i data-lucide="clock" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
+                {{ job.timeout_sec }} 秒 ({{ timeout_minutes }} 分)
+            </span>
+        </div>
+        
+        <!-- Created time -->
+        <div class="summary-item">
+            <span class="summary-label">作成日時</span>
+            <span class="summary-value" style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">
+                {{ created_at_str }}
+            </span>
+        </div>
+        
+        <!-- Updated time -->
+        <div class="summary-item">
+            <span class="summary-label">更新日時</span>
+            <span class="summary-value" style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">
+                {{ updated_at_str }}
+            </span>
+        </div>
+    </div>
+    
+    <!-- Tags row inside Summary -->
+    {% if !job.tags.is_empty() %}
+    <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.05); display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <span class="summary-label" style="margin-bottom: 0;">割り当てられたタグ:</span>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            {% for tag in job.tags %}
+            <span style="font-size: 0.75rem; background-color: rgba(14, 165, 233, 0.08); color: var(--color-primary); border: 1px solid rgba(14, 165, 233, 0.2); padding: 2px 8px; border-radius: 12px; font-weight: 500; font-family: 'Outfit', sans-serif;">
+                {{ tag }}
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+
+<!-- ==================== LOWER SECTION: INTERACTIVE TABS ==================== -->
+
+<!-- Horizontal Tabs Menu -->
+<div class="ec2-tabs-nav">
+    <button class="ec2-tab-btn active" onclick="switchTab(event, 'tab-history')">
+        <i data-lucide="history" style="width: 15px; height: 15px;"></i>
+        実行履歴
+    </button>
+    <button class="ec2-tab-btn" onclick="switchTab(event, 'tab-env')">
+        <i data-lucide="hash" style="width: 15px; height: 15px;"></i>
+        環境変数
+    </button>
+    <button class="ec2-tab-btn" onclick="switchTab(event, 'tab-options')">
+        <i data-lucide="sliders" style="width: 15px; height: 15px;"></i>
+        オプション設定
+    </button>
+    <button class="ec2-tab-btn" onclick="switchTab(event, 'tab-command')">
+        <i data-lucide="terminal" style="width: 15px; height: 15px;"></i>
+        {% if is_dag %}DAGタスク定義{% else %}シェルコマンド{% endif %}
+    </button>
+    <button class="ec2-tab-btn" onclick="switchTab(event, 'tab-slack')">
+        <i data-lucide="bell" style="width: 15px; height: 15px;"></i>
+        Slack通知
+    </button>
+</div>
+
+<!-- ==================== TAB CONTENTS ==================== -->
+
+<!-- TAB 1: RUN HISTORY -->
+<div id="tab-history" class="ec2-tab-pane active card" style="padding: 24px;">
+    <h4 style="font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="history" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+        直近の実行ログ履歴 (最大10件)
+    </h4>
+    
+    <div class="table-container">
+        <table class="data-table" style="font-size: 0.85rem;">
+            <thead>
+                <tr>
+                    <th>実行 ID</th>
+                    <th>ステータス</th>
+                    <th>起動タイプ</th>
+                    <th>トリガー</th>
+                    <th>実行時間</th>
+                    <th>開始日時</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if recent_runs.is_empty() %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 48px 0;">
+                        <i data-lucide="alert-circle" style="width: 32px; height: 32px; margin: 0 auto 12px; display: block; opacity: 0.4;"></i>
+                        <span>このジョブの実行履歴はまだ登録されていません。</span>
+                    </td>
+                </tr>
+                {% else %}
+                {% for run in recent_runs %}
+                <tr>
+                    <td>
+                        <a href="/runs/{{ run.id }}" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--color-primary); text-decoration: none; font-weight: 600;" hx-boost="true">
+                            {{ run.id_short }}
+                        </a>
+                    </td>
+                    <td>
+                        <span class="badge badge-{{ run.status_str }}">{{ run.status_ja }}</span>
+                    </td>
+                    <td style="text-transform: uppercase; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;">{{ run.worker_type }}</td>
+                    <td>{{ run.trigger_ja }}</td>
+                    <td>{{ run.duration_str }}</td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">{{ run.started_at_str }}</td>
+                    <td>
+                        <a href="/runs/{{ run.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.78rem;" hx-boost="true">
+                            <i data-lucide="text-search" style="width: 12px; height: 12px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i>
+                            ログを見る
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- TAB 2: ENVIRONMENT VARIABLES -->
+<div id="tab-env" class="ec2-tab-pane card" style="padding: 24px;">
+    <div style="display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start;">
+        
+        <!-- Direct Env Variables table -->
+        <div>
+            <h4 style="font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="hash" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+                直接設定された環境変数
+            </h4>
+            
+            {% if env_vars_list.is_empty() %}
+            <div style="text-align: center; padding: 48px 0; border: 1px dashed rgba(255,255,255,0.06); border-radius: var(--radius-md); color: var(--text-muted);">
+                <i data-lucide="slash" style="width: 24px; height: 24px; margin: 0 auto 8px; display: block; opacity: 0.4;"></i>
+                <span>直接入力された環境変数は登録されていません。</span>
+            </div>
+            {% else %}
+            <div class="table-container">
+                <table class="data-table" style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">変数名 (Key)</th>
+                            <th>値 (Value)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pair in env_vars_list %}
+                        <tr>
+                            <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text-primary);">{{ pair.0 }}</td>
+                            <td style="font-family: 'JetBrains Mono', monospace; color: var(--color-primary-light);">{{ pair.1 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- AWS SSM Parameter Store panel -->
+        <div style="background: rgba(255, 255, 255, 0.015); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: var(--radius-md); padding: 18px;">
+            <h5 style="font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="key-round" style="width: 15px; height: 15px; color: var(--color-primary);"></i>
+                AWS SSM パラメータストア連携
+            </h5>
+            
+            <div style="display: flex; flex-direction: column; gap: 14px; font-size: 0.85rem;">
+                <div>
+                    <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 2px;">インジェクトリージョン</div>
+                    <div style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                        {% if ssm_region.is_empty() %}
+                        <span style="color: var(--text-muted); font-style: italic;">未連携</span>
+                        {% else %}
+                        {{ ssm_region }}
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div>
+                    <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 2px;">パラメータ取得パス</div>
+                    <div style="font-family: 'JetBrains Mono', monospace; font-weight: 600; word-break: break-all; color: var(--color-primary-light);">
+                        {% if ssm_path.is_empty() %}
+                        <span style="color: var(--text-muted); font-style: italic;">未連携</span>
+                        {% else %}
+                        {{ ssm_path }}
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div>
+                    <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 2px;">再帰的な取得 (Recursive)</div>
+                    <div>
+                        {% if ssm_path.is_empty() %}
+                        <span style="color: var(--text-muted);">-</span>
+                        {% else if ssm_recursive %}
+                        <span style="color: var(--color-success); font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                            <i data-lucide="check-circle-2" style="width: 14px; height: 14px;"></i> 有効
+                        </span>
+                        {% else %}
+                        <span style="color: var(--text-muted);">無効 (直下のみ)</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            {% if !ssm_path.is_empty() %}
+            <div style="margin-top: 16px; font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                <i data-lucide="help-circle" style="width: 12px; height: 12px; display: inline-block; vertical-align: text-bottom; margin-right: 2px;"></i>
+                指定されたパス配下のパラメータ（SecureString含む）は、ワーカー起動時に自動取得され環境変数として動的注入されます。
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- TAB 3: DETAILED OPTIONS -->
+<div id="tab-options" class="ec2-tab-pane card" style="padding: 24px;">
+    <h4 style="font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="sliders" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+        詳細オプション ＆ 実行ポリシー
+    </h4>
+    
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
+        <!-- Option Panel 1: Execution Control -->
+        <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); border-radius: var(--radius-md); padding: 20px;">
+            <h5 style="font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 8px;">
+                <i data-lucide="zap" style="width: 14px; height: 14px; color: var(--color-primary); display: inline-block; vertical-align: text-bottom; margin-right: 4px;"></i>
+                起動制御
+            </h5>
+            
+            <table class="metadata-table" style="font-size: 0.85rem; width: 100%;">
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                    <td style="padding: 10px 0; color: var(--text-muted); width: 40%;">タイムアウト設定</td>
+                    <td style="padding: 10px 0; font-weight: 600; color: var(--text-primary);">{{ job.timeout_sec }} 秒 ({{ timeout_minutes }} 分)</td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                    <td style="padding: 10px 0; color: var(--text-muted);">作業ディレクトリ</td>
+                    <td style="padding: 10px 0; font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                        {% if let Some(dir) = working_dir.as_ref() %}
+                        {{ dir }}
+                        {% else %}
+                        <span style="color: var(--text-muted); font-style: italic;">未設定 (デフォルト)</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 0; color: var(--text-muted);">デフォルト起動タイプ</td>
+                    <td style="padding: 10px 0; font-weight: 600; text-transform: uppercase;">
+                        {{ worker_type_str }}
+                    </td>
+                </tr>
+            </table>
+        </div>
+        
+        <!-- Option Panel 2: Retry Policy -->
+        <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); border-radius: var(--radius-md); padding: 20px;">
+            <h5 style="font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 8px;">
+                <i data-lucide="refresh-cw" style="width: 14px; height: 14px; color: var(--color-primary); display: inline-block; vertical-align: text-bottom; margin-right: 4px;"></i>
+                リトライポリシー (Retry Policy)
+            </h5>
+            
+            <table class="metadata-table" style="font-size: 0.85rem; width: 100%;">
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                    <td style="padding: 10px 0; color: var(--text-muted); width: 40%;">最大リトライ回数</td>
+                    <td style="padding: 10px 0; font-weight: 600; color: var(--text-primary);">
+                        {% if job.retry_policy.max_retries == 0 %}
+                        <span style="color: var(--text-muted);">リトライ無効</span>
+                        {% else %}
+                        {{ job.retry_policy.max_retries }} 回
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.02);">
+                    <td style="padding: 10px 0; color: var(--text-muted);">バックオフ戦略</td>
+                    <td style="padding: 10px 0; font-weight: 600; color: var(--color-primary-light);">
+                        {{ retry_backoff_str }}バックオフ
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px 0; color: var(--text-muted);">初期リトライ遅延</td>
+                    <td style="padding: 10px 0; font-weight: 600;">{{ job.retry_policy.base_delay_sec }} 秒</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- TAB 4: SHELL COMMAND / DAG DEFINITION -->
+<div id="tab-command" class="ec2-tab-pane card" style="padding: 24px;">
+    
+    {% if is_dag %}
+    <!-- DAG Visualizer & JSON Task Definition -->
     <div style="display: flex; flex-direction: column; gap: 24px;">
         
-        <!-- DAG Visualizer (If DAG type) -->
-        {% if is_dag %}
-        <div class="card">
-            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 16px;">DAG タスクフロー</h3>
-            <div class="dag-svg-container">
-                <svg id="dag-svg" width="100%" height="320" style="overflow: visible;">
+        <!-- DAG Graph -->
+        <div>
+            <h4 style="font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="git-fork" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+                DAG タスクフロー・トポロジ
+            </h4>
+            
+            <div class="dag-svg-container" style="background: rgba(0,0,0,0.1); border-radius: var(--radius-md); padding: 12px; border: 1px solid rgba(255,255,255,0.04);">
+                <svg id="dag-svg" width="100%" height="300" style="overflow: visible;">
                     <defs>
                         <marker id="arrow" viewBox="0 0 10 10" refX="24" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                             <path d="M 0 1 L 10 5 L 0 9 z" fill="rgba(255,255,255,0.25)" />
@@ -56,149 +578,159 @@
                 </svg>
             </div>
         </div>
-        {% else %}
-        <!-- Standard Command Payload -->
-        <div class="card">
-            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 16px;">実行ペイロード</h3>
+        
+        <!-- DAG JSON definition code block -->
+        <div>
+            <h4 style="font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="braces" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+                タスク構成定義 (JSON Schema)
+            </h4>
             
-            <div style="background-color: #030712; padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); overflow-x: auto;">
-                <pre style="font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: #38bdf8; margin-bottom: 8px;">$ {{ command_preview }}</pre>
-                {% if env_vars.is_some() %}
-                <div style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
-                    <h5 style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 6px;">環境変数:</h5>
-                    <pre style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted);">{{ env_vars.as_ref().unwrap() }}</pre>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Recent Runs of this Job -->
-        <div class="card">
-            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 16px;">実行履歴 (直近)</h3>
-            <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>実行 ID</th>
-                            <th>ステータス</th>
-                            <th>起動タイプ</th>
-                            <th>トリガー</th>
-                            <th>実行時間</th>
-                            <th>開始日時</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% if recent_runs.is_empty() %}
-                        <tr>
-                            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 30px 0;">
-                                実行履歴はありません
-                            </td>
-                        </tr>
-                        {% else %}
-                        {% for run in recent_runs %}
-                        <tr>
-                            <td>
-                                <a href="/runs/{{ run.id }}" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--color-primary); text-decoration: none;">
-                                    {{ run.id_short }}
-                                </a>
-                            </td>
-                            <td>
-                                <span class="badge badge-{{ run.status_str }}">{{ run.status_ja }}</span>
-                            </td>
-                            <td style="text-transform: uppercase; font-size: 0.85rem;">{{ run.worker_type }}</td>
-                            <td>{{ run.trigger_ja }}</td>
-                            <td>{{ run.duration_str }}</td>
-                            <td>{{ run.started_at_str }}</td>
-                            <td>
-                                <a href="/runs/{{ run.id }}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.8rem;">
-                                    ログ
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                        {% endif %}
-                    </tbody>
-                </table>
+            <div class="code-editor-container">
+                <button class="copy-btn" onclick="copyToClipboard(document.getElementById('dag-json-code').innerText, this)" title="JSON定義をコピー">
+                    <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                </button>
+                <pre class="code-editor-pre" id="dag-json-code" style="color: #a7f3d0;">{{ dag_tasks_json }}</pre>
             </div>
         </div>
     </div>
+    
+    {% else %}
+    <!-- Shell Command display -->
+    <h4 style="font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="terminal" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+        実行スクリプト (シェルコマンド)
+    </h4>
+    
+    <div class="code-editor-container">
+        <button class="copy-btn" onclick="copyToClipboard(document.getElementById('cmd-code').innerText, this)" title="コマンドをコピー">
+            <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+        </button>
+        <pre class="code-editor-pre" id="cmd-code">$ {{ command_preview }}</pre>
+    </div>
+    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 10px; display: flex; align-items: center; gap: 4px;">
+        <i data-lucide="info" style="width: 13px; height: 13px;"></i>
+        このコマンドは、割り当てられたワーカーノード（Fargate / Lambda）のコンテナシェル上で直接実行されます。
+    </div>
+    {% endif %}
+</div>
 
-    <!-- Right column: Metadata details -->
-    <div style="display: flex; flex-direction: column; gap: 24px;">
-        <div class="card" style="padding: 24px;">
-            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px;">ジョブ設定</h3>
-            
-            <div style="display: flex; flex-direction: column; gap: 16px;">
-                <div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">ステータス</div>
-                    <div style="font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 8px;">
-                        {% if job.is_active %}
-                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: var(--color-success); box-shadow: 0 0 8px var(--color-success);"></span>
-                        有効 (稼働中)
-                        {% else %}
-                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: var(--text-muted);"></span>
-                        無効
-                        {% endif %}
-                    </div>
+<!-- TAB 5: SLACK NOTIFICATIONS -->
+<div id="tab-slack" class="ec2-tab-pane card" style="padding: 24px;">
+    <h4 style="font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+        <i data-lucide="bell" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+        Slack Webhook 連携状況
+    </h4>
+    
+    <div style="max-width: 600px; background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.04); border-radius: var(--radius-md); padding: 24px;">
+        <h5 style="font-family: 'Outfit', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="slack" style="width: 18px; height: 18px; color: #4a154b;"></i>
+            ジョブ実行通知設定
+        </h5>
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 20px;">このジョブのライフサイクルイベントにおいて、Slackへ実行状況を通知するタイミングを選択・表示しています。</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
+            <!-- Event 1: Running -->
+            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.03);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i data-lucide="play-circle" style="width: 16px; height: 16px; color: var(--color-primary-light);"></i>
+                    <span style="font-size: 0.88rem; font-weight: 500; color: var(--text-secondary);">ジョブ起動時 (実行開始時)</span>
                 </div>
-
                 <div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">ジョブタイプ</div>
-                    <div style="font-weight: 600; margin-top: 4px; text-transform: uppercase;">{{ job_type_str }}</div>
-                </div>
-
-                {% if job.schedule_expr.is_some() %}
-                <div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">定期実行スケジュール (Cron)</div>
-                    <div style="font-family: 'JetBrains Mono', monospace; font-weight: 600; margin-top: 4px; color: var(--color-primary);">
-                        {{ job.schedule_expr.as_ref().unwrap() }}
-                    </div>
-                </div>
-                {% endif %}
-
-                <div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">ワーカー起動先</div>
-                    <div style="font-weight: 600; margin-top: 4px; text-transform: uppercase; display: flex; align-items: center; gap: 6px;">
-                        {% if worker_type_str == "fargate" %}
-                        <i data-lucide="box" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
-                        AWS Fargate タスク
-                        {% else %}
-                        <i data-lucide="zap" style="width: 16px; height: 16px; color: var(--color-warning);"></i>
-                        AWS Lambda 関数
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">タイムアウト制限</div>
-                    <div style="font-weight: 600; margin-top: 4px;">{{ job.timeout_sec }} 秒 ({{ timeout_minutes }} 分)</div>
-                </div>
-
-                <div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">リトライポリシー</div>
-                    <div style="font-weight: 600; margin-top: 4px;">
-                        最大 {{ job.retry_policy.max_retries }} 回 / {{ retry_backoff_str }} バックオフ
-                    </div>
-                </div>
-
-                <div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">タグ</div>
-                    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;">
-                        {% for tag in job.tags %}
-                        <span style="font-size: 0.75rem; background-color: rgba(56, 189, 248, 0.05); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 4px;">
-                            {{ tag }}
-                        </span>
-                        {% endfor %}
-                    </div>
+                    {% if slack_on_running %}
+                    <span style="background: rgba(14, 165, 233, 0.12); color: var(--color-primary-light); font-size: 0.75rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(14, 165, 233, 0.25);">有効</span>
+                    {% else %}
+                    <span style="color: var(--text-muted); font-size: 0.75rem; padding: 3px 10px; background: rgba(255,255,255,0.03); border-radius: 20px; border: 1px solid rgba(255,255,255,0.05);">無効</span>
+                    {% endif %}
                 </div>
             </div>
+            
+            <!-- Event 2: Succeeded -->
+            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.03);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i data-lucide="check-circle" style="width: 16px; height: 16px; color: var(--color-success);"></i>
+                    <span style="font-size: 0.88rem; font-weight: 500; color: var(--text-secondary);">ジョブ成功時</span>
+                </div>
+                <div>
+                    {% if slack_on_succeeded %}
+                    <span style="background: rgba(16, 185, 129, 0.12); color: var(--color-success); font-size: 0.75rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(16, 185, 129, 0.25);">有効</span>
+                    {% else %}
+                    <span style="color: var(--text-muted); font-size: 0.75rem; padding: 3px 10px; background: rgba(255,255,255,0.03); border-radius: 20px; border: 1px solid rgba(255,255,255,0.05);">無効</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Event 3: Failed -->
+            <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.03);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i data-lucide="x-circle" style="width: 16px; height: 16px; color: var(--color-danger);"></i>
+                    <span style="font-size: 0.88rem; font-weight: 500; color: var(--text-secondary);">ジョブ失敗時 (リトライ上限超過時含む)</span>
+                </div>
+                <div>
+                    {% if slack_on_failed %}
+                    <span style="background: rgba(239, 68, 68, 0.12); color: var(--color-danger); font-size: 0.75rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(239, 68, 68, 0.25);">有効</span>
+                    {% else %}
+                    <span style="color: var(--text-muted); font-size: 0.75rem; padding: 3px 10px; background: rgba(255,255,255,0.03); border-radius: 20px; border: 1px solid rgba(255,255,255,0.05);">無効</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Helpful link -->
+        <div style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.8rem;">
+            <span style="color: var(--text-muted);">
+                <i data-lucide="info" style="width: 13px; height: 13px; display: inline-block; vertical-align: text-bottom; margin-right: 2px;"></i>
+                グローバル Slack 接続先 URL 構成はシステム設定から編集できます。
+            </span>
+            <a href="/settings" class="btn btn-secondary" style="font-size: 0.75rem; padding: 4px 10px;" hx-boost="true">
+                通知設定画面へ
+            </a>
         </div>
     </div>
 </div>
 
+<!-- ==================== SCRIPTS AND INITS ==================== -->
+<script>
+    // Tab switching controller
+    function switchTab(evt, tabId) {
+        // Hide all tab panes
+        const panes = document.querySelectorAll('.ec2-tab-pane');
+        panes.forEach(pane => {
+            pane.classList.remove('active');
+        });
+        
+        // Deactivate all tab buttons
+        const buttons = document.querySelectorAll('.ec2-tab-btn');
+        buttons.forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Show current tab pane
+        document.getElementById(tabId).classList.add('active');
+        
+        // Activate current tab button
+        evt.currentTarget.classList.add('active');
+    }
+    
+    // Copy clipboard utility
+    function copyToClipboard(text, btnElement) {
+        navigator.clipboard.writeText(text).then(() => {
+            const originalHTML = btnElement.innerHTML;
+            btnElement.innerHTML = '<i data-lucide="check" style="width: 13px; height: 13px; color: var(--color-success);"></i>';
+            lucide.createIcons();
+            
+            setTimeout(() => {
+                btnElement.innerHTML = originalHTML;
+                lucide.createIcons();
+            }, 1500);
+        }).catch(err => {
+            console.error('コピー失敗: ', err);
+        });
+    }
+</script>
+
 {% if is_dag %}
+<script>
     (function() {
         function initDag() {
             // Parse tasks and edges passed from backend
@@ -335,7 +867,7 @@
                 maxRowLength = Math.max(maxRowLength, layerGroups[l].len || layerGroups[l].length);
             });
             const finalHeight = startY + maxRowLength * rowHeight;
-            svgEl.setAttribute('height', Math.max(280, finalHeight));
+            svgEl.setAttribute('height', Math.max(260, finalHeight));
         }
 
         if (document.readyState === 'loading') {
