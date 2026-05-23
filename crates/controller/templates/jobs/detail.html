@@ -204,6 +204,39 @@
         padding: 3px 12px;
         border-radius: 20px;
     }
+
+    /* ===== A/B Radio Custom Style ===== */
+    .compare-radio {
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        outline: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+        position: relative;
+    }
+    .compare-radio:checked {
+        border-color: var(--color-primary);
+    }
+    .compare-radio:checked::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        background-color: var(--color-primary);
+        border-radius: 50%;
+        display: block;
+    }
+
+    /* ===== Modal Animations ===== */
+    @keyframes modalFadeIn {
+        from { opacity: 0; transform: scale(0.96) translateY(8px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+    }
 </style>
 {% endblock %}
 
@@ -348,6 +381,9 @@
     </button>
     <button class="detail-tab" data-tab="tab-slack">
         <i data-lucide="bell" style="width:14px;height:14px;"></i> Slack通知
+    </button>
+    <button class="detail-tab" data-tab="tab-history">
+        <i data-lucide="scroll-text" style="width:14px;height:14px;"></i> 設定変更履歴
     </button>
 </div>
 
@@ -594,6 +630,79 @@
     </div>
 </div>
 
+<!-- ========== TAB: 設定変更履歴 ========== -->
+<div id="tab-history" class="tab-panel">
+    <div class="card" style="padding:24px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);display:flex;align-items:center;gap:8px;margin:0;">
+                <i data-lucide="scroll-text" style="width:15px;height:15px;color:var(--color-primary);"></i>
+                ジョブ設定変更履歴
+            </h4>
+            <button class="btn btn-secondary" onclick="compareVersions()" style="font-size:0.82rem;padding:6px 12px;background:rgba(14,165,233,0.08);color:var(--color-primary);border-color:rgba(14,165,233,0.25);">
+                <i data-lucide="git-compare" style="width:14px;height:14px;"></i> ABでの差分比較
+            </button>
+        </div>
+
+        <div class="table-container">
+            <table class="data-table" style="font-size:0.85rem;">
+                <thead>
+                    <tr>
+                        <th style="width:10%;">バージョン</th>
+                        <th style="width:35%;">変更日時</th>
+                        <th style="width:25%;">変更ユーザ</th>
+                        <th style="width:15%;text-align:center;">比較 A</th>
+                        <th style="width:15%;text-align:center;">比較 B</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if history.is_empty() %}
+                    <tr>
+                        <td colspan="5" style="text-align:center;color:var(--text-muted);padding:48px 0;">
+                            履歴がありません
+                        </td>
+                    </tr>
+                    {% else %}
+                    {% for item in history %}
+                    <tr class="history-row">
+                        <td style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--color-primary-light);">v{{ item.version }}</td>
+                        <td style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;">{{ item.changed_at_str }}</td>
+                        <td>{{ item.changed_by }}</td>
+                        <td style="text-align:center;">
+                            <input type="radio" name="compare-a" value="{{ item.version }}" data-payload="{{ item.payload_json|urlencode }}" class="compare-radio" {% if loop.index == 2 %}checked{% endif %}>
+                        </td>
+                        <td style="text-align:center;">
+                            <input type="radio" name="compare-b" value="{{ item.version }}" data-payload="{{ item.payload_json|urlencode }}" class="compare-radio" {% if loop.first %}checked{% endif %}>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========== MODAL: 差分比較ビューア ========== -->
+<div id="diff-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center;" hx-boost="false">
+    <div class="card" style="width:90%; max-width:920px; max-height:85vh; display:flex; flex-direction:column; padding:24px; border:1px solid rgba(255,255,255,0.08); background:rgba(15,23,42,0.95); box-shadow:0 20px 40px rgba(0,0,0,0.6); overflow:hidden; animation: modalFadeIn 0.22s ease-out;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:12px;">
+            <h3 style="font-family:'Outfit',sans-serif; font-size:1.05rem; display:flex; align-items:center; gap:8px; margin:0;">
+                <i data-lucide="git-compare" style="color:var(--color-primary); width:18px; height:18px;"></i>
+                設定差分比較 <span id="diff-title-versions" style="font-size:0.82rem; color:var(--text-muted); font-weight:normal; margin-left:8px;"></span>
+            </h3>
+            <button onclick="closeDiffModal()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.4rem; padding:0; display:flex; align-items:center; justify-content:center; line-height:1;">&times;</button>
+        </div>
+        
+        <div id="diff-content" style="flex:1; overflow-y:auto; padding-right:6px; font-size:0.84rem;">
+            <!-- Diff result table will be injected dynamically -->
+        </div>
+        
+        <div style="display:flex; justify-content:end; margin-top:20px; border-top:1px solid rgba(255,255,255,0.08); padding-top:16px; gap:10px;">
+            <button class="btn btn-secondary" onclick="closeDiffModal()">閉じる</button>
+        </div>
+    </div>
+</div>
+
 <!-- ========== Tab switching JS ========== -->
 <script>
 (function() {
@@ -626,6 +735,108 @@
         initTabs();
     }
 })();
+</script>
+
+<!-- ========== A/B Diff Logic JS ========== -->
+<script>
+function compareVersions() {
+    var radioA = document.querySelector('input[name="compare-a"]:checked');
+    var radioB = document.querySelector('input[name="compare-b"]:checked');
+    
+    if (!radioA || !radioB) {
+        alert('比較する2つのバージョン（AとB）を選択してください。');
+        return;
+    }
+    
+    var verA = radioA.value;
+    var verB = radioB.value;
+    
+    var payloadA = JSON.parse(decodeURIComponent(radioA.getAttribute('data-payload')));
+    var payloadB = JSON.parse(decodeURIComponent(radioB.getAttribute('data-payload')));
+    
+    var titleEl = document.getElementById('diff-title-versions');
+    titleEl.textContent = 'バージョン ' + verA + ' (A) ➔ バージョン ' + verB + ' (B)';
+    
+    var diffContent = document.getElementById('diff-content');
+    diffContent.innerHTML = '';
+    
+    // Create diff view table
+    var table = document.createElement('table');
+    table.className = 'data-table';
+    table.style.width = '100%';
+    table.style.fontSize = '0.82rem';
+    
+    var thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th style="width:22%;text-align:left;">設定項目</th><th style="width:39%;text-align:left;color:#ef4444;">バージョン ' + verA + ' (A)</th><th style="width:39%;text-align:left;color:#10b981;">バージョン ' + verB + ' (B)</th></tr>';
+    table.appendChild(thead);
+    
+    var tbody = document.createElement('tbody');
+    var allKeys = Array.from(new Set([...Object.keys(payloadA), ...Object.keys(payloadB)]));
+    var hasDiff = false;
+    
+    allKeys.forEach(function(key) {
+        var valA = payloadA[key];
+        var valB = payloadB[key];
+        
+        var strA = typeof valA === 'object' ? JSON.stringify(valA, null, 2) : String(valA !== undefined ? valA : '—');
+        var strB = typeof valB === 'object' ? JSON.stringify(valB, null, 2) : String(valB !== undefined ? valB : '—');
+        
+        if (strA === 'undefined' || strA === '') strA = '—';
+        if (strB === 'undefined' || strB === '') strB = '—';
+        
+        var isDifferent = strA !== strB;
+        
+        if (isDifferent) {
+            hasDiff = true;
+            var tr = document.createElement('tr');
+            tr.style.background = 'rgba(239, 68, 68, 0.015)';
+            
+            var tdKey = document.createElement('td');
+            tdKey.style.fontWeight = '600';
+            tdKey.style.color = 'var(--text-secondary)';
+            tdKey.style.verticalAlign = 'top';
+            tdKey.style.padding = '12px 10px';
+            tdKey.textContent = key;
+            
+            var tdA = document.createElement('td');
+            tdA.style.fontFamily = 'JetBrains Mono, monospace';
+            tdA.style.whiteSpace = 'pre-wrap';
+            tdA.style.color = '#f87171'; // soft red
+            tdA.style.background = 'rgba(239, 68, 68, 0.06)';
+            tdA.style.verticalAlign = 'top';
+            tdA.style.padding = '12px 10px';
+            tdA.textContent = strA;
+            
+            var tdB = document.createElement('td');
+            tdB.style.fontFamily = 'JetBrains Mono, monospace';
+            tdB.style.whiteSpace = 'pre-wrap';
+            tdB.style.color = '#34d399'; // soft green
+            tdB.style.background = 'rgba(16, 185, 129, 0.06)';
+            tdB.style.verticalAlign = 'top';
+            tdB.style.padding = '12px 10px';
+            tdB.textContent = strB;
+            
+            tr.appendChild(tdKey);
+            tr.appendChild(tdA);
+            tr.appendChild(tdB);
+            tbody.appendChild(tr);
+        }
+    });
+    
+    if (!hasDiff) {
+        diffContent.innerHTML = '<div style="text-align:center; padding:60px 0; color:var(--text-muted);"><i data-lucide="check-circle-2" style="width:36px; height:36px; color:var(--color-success); margin:0 auto 14px; display:block; opacity:0.85;"></i>設定項目に差分はありません。すべての構成値が同一です。</div>';
+    } else {
+        table.appendChild(tbody);
+        diffContent.appendChild(table);
+    }
+    
+    document.getElementById('diff-modal').style.display = 'flex';
+    lucide.createIcons();
+}
+
+function closeDiffModal() {
+    document.getElementById('diff-modal').style.display = 'none';
+}
 </script>
 
 {% if is_dag %}

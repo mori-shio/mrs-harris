@@ -58,6 +58,14 @@ struct JobsListPartialTemplate {
 }
 crate::impl_into_response!(JobsListPartialTemplate);
 
+#[derive(Clone, serde::Serialize)]
+struct JobHistoryRenderItem {
+    version: u32,
+    changed_by: String,
+    changed_at_str: String,
+    payload_json: String,
+}
+
 #[derive(Template)]
 #[template(path = "jobs/detail.html")]
 struct JobDetailTemplate {
@@ -83,6 +91,7 @@ struct JobDetailTemplate {
     updated_at_str: String,
     dag_tasks_json: String,
     dag_edges_json: String,
+    history: Vec<JobHistoryRenderItem>,
 }
 crate::impl_into_response!(JobDetailTemplate);
 
@@ -268,7 +277,7 @@ async fn new_job_page(
 }
 
 async fn create_job_submit(
-    _claims: WebClaims,
+    claims: WebClaims,
     State(state): State<AppState>,
     Form(form): Form<JobFormData>,
 ) -> impl IntoResponse {
@@ -490,11 +499,13 @@ async fn create_job_submit(
 
     tx.commit().await.unwrap();
 
+    let _ = record_job_history(&state.db, &job_id, &claims.0.username).await;
+
     Redirect::to("/jobs").into_response()
 }
 
 async fn job_detail_page(
-    _claims: WebClaims,
+    claims: WebClaims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
@@ -697,6 +708,44 @@ async fn job_detail_page(
     let created_at_str = job.created_at.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
     let updated_at_str = job.updated_at.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
 
+    // 4. 設定変更履歴の取得（空なら自動で初期履歴を記録）
+    let mut history_rows = sqlx::query(
+        "SELECT version, changed_by, payload, changed_at FROM job_history WHERE job_id = ? ORDER BY version DESC"
+    )
+    .bind(id.to_string())
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    if history_rows.is_empty() {
+        let _ = record_job_history(&state.db, &id, &claims.0.username).await;
+        history_rows = sqlx::query(
+            "SELECT version, changed_by, payload, changed_at FROM job_history WHERE job_id = ? ORDER BY version DESC"
+        )
+        .bind(id.to_string())
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default();
+    }
+
+    let mut history = Vec::new();
+    for row in history_rows {
+        let version: u32 = row.try_get("version").unwrap_or(1);
+        let changed_by: String = row.try_get("changed_by").unwrap_or_else(|_| "admin".to_string());
+        let changed_at: chrono::DateTime<chrono::Utc> = row.try_get("changed_at").unwrap();
+        let changed_at_str = changed_at.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
+        
+        let payload_val: serde_json::Value = row.try_get("payload").unwrap_or(serde_json::Value::Null);
+        let payload_json = serde_json::to_string(&payload_val).unwrap_or_default();
+
+        history.push(JobHistoryRenderItem {
+            version,
+            changed_by,
+            changed_at_str,
+            payload_json,
+        });
+    }
+
     JobDetailTemplate {
         job,
         job_type_str,
@@ -720,6 +769,7 @@ async fn job_detail_page(
         updated_at_str,
         dag_tasks_json,
         dag_edges_json,
+        history,
     }
 }
 
@@ -871,7 +921,7 @@ async fn edit_job_page(
 }
 
 async fn edit_job_submit(
-    _claims: WebClaims,
+    claims: WebClaims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Form(form): Form<JobFormData>,
@@ -1084,6 +1134,8 @@ async fn edit_job_submit(
 
     tx.commit().await.unwrap();
 
+    let _ = record_job_history(&state.db, &id, &claims.0.username).await;
+
     Redirect::to(&format!("/jobs/{}", id)).into_response()
 }
 
@@ -1207,4 +1259,178 @@ async fn import_toml_submit(
     tx.commit().await.unwrap();
 
     Redirect::to("/jobs").into_response()
+}
+
+async fn build_job_snapshot(
+    pool: &MySqlPool,
+    job: &Job,
+) -> serde_json::Value {
+    let job_type_str = match job.job_type {
+        JobType::Cron => "Cron (定期)",
+        JobType::Dag => "DAG (連結)",
+        JobType::OneShot => "OneShot (単発)",
+    };
+
+    let worker_definition_name = if let Some(def_id) = job.worker_definition_id {
+        if let Ok(Some(def)) = crate::db::workers::get_worker_definition(pool, &def_id).await {
+            def.name
+        } else {
+            "デフォルト (起動タイプ設定)".to_string()
+        }
+    } else {
+        "デフォルト (起動タイプ設定)".to_string()
+    };
+
+    let mut env_vars = HashMap::new();
+    let mut script_or_dag = serde_json::Value::Null;
+    let mut ssm_region = String::new();
+    let mut ssm_path = String::new();
+    let mut ssm_recursive = false;
+
+    if job.job_type == JobType::Dag {
+        // Load DAG tasks
+        let tasks_rows = sqlx::query(
+            "SELECT task_name, worker_type, payload FROM dag_tasks WHERE dag_id = ?"
+        )
+        .bind(job.id.to_string())
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+
+        let mut tasks = Vec::new();
+        for row in tasks_rows {
+            let name: String = row.try_get("task_name").unwrap();
+            let wt: String = row.try_get("worker_type").unwrap();
+            let pl: serde_json::Value = row.try_get("payload").unwrap();
+            tasks.push(serde_json::json!({
+                "タスク名": name,
+                "起動タイプ": wt,
+                "設定": pl
+            }));
+        }
+        script_or_dag = serde_json::Value::Array(tasks);
+
+        if let Some(env_map) = job.payload.get("env").and_then(|v| v.as_object()) {
+            for (k, v) in env_map {
+                env_vars.insert(k.clone(), v.as_str().unwrap_or_default().to_string());
+            }
+        }
+        ssm_region = job.payload.get("ssm_region").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        ssm_path = job.payload.get("ssm_path").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        ssm_recursive = job.payload.get("ssm_recursive").and_then(|v| v.as_bool()).unwrap_or(false);
+    } else {
+        if let Ok(shell) = serde_json::from_value::<ShellPayload>(job.payload.clone()) {
+            let mut cmd = shell.command;
+            if !shell.args.is_empty() {
+                cmd.push(' ');
+                cmd.push_str(&shell.args.join(" "));
+            }
+            script_or_dag = serde_json::Value::String(cmd);
+
+            for (k, v) in &shell.env {
+                env_vars.insert(k.clone(), v.clone());
+            }
+            ssm_region = shell.ssm_region.unwrap_or_default();
+            ssm_path = shell.ssm_path.unwrap_or_default();
+            ssm_recursive = shell.ssm_recursive.unwrap_or(false);
+        }
+    }
+
+    let retry_backoff_str = match job.retry_policy.backoff {
+        BackoffStrategy::Fixed => "固定時間",
+        BackoffStrategy::Linear => "線形",
+        BackoffStrategy::Exponential => "指数",
+    };
+
+    // Slack settings
+    let noti_row = sqlx::query(
+        "SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 'c1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d'"
+    )
+    .bind(job.id.to_string())
+    .fetch_optional(pool)
+    .await
+    .unwrap_or_default();
+
+    let mut slack_running = false;
+    let mut slack_succeeded = false;
+    let mut slack_failed = false;
+
+    if let Some(row) = noti_row {
+        if let Ok(on_events_val) = row.try_get::<serde_json::Value, _>("on_events") {
+            if let Ok(on_events) = serde_json::from_value::<Vec<String>>(on_events_val) {
+                slack_running = on_events.contains(&"running".to_string());
+                slack_succeeded = on_events.contains(&"succeeded".to_string());
+                slack_failed = on_events.contains(&"failed".to_string()) || on_events.contains(&"dead_letter".to_string());
+            }
+        }
+    }
+
+    serde_json::json!({
+        "ジョブ名": job.name,
+        "説明": job.description.as_deref().unwrap_or(""),
+        "ジョブタイプ": job_type_str,
+        "スケジュール (Cron)": job.schedule_expr.as_deref().unwrap_or("未設定"),
+        "有効化状態": if job.is_active { "有効" } else { "無効" },
+        "ワーカー定義": worker_definition_name,
+        "タイムアウト": format!("{} 秒", job.timeout_sec),
+        "リトライ上限": job.retry_policy.max_retries,
+        "バックオフ戦略": retry_backoff_str,
+        "初期遅延": format!("{} 秒", job.retry_policy.base_delay_sec),
+        "タグ": job.tags,
+        "直接設定の環境変数": env_vars,
+        "SSMパラメータ連携": {
+            "リージョン": ssm_region,
+            "パス": ssm_path,
+            "再帰取得": if ssm_recursive { "有効" } else { "無効" }
+        },
+        "Slack通知": {
+            "ジョブ起動時": if slack_running { "有効" } else { "無効" },
+            "成功時": if slack_succeeded { "有効" } else { "無効" },
+            "失敗時": if slack_failed { "有効" } else { "無効" }
+        },
+        "スクリプト / DAG構成": script_or_dag
+    })
+}
+
+async fn record_job_history(
+    pool: &MySqlPool,
+    job_id: &Uuid,
+    changed_by: &str,
+) -> anyhow::Result<()> {
+    // 1. 最新のジョブ情報を取得
+    let job = match crate::db::jobs::get_job(pool, job_id).await? {
+        Some(j) => j,
+        None => return Ok(()),
+    };
+
+    // 2. スナップショットJSONの作成
+    let snapshot = build_job_snapshot(pool, &job).await;
+
+    // 3. バージョンの決定
+    let version_row = sqlx::query(
+        "SELECT MAX(version) as max_v FROM job_history WHERE job_id = ?"
+    )
+    .bind(job_id.to_string())
+    .fetch_one(pool)
+    .await?;
+    
+    let current_max: Option<u32> = version_row.try_get("max_v").ok();
+    let next_version = current_max.unwrap_or(0) + 1;
+
+    // 4. 履歴に挿入
+    let history_id = Uuid::new_v4();
+    sqlx::query(
+        r#"INSERT INTO job_history (id, job_id, version, payload, changed_by, changed_at)
+           VALUES (?, ?, ?, ?, ?, ?)"#
+    )
+    .bind(history_id.to_string())
+    .bind(job_id.to_string())
+    .bind(next_version)
+    .bind(snapshot)
+    .bind(changed_by)
+    .bind(Utc::now())
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }
