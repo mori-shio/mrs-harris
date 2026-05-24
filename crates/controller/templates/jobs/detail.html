@@ -6,55 +6,97 @@
 
 {% block head %}
 <style>
-    /* ===== Summary Panel ===== */
-    .summary-panel {
-        padding: 28px;
-        margin-bottom: 0;
-        border: 1px solid rgba(255,255,255,0.06);
-        background: rgba(255,255,255,0.015);
-    }
-
-    .summary-panel-title {
-        font-family: 'Outfit', sans-serif;
-        font-size: 0.8rem;
-        font-weight: 600;
-        color: var(--text-muted);
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        margin-bottom: 24px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid rgba(255,255,255,0.06);
+    /* Sleek EC2-style tabs navigation */
+    .ec2-tabs-nav {
         display: flex;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        margin-top: 28px;
+        margin-bottom: 20px;
+        gap: 4px;
+        overflow-x: auto;
+        padding-bottom: 1px;
+    }
+    
+    .ec2-tab-btn {
+        background: none;
+        border: none;
+        padding: 12px 20px;
+        color: var(--text-muted);
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        display: inline-flex;
         align-items: center;
         gap: 8px;
     }
+    
+    .ec2-tab-btn:hover {
+        color: var(--text-primary);
+        border-bottom-color: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.01);
+    }
+    
+    .ec2-tab-btn.active {
+        color: var(--color-primary);
+        border-bottom-color: var(--color-primary);
+        font-weight: 600;
+        background: rgba(var(--color-primary-rgb), 0.02);
+    }
+    
+    /* Tab panes */
+    .ec2-tab-pane {
+        display: none;
+        padding: 20px 0 0;
+    }
+    
+    .ec2-tab-pane.active {
+        display: block;
+        animation: ec2FadeIn 0.25s ease-out;
+    }
+    
+    @keyframes ec2FadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
 
+    /* EC2 summary details grid */
     .summary-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 0;
+        gap: 20px 24px;
     }
-
-    .summary-cell {
-        padding: 14px 16px;
-        border-bottom: 1px solid rgba(255,255,255,0.04);
-        border-right: 1px solid rgba(255,255,255,0.04);
+    
+    @media (max-width: 1024px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
     }
-
-    .summary-cell:nth-child(4n) {
-        border-right: none;
+    
+    @media (max-width: 640px) {
+        .summary-grid {
+            grid-template-columns: 1fr;
+        }
     }
-
-    .summary-cell-label {
+    
+    .summary-item {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    
+    .summary-label {
         font-size: 0.72rem;
         color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.06em;
         font-weight: 500;
-        margin-bottom: 6px;
     }
-
-    .summary-cell-value {
+    
+    .summary-value {
         font-size: 0.88rem;
         font-weight: 600;
         color: var(--text-primary);
@@ -62,62 +104,6 @@
         align-items: center;
         gap: 6px;
         line-height: 1.5;
-    }
-
-    /* ===== Tabs ===== */
-    .detail-tabs {
-        display: flex;
-        background: rgba(255,255,255,0.02);
-        border-top: 1px solid rgba(255,255,255,0.06);
-        border-bottom: 1px solid rgba(255,255,255,0.06);
-        gap: 0;
-        padding: 0 8px;
-        margin-top: 28px;
-    }
-
-    .detail-tab {
-        background: none;
-        border: none;
-        border-bottom: 2px solid transparent;
-        padding: 14px 22px;
-        color: var(--text-muted);
-        font-family: 'Outfit', sans-serif;
-        font-size: 0.88rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: color 0.15s, border-color 0.15s, background 0.15s;
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        white-space: nowrap;
-        position: relative;
-        top: 1px;
-    }
-
-    .detail-tab:hover {
-        color: var(--text-primary);
-        background: rgba(255,255,255,0.02);
-    }
-
-    .detail-tab.active {
-        color: var(--color-primary);
-        border-bottom-color: var(--color-primary);
-        font-weight: 600;
-    }
-
-    .tab-panel {
-        display: none;
-        padding: 24px 0 0;
-    }
-
-    .tab-panel.active {
-        display: block;
-        animation: tabFade 0.2s ease-out;
-    }
-
-    @keyframes tabFade {
-        from { opacity: 0; transform: translateY(4px); }
-        to   { opacity: 1; transform: translateY(0); }
     }
 
     /* ===== Code block ===== */
@@ -294,101 +280,123 @@
 </div>
 
 <!-- ========== SUMMARY PANEL ========== -->
-<div class="card summary-panel">
-    <div class="summary-panel-title">
-        <i data-lucide="layout-list" style="width: 15px; height: 15px; color: var(--color-primary);"></i>
-        ジョブの概要
-    </div>
-
+<div class="card" style="padding: 24px; margin-bottom: 24px; border: 1px solid rgba(255, 255, 255, 0.06); background: rgba(255, 255, 255, 0.015);">
+    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1rem; font-weight: 600; color: var(--color-primary); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px;">
+        <i data-lucide="layout-list" style="width: 16px; height: 16px;"></i>
+        ジョブの概要 (Summary)
+    </h3>
+    
     <div class="summary-grid">
-        <div class="summary-cell">
-            <div class="summary-cell-label">ジョブ ID</div>
-            <div class="summary-cell-value">
-                <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; font-weight: 500; color: var(--text-secondary);">{{ job.id }}</span>
-                <button onclick="navigator.clipboard.writeText('{{ job.id }}'); this.innerHTML='✓'; setTimeout(()=>this.innerHTML='⎘',1200)" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:0.9rem;padding:0 2px;" hx-boost="false" title="コピー">⎘</button>
+        <!-- Job ID -->
+        <div class="summary-item">
+            <span class="summary-label">ジョブ ID</span>
+            <div class="summary-value">
+                <span id="job-id-text" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--text-secondary);">{{ job.id }}</span>
+                <button onclick="navigator.clipboard.writeText('{{ job.id }}'); this.innerHTML='✓'; setTimeout(()=>this.innerHTML='⎘',1200)" style="background: none; border: none; padding: 2px; cursor: pointer; color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="false" title="コピー">⎘</button>
             </div>
         </div>
-
-        <div class="summary-cell">
-            <div class="summary-cell-label">ステータス</div>
-            <div class="summary-cell-value">
+        
+        <!-- Status -->
+        <div class="summary-item">
+            <span class="summary-label">ステータス</span>
+            <div class="summary-value">
                 {% if job.is_active %}
-                <span style="width:8px;height:8px;border-radius:50%;background:var(--color-success);box-shadow:0 0 6px var(--color-success);display:inline-block;"></span>
-                有効
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: var(--color-success); box-shadow: 0 0 8px var(--color-success);"></span>
+                <span style="color: var(--color-success);">有効 (Active)</span>
                 {% else %}
-                <span style="width:8px;height:8px;border-radius:50%;background:var(--text-muted);display:inline-block;"></span>
-                無効
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: var(--text-muted);"></span>
+                <span style="color: var(--text-muted);">無効 (Disabled)</span>
                 {% endif %}
             </div>
         </div>
-
-        <div class="summary-cell">
-            <div class="summary-cell-label">ジョブタイプ</div>
-            <div class="summary-cell-value">{{ job_type_str }}</div>
+        
+        <!-- Job Type -->
+        <div class="summary-item">
+            <span class="summary-label">ジョブタイプ</span>
+            <div class="summary-value" style="font-family: 'Outfit', sans-serif; font-weight: 600;">
+                <i data-lucide="git-commit" style="width: 14px; height: 14px; color: var(--color-primary-light);"></i>
+                {{ job_type_str }}
+            </div>
         </div>
-
-        <div class="summary-cell">
-            <div class="summary-cell-label">実行ワーカー (ノード定義)</div>
-            <div class="summary-cell-value">{{ worker_definition_name }}</div>
+        
+        <!-- Worker definition -->
+        <div class="summary-item">
+            <span class="summary-label">実行ワーカー (ノード定義)</span>
+            <div class="summary-value">
+                <i data-lucide="server" style="width: 14px; height: 14px; color: var(--color-primary-light);"></i>
+                {{ worker_definition_name }}
+            </div>
         </div>
-
-        <div class="summary-cell">
-            <div class="summary-cell-label">スケジュール</div>
-            <div class="summary-cell-value" style="font-family: 'JetBrains Mono', monospace; font-size: 0.84rem;">
+        
+        <!-- Schedule -->
+        <div class="summary-item">
+            <span class="summary-label">スケジュール</span>
+            <div class="summary-value" style="font-family: 'JetBrains Mono', monospace; font-size: 0.84rem;">
+                <i data-lucide="calendar" style="width: 14px; height: 14px; color: var(--color-primary-light);"></i>
                 {% if let Some(expr) = job.schedule_expr.as_ref() %}{{ expr }}{% else %}<span style="color:var(--text-muted);font-weight:400;">—</span>{% endif %}
             </div>
         </div>
-
-        <div class="summary-cell">
-            <div class="summary-cell-label">タイムアウト</div>
-            <div class="summary-cell-value">{{ job.timeout_sec }} 秒{% if timeout_minutes > 0 %} ({{ timeout_minutes }}分){% endif %}</div>
+        
+        <!-- Timeout -->
+        <div class="summary-item">
+            <span class="summary-label">タイムアウト</span>
+            <div class="summary-value">
+                <i data-lucide="clock" style="width: 14px; height: 14px; color: var(--color-primary-light);"></i>
+                {{ job.timeout_sec }} 秒{% if timeout_minutes > 0 %} ({{ timeout_minutes }}分){% endif %}
+            </div>
         </div>
-
-        <div class="summary-cell">
-            <div class="summary-cell-label">作成日時</div>
-            <div class="summary-cell-value" style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;font-weight:500;">{{ created_at_str }}</div>
+        
+        <!-- Created At -->
+        <div class="summary-item">
+            <span class="summary-label">作成日時</span>
+            <div class="summary-value" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 500;">
+                {{ created_at_str }}
+            </div>
         </div>
-
-        <div class="summary-cell">
-            <div class="summary-cell-label">更新日時</div>
-            <div class="summary-cell-value" style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;font-weight:500;">{{ updated_at_str }}</div>
+        
+        <!-- Updated At -->
+        <div class="summary-item">
+            <span class="summary-label">更新日時</span>
+            <div class="summary-value" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 500;">
+                {{ updated_at_str }}
+            </div>
         </div>
     </div>
-
+    
     {% if !job.tags.is_empty() %}
-    <div style="padding: 14px 16px 4px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-        <span style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:500;">タグ</span>
+    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <span class="summary-label" style="margin-right: 4px;">タグ</span>
         {% for tag in job.tags %}
-        <span style="font-size:0.75rem;background:rgba(14,165,233,0.08);color:var(--color-primary);border:1px solid rgba(14,165,233,0.2);padding:2px 10px;border-radius:12px;font-weight:500;">{{ tag }}</span>
+        <span style="font-size: 0.75rem; background: rgba(14,165,233,0.08); color: var(--color-primary); border: 1px solid rgba(14,165,233,0.2); padding: 2px 10px; border-radius: 12px; font-weight: 500;">{{ tag }}</span>
         {% endfor %}
     </div>
     {% endif %}
 </div>
 
 <!-- ========== TABS ========== -->
-<div class="detail-tabs" hx-boost="false">
-    <button class="detail-tab active" data-tab="tab-runs">
+<div class="ec2-tabs-nav" hx-boost="false">
+    <button class="ec2-tab-btn active" data-tab="tab-runs">
         <i data-lucide="history" style="width:14px;height:14px;"></i> 実行履歴
     </button>
-    <button class="detail-tab" data-tab="tab-env">
+    <button class="ec2-tab-btn" data-tab="tab-env">
         <i data-lucide="hash" style="width:14px;height:14px;"></i> 環境変数
     </button>
-    <button class="detail-tab" data-tab="tab-opts">
+    <button class="ec2-tab-btn" data-tab="tab-opts">
         <i data-lucide="sliders-horizontal" style="width:14px;height:14px;"></i> オプション設定
     </button>
-    <button class="detail-tab" data-tab="tab-cmd">
+    <button class="ec2-tab-btn" data-tab="tab-cmd">
         <i data-lucide="terminal" style="width:14px;height:14px;"></i> {% if is_dag %}DAGタスク定義{% else %}シェルコマンド{% endif %}
     </button>
-    <button class="detail-tab" data-tab="tab-slack">
+    <button class="ec2-tab-btn" data-tab="tab-slack">
         <i data-lucide="bell" style="width:14px;height:14px;"></i> Slack通知
     </button>
-    <button class="detail-tab" data-tab="tab-history">
+    <button class="ec2-tab-btn" data-tab="tab-history">
         <i data-lucide="scroll-text" style="width:14px;height:14px;"></i> 設定変更履歴
     </button>
 </div>
 
 <!-- ========== TAB: 実行履歴 ========== -->
-<div id="tab-runs" class="tab-panel active">
+<div id="tab-runs" class="ec2-tab-pane active">
     <div class="card" style="padding: 24px;">
         <div class="table-container">
             <table class="data-table" style="font-size:0.85rem;">
@@ -431,7 +439,7 @@
 </div>
 
 <!-- ========== TAB: 環境変数 ========== -->
-<div id="tab-env" class="tab-panel">
+<div id="tab-env" class="ec2-tab-pane">
     <div style="display:flex; flex-direction:column; gap:24px;">
         <!-- Direct env vars -->
         <div class="card" style="padding:24px;">
@@ -490,7 +498,7 @@
 </div>
 
 <!-- ========== TAB: オプション設定 ========== -->
-<div id="tab-opts" class="tab-panel">
+<div id="tab-opts" class="ec2-tab-pane">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
         <!-- Execution -->
         <div class="card" style="padding:24px;">
@@ -531,7 +539,7 @@
 </div>
 
 <!-- ========== TAB: シェルコマンド / DAG ========== -->
-<div id="tab-cmd" class="tab-panel">
+<div id="tab-cmd" class="ec2-tab-pane">
     {% if is_dag %}
     <div style="display:flex;flex-direction:column;gap:24px;">
         <div class="card" style="padding:24px;">
@@ -577,7 +585,7 @@
 </div>
 
 <!-- ========== TAB: Slack通知 ========== -->
-<div id="tab-slack" class="tab-panel">
+<div id="tab-slack" class="ec2-tab-pane">
     <div class="card" style="padding:24px;max-width:640px;">
         <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin-bottom:20px;display:flex;align-items:center;gap:8px;">
             <i data-lucide="bell" style="width:15px;height:15px;color:var(--color-primary);"></i>
@@ -631,7 +639,7 @@
 </div>
 
 <!-- ========== TAB: 設定変更履歴 ========== -->
-<div id="tab-history" class="tab-panel">
+<div id="tab-history" class="ec2-tab-pane">
     <div class="card" style="padding:24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
             <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);display:flex;align-items:center;gap:8px;margin:0;">
@@ -710,8 +718,8 @@
 <script>
 (function() {
     function initTabs() {
-        var tabs = document.querySelectorAll('.detail-tab');
-        var panels = document.querySelectorAll('.tab-panel');
+        var tabs = document.querySelectorAll('.ec2-tab-btn');
+        var panels = document.querySelectorAll('.ec2-tab-pane');
 
         tabs.forEach(function(tab) {
             tab.addEventListener('click', function(e) {
