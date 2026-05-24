@@ -45,6 +45,7 @@
         <table class="data-table">
             <thead>
                 <tr>
+                    <th style="width: 40px; text-align: center;"></th>
                     <th>スペース名</th>
                     <th style="text-align: center;">ジョブ数</th>
                     <th>説明</th>
@@ -55,33 +56,31 @@
             <tbody>
                 {% if spaces.is_empty() %}
                 <tr>
-                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+                    <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px 0;">
                         登録されているスペースはありません。右上の「新規スペース作成」から追加してください。
                     </td>
                 </tr>
                 {% else %}
                     {% for space in spaces %}
-                    <tr>
-                        <td style="font-weight: 600;">
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <div style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: rgba(14,165,233,0.06); border: 1px solid rgba(14,165,233,0.12);">
-                                    <i data-lucide="folder-tree" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
-                                </div>
-                                <a href="/spaces/{{ space.id }}" style="color: var(--text-primary); font-size: 0.95rem; text-decoration: none; font-weight: 600;" hx-boost="true">{{ space.name }}</a>
-                            </div>
+                    <tr data-space-id="{{ space.id }}">
+                        <td class="drag-handle" style="cursor: grab; color: var(--text-muted); text-align: center; vertical-align: middle; user-select: none;">
+                            <i data-lucide="grip-vertical" style="width: 16px; height: 16px;"></i>
                         </td>
-                        <td style="text-align: center;">
+                        <td style="font-weight: 600; vertical-align: middle;">
+                            <a href="/spaces/{{ space.id }}" style="color: var(--text-primary); font-size: 0.95rem; text-decoration: none; font-weight: 600;" hx-boost="true">{{ space.name }}</a>
+                        </td>
+                        <td style="text-align: center; vertical-align: middle;">
                             <span class="badge" style="background-color: rgba(14,165,233,0.1); color: var(--color-primary); border-color: rgba(14,165,233,0.2); font-weight: 700; font-size: 0.8rem; padding: 2px 10px; border-radius: 20px;">
                                 {{ space.job_count }}
                             </span>
                         </td>
-                        <td style="color: var(--text-muted); font-size: 0.9rem;">
+                        <td style="color: var(--text-muted); font-size: 0.9rem; vertical-align: middle;">
                             {{ space.description }}
                         </td>
-                        <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--text-secondary);">
+                        <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--text-secondary); vertical-align: middle;">
                             {{ space.created_at_str }}
                         </td>
-                        <td style="text-align: right;">
+                        <td style="text-align: right; vertical-align: middle;">
                             <div style="display: inline-flex; gap: 8px; align-items: center;">
                                 <a href="/spaces/{{ space.id }}/edit" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px;">
                                     <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i>
@@ -102,4 +101,88 @@
         </table>
     </div>
 </div>
+
+{% block scripts %}
+<script>
+    function initSortableSpaces() {
+        const tbody = document.querySelector('table.data-table tbody');
+        if (!tbody) return;
+
+        // Load and apply saved order from localStorage
+        const savedOrder = localStorage.getItem('spaces-order');
+        if (savedOrder) {
+            try {
+                const orderedIds = JSON.parse(savedOrder);
+                const rows = Array.from(tbody.querySelectorAll('tr[data-space-id]'));
+                const rowMap = new Map(rows.map(r => [r.getAttribute('data-space-id'), r]));
+                
+                // Append in the saved order
+                orderedIds.forEach(id => {
+                    const row = rowMap.get(id);
+                    if (row) {
+                        tbody.appendChild(row);
+                        rowMap.delete(id);
+                    }
+                });
+                
+                // Append any remaining rows
+                rowMap.forEach(row => {
+                    tbody.appendChild(row);
+                });
+            } catch (e) {
+                console.error("Failed to parse spaces order", e);
+            }
+        }
+
+        const rows = tbody.querySelectorAll('tr[data-space-id]');
+        rows.forEach(row => {
+            const handle = row.querySelector('.drag-handle');
+            if (!handle) return;
+            
+            handle.addEventListener('mousedown', () => {
+                row.setAttribute('draggable', 'true');
+            });
+            handle.addEventListener('mouseup', () => {
+                row.removeAttribute('draggable');
+            });
+            
+            row.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', row.getAttribute('data-space-id'));
+                row.classList.add('dragging');
+                row.style.opacity = '0.4';
+                row.style.background = 'rgba(14, 165, 233, 0.05)';
+            });
+            
+            row.addEventListener('dragend', () => {
+                row.classList.remove('dragging');
+                row.style.opacity = '';
+                row.style.background = '';
+                row.removeAttribute('draggable');
+                
+                // Save new order to localStorage
+                const currentRows = Array.from(tbody.querySelectorAll('tr[data-space-id]'));
+                const currentIds = currentRows.map(r => r.getAttribute('data-space-id'));
+                localStorage.setItem('spaces-order', JSON.stringify(currentIds));
+            });
+            
+            row.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                const draggingRow = tbody.querySelector('.dragging');
+                if (!draggingRow || draggingRow === row) return;
+                
+                const rect = row.getBoundingClientRect();
+                const next = (e.clientY - rect.top) > (rect.height / 2);
+                tbody.insertBefore(draggingRow, next ? row.nextSibling : row);
+            });
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        initSortableSpaces();
+    });
+    document.addEventListener("htmx:afterSwap", () => {
+        initSortableSpaces();
+    });
+</script>
+{% endblock %}
 {% endblock %}
