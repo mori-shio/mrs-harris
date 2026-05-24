@@ -328,7 +328,7 @@
         </div>
 
         <div class="summary-cell">
-            <div class="summary-cell-label">ワーカー定義</div>
+            <div class="summary-cell-label">実行ワーカー (ノード定義)</div>
             <div class="summary-cell-value">{{ worker_definition_name }}</div>
         </div>
 
@@ -505,10 +505,6 @@
             <div class="meta-row">
                 <div class="meta-key">作業ディレクトリ</div>
                 <div class="meta-val" style="font-family:'JetBrains Mono',monospace;font-size:0.84rem;">{% if let Some(dir) = working_dir.as_ref() %}{{ dir }}{% else %}<span style="color:var(--text-muted);font-weight:400;font-style:italic;">デフォルト</span>{% endif %}</div>
-            </div>
-            <div class="meta-row">
-                <div class="meta-key">起動タイプ</div>
-                <div class="meta-val" style="text-transform:uppercase;">{{ worker_type_str }}</div>
             </div>
         </div>
 
