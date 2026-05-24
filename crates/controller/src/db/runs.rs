@@ -107,6 +107,26 @@ pub async fn get_run(pool: &MySqlPool, id: &Uuid) -> anyhow::Result<Option<JobRu
     }
 }
 
+/// ジョブごとの実行番号（1-indexed）に対応する実行履歴を取得
+pub async fn get_run_by_number(
+    pool: &MySqlPool,
+    job_id: &Uuid,
+    run_number: i64,
+) -> anyhow::Result<Option<JobRun>> {
+    let row = sqlx::query(
+        "SELECT * FROM job_runs WHERE job_id = ? ORDER BY created_at ASC LIMIT 1 OFFSET ?"
+    )
+    .bind(job_id.to_string())
+    .bind(run_number - 1)
+    .fetch_optional(pool)
+    .await?;
+
+    match row {
+        Some(r) => Ok(Some(map_row_to_run(&r)?)),
+        None => Ok(None),
+    }
+}
+
 /// ジョブ実行一覧を取得（フィルタ対応）
 pub async fn list_runs(
     pool: &MySqlPool,

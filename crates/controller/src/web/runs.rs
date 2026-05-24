@@ -31,6 +31,7 @@ pub struct TaskRunItem {
 struct RunDetailTemplate {
     run: JobRun,
     job_name: String,
+    run_number: i64,
     is_dag: bool,
     task_runs: Vec<TaskRunItem>,
     status_ja: String,
@@ -49,6 +50,7 @@ crate::impl_into_response!(RunDetailTemplate);
 struct RunDetailLiveTemplate {
     run: JobRun,
     job_name: String,
+    run_number: i64,
     is_dag: bool,
     task_runs: Vec<TaskRunItem>,
     status_ja: String,
@@ -67,6 +69,8 @@ pub fn router() -> Router<AppState> {
         .route("/runs/{id}", get(run_detail_page))
         .route("/runs/{id}/live", get(run_detail_live))
         .route("/runs/{id}/logs/ws", get(run_logs_ws_upgrade))
+        .route("/jobs/{job_id}/runs/{run_number}", get(run_detail_by_number))
+        .route("/jobs/{job_id}/runs/{run_number}/live", get(run_detail_by_number_live))
 }
 
 async fn fetch_run_detail_data(
@@ -75,6 +79,7 @@ async fn fetch_run_detail_data(
 ) -> anyhow::Result<(
     JobRun,
     String, // job_name
+    i64,    // run_number
     bool,   // is_dag
     Vec<TaskRunItem>,
     String, // status_ja
@@ -89,6 +94,15 @@ async fn fetch_run_detail_data(
     let run = crate::db::runs::get_run(pool, &id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("Run not found"))?;
+
+    let run_number: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM job_runs WHERE job_id = ? AND created_at <= ?"
+    )
+    .bind(run.job_id.to_string())
+    .bind(run.created_at)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
 
     let job = crate::db::jobs::get_job(pool, &run.job_id)
         .await?
@@ -248,6 +262,7 @@ async fn fetch_run_detail_data(
     Ok((
         run,
         job_name,
+        run_number,
         is_dag,
         task_runs,
         status_ja,
@@ -271,16 +286,17 @@ async fn run_detail_page(
             RunDetailTemplate {
                 run: data.0,
                 job_name: data.1,
-                is_dag: data.2,
-                task_runs: data.3,
-                status_ja: data.4,
-                trigger_ja: data.5,
-                duration_str: data.6,
-                started_at_str: data.7,
-                finished_at_str: data.8,
-                dag_tasks_json: data.9,
-                dag_edges_json: data.10,
-                task_runs_json: data.11,
+                run_number: data.2,
+                is_dag: data.3,
+                task_runs: data.4,
+                status_ja: data.5,
+                trigger_ja: data.6,
+                duration_str: data.7,
+                started_at_str: data.8,
+                finished_at_str: data.9,
+                dag_tasks_json: data.10,
+                dag_edges_json: data.11,
+                task_runs_json: data.12,
             }
             .into_response()
         }
@@ -301,16 +317,17 @@ async fn run_detail_live(
             RunDetailLiveTemplate {
                 run: data.0,
                 job_name: data.1,
-                is_dag: data.2,
-                task_runs: data.3,
-                status_ja: data.4,
-                trigger_ja: data.5,
-                duration_str: data.6,
-                started_at_str: data.7,
-                finished_at_str: data.8,
-                dag_tasks_json: data.9,
-                dag_edges_json: data.10,
-                task_runs_json: data.11,
+                run_number: data.2,
+                is_dag: data.3,
+                task_runs: data.4,
+                status_ja: data.5,
+                trigger_ja: data.6,
+                duration_str: data.7,
+                started_at_str: data.8,
+                finished_at_str: data.9,
+                dag_tasks_json: data.10,
+                dag_edges_json: data.11,
+                task_runs_json: data.12,
             }
             .into_response()
         }
@@ -320,6 +337,95 @@ async fn run_detail_live(
         }
     }
 }
+
+async fn fetch_run_detail_data_by_number(
+    pool: &MySqlPool,
+    job_id: Uuid,
+    run_number: i64,
+) -> anyhow::Result<(
+    JobRun,
+    String, // job_name
+    i64,    // run_number
+    bool,   // is_dag
+    Vec<TaskRunItem>,
+    String, // status_ja
+    String, // trigger_ja
+    String, // duration_str
+    String, // started_at_str
+    String, // finished_at_str
+    String, // dag_tasks_json
+    String, // dag_edges_json
+    String, // task_runs_json
+)> {
+    let run = crate::db::runs::get_run_by_number(pool, &job_id, run_number)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Run not found"))?;
+
+    fetch_run_detail_data(pool, run.id).await
+}
+
+async fn run_detail_by_number(
+    _claims: WebClaims,
+    State(state): State<AppState>,
+    Path((job_id, run_number)): Path<(Uuid, i64)>,
+) -> impl IntoResponse {
+    match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
+        Ok(data) => {
+            RunDetailTemplate {
+                run: data.0,
+                job_name: data.1,
+                run_number: data.2,
+                is_dag: data.3,
+                task_runs: data.4,
+                status_ja: data.5,
+                trigger_ja: data.6,
+                duration_str: data.7,
+                started_at_str: data.8,
+                finished_at_str: data.9,
+                dag_tasks_json: data.10,
+                dag_edges_json: data.11,
+                task_runs_json: data.12,
+            }
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to fetch run details by number: {}", e);
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Internal Server Error: {}", e)).into_response()
+        }
+    }
+}
+
+async fn run_detail_by_number_live(
+    _claims: WebClaims,
+    State(state): State<AppState>,
+    Path((job_id, run_number)): Path<(Uuid, i64)>,
+) -> impl IntoResponse {
+    match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
+        Ok(data) => {
+            RunDetailLiveTemplate {
+                run: data.0,
+                job_name: data.1,
+                run_number: data.2,
+                is_dag: data.3,
+                task_runs: data.4,
+                status_ja: data.5,
+                trigger_ja: data.6,
+                duration_str: data.7,
+                started_at_str: data.8,
+                finished_at_str: data.9,
+                dag_tasks_json: data.10,
+                dag_edges_json: data.11,
+                task_runs_json: data.12,
+            }
+            .into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to fetch run details by number for live polling: {}", e);
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Internal Server Error: {}", e)).into_response()
+        }
+    }
+}
+
 
 async fn run_logs_ws_upgrade(
     ws: WebSocketUpgrade,

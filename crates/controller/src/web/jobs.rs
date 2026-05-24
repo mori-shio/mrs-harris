@@ -35,10 +35,9 @@ pub struct JobRenderItem {
 #[derive(Clone)]
 pub struct JobRunRenderItem {
     pub id: Uuid,
-    pub id_short: String,
     pub status_str: String,
     pub status_ja: &'static str,
-    pub attempt: u32,
+    pub run_number: i64,
     pub trigger_ja: &'static str,
     pub duration_str: String,
     pub started_at_str: String,
@@ -687,12 +686,20 @@ async fn job_detail_page(
             None => "-".to_string(),
         };
 
+        let run_number: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM job_runs WHERE job_id = ? AND created_at <= ?"
+        )
+        .bind(&r.job_id.to_string())
+        .bind(r.created_at)
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(0);
+
         recent_runs.push(JobRunRenderItem {
             id: r.id,
-            id_short: format!("{}...", &r.id.to_string()[..8]),
             status_str: r.status.to_string(),
             status_ja,
-            attempt: r.attempt,
+            run_number,
             trigger_ja,
             duration_str,
             started_at_str,
