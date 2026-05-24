@@ -1023,11 +1023,12 @@ async fn edit_job_submit(
 
     sqlx::query(
         r#"UPDATE jobs 
-           SET name = ?, description = ?, payload = ?, schedule_expr = ?, worker_type = ?, retry_policy = ?, timeout_sec = ?, is_active = ?, tags = ?, worker_definition_id = ?, updated_at = ?
+           SET name = ?, description = ?, job_type = ?, payload = ?, schedule_expr = ?, worker_type = ?, retry_policy = ?, timeout_sec = ?, is_active = ?, tags = ?, worker_definition_id = ?, updated_at = ?
            WHERE id = ?"#
     )
     .bind(&form.name)
     .bind(&form.description.filter(|d| !d.trim().is_empty()))
+    .bind(job_type.to_string())
     .bind(&payload)
     .bind(&form.schedule_expr.filter(|s| !s.trim().is_empty()))
     .bind(worker_type.to_string())

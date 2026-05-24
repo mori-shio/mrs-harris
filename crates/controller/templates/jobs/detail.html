@@ -271,7 +271,7 @@
                 hx-delete="/api/jobs/{{ job.id }}"
                 hx-confirm="本当にこのジョブ定義を削除しますか？"
                 hx-headers='{"Authorization": ""}'
-                onclick="setTimeout(() => window.location.href='/jobs', 300)">
+                hx-on::after-request="if (event.detail.successful) window.location.href='/jobs'">
             <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
             削除
         </button>
