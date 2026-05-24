@@ -277,27 +277,21 @@
 
 <!-- ========== SUMMARY PANEL ========== -->
 <div class="card" style="padding: 24px; margin-bottom: 24px; border: 1px solid rgba(255, 255, 255, 0.06); background: rgba(255, 255, 255, 0.015);">
-    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; margin: 0;">
         <i data-lucide="layout-list" style="width: 18px; height: 18px; color: var(--color-primary);"></i>
         ジョブの概要
     </h3>
     
     <!-- Divider 1 -->
-    <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 16px 0; padding-top: 12px; padding-bottom: 4px;">
+    <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 14px; padding-top: 14px;">
         <div class="summary-item">
             <span class="summary-label">説明</span>
-            <div class="summary-value" style="line-height: 1.6; display: block; white-space: pre-wrap; word-break: break-all;">
-                {% if let Some(desc) = job.description.as_ref() %}
-                    {{ desc }}
-                {% else %}
-                    <span style="color: var(--text-muted); font-weight: 400; font-style: italic;">説明はありません。</span>
-                {% endif %}
-            </div>
+            <div class="summary-value" style="line-height: 1.5; text-align: left; white-space: pre-wrap; word-break: break-all; display: block; width: 100%;">{% if let Some(desc) = job.description.as_ref() %}{{ desc }}{% else %}<span style="color: var(--text-muted); font-weight: 400; font-style: italic;">説明はありません。</span>{% endif %}</div>
         </div>
     </div>
     
     <!-- Divider 2 -->
-    <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 16px 0; padding-top: 16px;">
+    <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 14px; padding-top: 14px;">
         <div class="summary-grid">
             <!-- Job ID -->
             <div class="summary-item">
@@ -367,7 +361,7 @@
     </div>
     
     <!-- Divider 3 -->
-    <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 16px; padding-top: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+    <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 14px; padding-top: 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
         <span class="summary-label" style="margin-right: 4px;">タグ</span>
         {% if job.tags.is_empty() %}
             <span style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">なし</span>
