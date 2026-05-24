@@ -432,7 +432,7 @@
 
 <!-- ========== TAB: 環境変数 ========== -->
 <div id="tab-env" class="tab-panel">
-    <div style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start;">
+    <div style="display:flex; flex-direction:column; gap:24px;">
         <!-- Direct env vars -->
         <div class="card" style="padding:24px;">
             <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
@@ -462,23 +462,27 @@
         </div>
 
         <!-- SSM config -->
-        <div class="card" style="padding:20px;">
-            <h4 style="font-family:'Outfit',sans-serif;font-size:0.9rem;font-weight:600;color:var(--text-secondary);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+        <div class="card" style="padding:24px;">
+            <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin-bottom:20px;display:flex;align-items:center;gap:8px;">
                 <i data-lucide="key-round" style="width:15px;height:15px;color:var(--color-primary);"></i>
-                SSM パラメータストア
+                AWS SSM パラメータストアからインジェクト
             </h4>
-            <div style="display:flex;flex-direction:column;gap:14px;">
-                <div class="meta-row" style="flex-direction:column;gap:4px;padding:0 0 12px;">
-                    <div class="meta-key" style="width:auto;">リージョン</div>
-                    <div class="meta-val" style="font-family:'JetBrains Mono',monospace;font-size:0.84rem;">{% if ssm_region.is_empty() %}<span style="color:var(--text-muted);font-weight:400;font-style:italic;">未設定</span>{% else %}{{ ssm_region }}{% endif %}</div>
+            <div class="meta-row">
+                <div class="meta-key">AWS リージョン</div>
+                <div class="meta-val" style="font-family:'JetBrains Mono',monospace;font-size:0.84rem;">
+                    {% if ssm_region.is_empty() %}<span style="color:var(--text-muted);font-weight:400;font-style:italic;">未設定</span>{% else %}{{ ssm_region }}{% endif %}
                 </div>
-                <div class="meta-row" style="flex-direction:column;gap:4px;padding:0 0 12px;">
-                    <div class="meta-key" style="width:auto;">パス</div>
-                    <div class="meta-val" style="font-family:'JetBrains Mono',monospace;font-size:0.84rem;word-break:break-all;">{% if ssm_path.is_empty() %}<span style="color:var(--text-muted);font-weight:400;font-style:italic;">未設定</span>{% else %}{{ ssm_path }}{% endif %}</div>
+            </div>
+            <div class="meta-row">
+                <div class="meta-key">パラメータパス</div>
+                <div class="meta-val" style="font-family:'JetBrains Mono',monospace;font-size:0.84rem;word-break:break-all;">
+                    {% if ssm_path.is_empty() %}<span style="color:var(--text-muted);font-weight:400;font-style:italic;">未設定</span>{% else %}{{ ssm_path }}{% endif %}
                 </div>
-                <div class="meta-row" style="flex-direction:column;gap:4px;padding:0;">
-                    <div class="meta-key" style="width:auto;">再帰取得</div>
-                    <div class="meta-val">{% if ssm_recursive %}有効{% else %}<span style="color:var(--text-muted);font-weight:400;">無効</span>{% endif %}</div>
+            </div>
+            <div class="meta-row">
+                <div class="meta-key">再帰取得 (recursive)</div>
+                <div class="meta-val">
+                    {% if ssm_recursive %}有効{% else %}<span style="color:var(--text-muted);font-weight:400;">無効</span>{% endif %}
                 </div>
             </div>
         </div>
