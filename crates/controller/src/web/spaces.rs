@@ -44,12 +44,14 @@ crate::impl_into_response!(SpaceFormTemplate);
 pub struct SpaceFormData {
     name: String,
     description: Option<String>,
+    redirect_to: Option<String>,
 }
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/spaces", get(list_spaces))
         .route("/spaces/new", get(new_space_page).post(create_space_submit))
+        .route("/spaces/{id}", get(space_detail_page))
         .route("/spaces/{id}/edit", get(edit_space_page).post(edit_space_submit))
         .route("/spaces/{id}/delete", post(delete_space))
 }
@@ -125,15 +127,16 @@ async fn create_space_submit(
            VALUES (?, ?, ?, ?, ?)"#
     )
     .bind(id.to_string())
-    .bind(&form.name.trim())
-    .bind(&form.description.filter(|d| !d.trim().is_empty()))
+    .bind(form.name.trim())
+    .bind(form.description.as_ref().map(|d| d.trim()).filter(|d| !d.is_empty()))
     .bind(now)
     .bind(now)
     .execute(pool)
     .await
     .unwrap();
 
-    Redirect::to("/spaces").into_response()
+    let redirect_url = form.redirect_to.filter(|r| !r.trim().is_empty()).unwrap_or_else(|| "/spaces".to_string());
+    Redirect::to(&redirect_url).into_response()
 }
 
 async fn edit_space_page(
@@ -198,4 +201,69 @@ async fn delete_space(
         .unwrap();
 
     Redirect::to("/spaces").into_response()
+}
+
+#[derive(Template)]
+#[template(path = "spaces/detail.html")]
+struct SpaceDetailTemplate {
+    space: mrs_harris_common::models::space::Space,
+    jobs: Vec<crate::web::jobs::JobRenderItem>,
+    created_at_str: String,
+}
+crate::impl_into_response!(SpaceDetailTemplate);
+
+async fn space_detail_page(
+    _claims: WebClaims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> impl IntoResponse {
+    let pool = &state.db;
+    
+    // 1. Get Space info
+    let space_row = sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces WHERE id = ?")
+        .bind(id.to_string())
+        .fetch_optional(pool)
+        .await
+        .unwrap();
+        
+    let space = match space_row {
+        Some(row) => {
+            let id_str: String = row.try_get("id").unwrap_or_default();
+            let id = Uuid::parse_str(&id_str).unwrap_or_default();
+            let name: String = row.try_get("name").unwrap_or_default();
+            let description: Option<String> = row.try_get("description").ok();
+            let created_at = row.try_get("created_at").unwrap_or_else(|_| Utc::now());
+            let updated_at = row.try_get("updated_at").unwrap_or_else(|_| Utc::now());
+            mrs_harris_common::models::space::Space {
+                id,
+                name,
+                description,
+                created_at,
+                updated_at,
+            }
+        }
+        None => return Redirect::to("/spaces").into_response(),
+    };
+    
+    let created_at_str = space.created_at.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
+
+    // 2. Fetch Jobs belonging to this Space
+    let filter = mrs_harris_common::models::job::JobFilter {
+        job_type: None,
+        is_active: None,
+        tag: None,
+        search: None,
+        space_id: Some(id.to_string()),
+        limit: None,
+        offset: None,
+    };
+    
+    let jobs_db = crate::db::jobs::list_jobs(pool, &filter).await.unwrap_or_default();
+    let jobs = jobs_db.iter().map(crate::web::jobs::map_job_to_render).collect::<Vec<_>>();
+
+    SpaceDetailTemplate {
+        space,
+        jobs,
+        created_at_str,
+    }.into_response()
 }

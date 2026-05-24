@@ -171,35 +171,15 @@ pub struct JobFormData {
     slack_on_failed: Option<String>,
 }
 
-#[derive(serde::Deserialize)]
-struct TomlJobImport {
-    name: String,
-    description: Option<String>,
-    job_type: String,
-    schedule_expr: Option<String>,
-    #[serde(default = "default_worker_type")]
-    worker_type: String,
-    #[serde(default = "default_timeout")]
-    timeout_sec: u32,
-    #[serde(default)]
-    tags: Vec<String>,
-    payload: Option<serde_json::Value>,
-    tasks: Option<Vec<DagTaskDefinition>>,
-}
-
-fn default_worker_type() -> String { "fargate".to_string() }
-fn default_timeout() -> u32 { 3600 }
-
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/jobs", get(jobs_page))
         .route("/jobs/new", get(new_job_page).post(create_job_submit))
         .route("/jobs/{id}", get(job_detail_page))
         .route("/jobs/{id}/edit", get(edit_job_page).post(edit_job_submit))
-        .route("/jobs/import", post(import_toml_submit))
 }
 
-fn map_job_to_render(job: &Job) -> JobRenderItem {
+pub fn map_job_to_render(job: &Job) -> JobRenderItem {
     let job_type_ja = match job.job_type {
         JobType::Cron => "Cron (定期)",
         JobType::Dag => "DAG (連結)",
@@ -1256,129 +1236,7 @@ async fn edit_job_submit(
     Redirect::to(&format!("/jobs/{}", id)).into_response()
 }
 
-async fn import_toml_submit(
-    _claims: WebClaims,
-    State(state): State<AppState>,
-    Form(import_form): Form<HashMap<String, String>>,
-) -> impl IntoResponse {
-    let toml_content = import_form.get("toml_content").cloned().unwrap_or_default();
-    
-    // Parse TOML
-    let import: TomlJobImport = match toml::from_str(&toml_content) {
-        Ok(imp) => imp,
-        Err(e) => {
-            tracing::error!("TOML parse error: {}", e);
-            return (axum::http::StatusCode::BAD_REQUEST, format!("TOML Parse Error: {}", e)).into_response();
-        }
-    };
 
-
-    let job_type = JobType::from_str(&import.job_type).unwrap_or(JobType::OneShot);
-    let worker_type = WorkerType::from_str(&import.worker_type).unwrap_or(WorkerType::Fargate);
-
-    // Build payload
-    let payload = if job_type == JobType::Dag {
-        let task_len = import.tasks.as_ref().map(|t| t.len()).unwrap_or(0);
-        serde_json::json!({ "tasks_count": task_len })
-    } else {
-        import.payload.clone().unwrap_or(serde_json::Value::Null)
-    };
-
-    // Find default worker definition for this worker_type
-    let worker_def_id = match worker_type {
-        WorkerType::Fargate => Uuid::parse_str("d1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d").unwrap(),
-        WorkerType::Lambda => Uuid::parse_str("d2a3b4c5-e6f7-8a9b-0c1d-2e3f4a5b6c7d").unwrap(),
-    };
-
-    let new_job = NewJob {
-        name: import.name,
-        description: import.description,
-        job_type,
-        payload,
-        schedule_expr: import.schedule_expr,
-        worker_type,
-        retry_policy: RetryPolicy::default(),
-        timeout_sec: import.timeout_sec,
-        is_active: true,
-        tags: import.tags,
-        worker_definition_id: Some(worker_def_id),
-        space_id: None,
-    };
-
-    let pool = &state.db;
-    let mut tx = pool.begin().await.unwrap();
-
-    let job_id = Uuid::new_v4();
-    let job_type_str = new_job.job_type.to_string();
-    let worker_type_str = new_job.worker_type.to_string();
-    let retry_policy_json = serde_json::to_value(&new_job.retry_policy).unwrap();
-    let tags_json = serde_json::to_value(&new_job.tags).unwrap();
-    let is_active_val: i8 = 1;
-
-    sqlx::query(
-        r#"INSERT INTO jobs (id, name, description, job_type, payload, schedule_expr, worker_type, retry_policy, timeout_sec, is_active, tags, worker_definition_id, space_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
-    )
-    .bind(job_id.to_string())
-    .bind(&new_job.name)
-    .bind(&new_job.description)
-    .bind(job_type_str)
-    .bind(&new_job.payload)
-    .bind(&new_job.schedule_expr)
-    .bind(worker_type_str)
-    .bind(retry_policy_json)
-    .bind(new_job.timeout_sec)
-    .bind(is_active_val)
-    .bind(tags_json)
-    .bind(worker_def_id.to_string())
-    .bind(None::<String>) // space_id
-    .bind(Utc::now())
-    .bind(Utc::now())
-    .execute(&mut *tx)
-    .await
-    .unwrap();
-
-    if new_job.job_type == JobType::Dag {
-        if let Some(tasks) = import.tasks {
-            for task in tasks {
-                let task_id = Uuid::new_v4();
-                sqlx::query(
-                    r#"INSERT INTO dag_tasks (id, dag_id, task_name, payload, worker_type, retry_policy, timeout_sec)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)"#
-                )
-                .bind(task_id.to_string())
-                .bind(job_id.to_string())
-                .bind(&task.name)
-                .bind(&task.payload)
-                .bind(task.worker_type.to_string())
-                .bind(task.retry_policy.as_ref().map(|rp| serde_json::to_value(rp).unwrap()))
-                .bind(task.timeout_sec)
-                .execute(&mut *tx)
-                .await
-                .unwrap();
-
-                for dep in task.depends_on {
-                    let edge_id = Uuid::new_v4();
-                    sqlx::query(
-                        r#"INSERT INTO dag_edges (id, dag_id, from_task, to_task)
-                           VALUES (?, ?, ?, ?)"#
-                    )
-                    .bind(edge_id.to_string())
-                    .bind(job_id.to_string())
-                    .bind(&dep)
-                    .bind(&task.name)
-                    .execute(&mut *tx)
-                    .await
-                    .unwrap();
-                }
-            }
-        }
-    }
-
-    tx.commit().await.unwrap();
-
-    Redirect::to("/jobs").into_response()
-}
 
 async fn build_job_snapshot(
     pool: &MySqlPool,

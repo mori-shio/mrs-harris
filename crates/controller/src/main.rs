@@ -9,7 +9,6 @@ mod scheduler;
 mod worker_manager;
 mod notification;
 mod web;
-mod import;
 
 /// Mrs. Harris — ジョブスケジューラ
 #[derive(Parser)]
@@ -59,15 +58,6 @@ enum Commands {
         #[arg(long)]
         api_key: Option<String>,
     },
-    /// TOML ジョブ定義ファイルをインポート
-    Import {
-        /// 設定ファイルのパス
-        #[arg(short, long, default_value = "config/controller.toml")]
-        config: PathBuf,
-        /// インポートする TOML ファイルのパス
-        #[arg(short, long)]
-        file: PathBuf,
-    },
 }
 
 #[tokio::main]
@@ -107,18 +97,6 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Worker { task_id, callback_url, api_key } => {
             mrs_harris_worker::run_worker(task_id, callback_url, api_key).await?;
-        }
-        Commands::Import { config, file } => {
-            tracing::info!("TOML ジョブをインポートします...");
-            let config = mrs_harris_common::config::ControllerConfig::from_file(&config)
-                .map_err(|e| anyhow::anyhow!("設定ファイルの読み込みに失敗: {}", e))?;
-            let pool = db::create_pool(&config.database).await?;
-            
-            let toml_str = std::fs::read_to_string(&file)
-                .map_err(|e| anyhow::anyhow!("インポート対象のTOMLファイル '{}' の読み込みに失敗: {}", file.display(), e))?;
-            
-            let job_id = import::import_job_from_toml(&pool, &toml_str).await?;
-            tracing::info!("ジョブのインポートに成功しました。作成されたジョブ ID: {}", job_id);
         }
     }
 

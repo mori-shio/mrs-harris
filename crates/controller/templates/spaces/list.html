@@ -67,7 +67,7 @@
                                 <div style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: rgba(14,165,233,0.06); border: 1px solid rgba(14,165,233,0.12);">
                                     <i data-lucide="folder-tree" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
                                 </div>
-                                <span style="color: var(--text-primary); font-size: 0.95rem;">{{ space.name }}</span>
+                                <a href="/spaces/{{ space.id }}" style="color: var(--text-primary); font-size: 0.95rem; text-decoration: none; font-weight: 600;" hx-boost="true">{{ space.name }}</a>
                             </div>
                         </td>
                         <td style="text-align: center;">

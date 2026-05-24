@@ -11,6 +11,74 @@
     <meta name="htmx-config" content='{"historyCacheSize": 0, "refreshOnHistoryMiss": true}'>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Sidebar Hierarchical Menu Styles -->
+    <style>
+        .sidebar-item-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .sidebar-group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-radius: var(--radius-md);
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: var(--transition-smooth);
+            user-select: none;
+        }
+        
+        .sidebar-group-header:hover {
+            color: var(--text-primary);
+            background-color: rgba(255, 255, 255, 0.04);
+        }
+        
+        .sidebar-group-header .group-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .sidebar-sub-menu {
+            list-style: none;
+            padding-left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 2px;
+            margin-bottom: 6px;
+        }
+        
+        .sidebar-sub-item a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-radius: var(--radius-sm);
+            font-weight: 400;
+            font-size: 0.88rem;
+            transition: var(--transition-smooth);
+        }
+        
+        .sidebar-sub-item a:hover {
+            color: var(--text-primary);
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+        
+        .sidebar-sub-item.active a {
+            color: var(--text-primary);
+            font-weight: 600;
+            background: rgba(14, 165, 233, 0.06);
+            border: 1px solid rgba(14, 165, 233, 0.15);
+        }
+    </style>
     {% block head %}{% endblock %}
 </head>
 <body hx-boost="true">
@@ -36,40 +104,67 @@
                     カレンダー
                 </a>
             </li>
-            <li class="sidebar-item {% block nav_jobs %}{% endblock %}">
-                <a href="/jobs">
-                    <i data-lucide="git-pull-request" style="width: 18px; height: 18px;"></i>
-                    ジョブ定義
-                </a>
+            
+            <!-- ジョブグループ -->
+            <li class="sidebar-item-group">
+                <div class="sidebar-group-header" onclick="toggleSidebarGroup(this)">
+                    <span class="group-title">
+                        <i data-lucide="git-pull-request" style="width: 18px; height: 18px;"></i>
+                        ジョブ
+                    </span>
+                    <i data-lucide="chevron-down" class="chevron" style="width: 16px; height: 16px; transition: transform 0.2s;"></i>
+                </div>
+                <ul class="sidebar-sub-menu">
+                    <li class="sidebar-sub-item {% block nav_jobs %}{% endblock %}">
+                        <a href="/jobs">
+                            <i data-lucide="list" style="width: 14px; height: 14px;"></i>
+                            ジョブ一覧
+                        </a>
+                    </li>
+                    <li class="sidebar-sub-item {% block nav_spaces %}{% endblock %}">
+                        <a href="/spaces">
+                            <i data-lucide="layout-grid" style="width: 14px; height: 14px;"></i>
+                            スペース管理
+                        </a>
+                    </li>
+                </ul>
             </li>
-            <li class="sidebar-item {% block nav_workers %}{% endblock %}">
-                <a href="/workers">
-                    <i data-lucide="cpu" style="width: 18px; height: 18px;"></i>
-                    ワーカー状態
-                </a>
+
+            <!-- ワーカーグループ -->
+            <li class="sidebar-item-group">
+                <div class="sidebar-group-header" onclick="toggleSidebarGroup(this)">
+                    <span class="group-title">
+                        <i data-lucide="cpu" style="width: 18px; height: 18px;"></i>
+                        ワーカー
+                    </span>
+                    <i data-lucide="chevron-down" class="chevron" style="width: 16px; height: 16px; transition: transform 0.2s;"></i>
+                </div>
+                <ul class="sidebar-sub-menu">
+                    <li class="sidebar-sub-item {% block nav_worker_defs %}{% endblock %}">
+                        <a href="/worker-definitions">
+                            <i data-lucide="server" style="width: 14px; height: 14px;"></i>
+                            ワーカー定義
+                        </a>
+                    </li>
+                    <li class="sidebar-sub-item {% block nav_workers %}{% endblock %}">
+                        <a href="/workers">
+                            <i data-lucide="activity" style="width: 14px; height: 14px;"></i>
+                            ワーカー状態
+                        </a>
+                    </li>
+                </ul>
             </li>
-            <li class="sidebar-item {% block nav_worker_defs %}{% endblock %}">
-                <a href="/worker-definitions">
-                    <i data-lucide="server" style="width: 18px; height: 18px;"></i>
-                    ワーカー定義
+
+            <li class="sidebar-item {% block nav_database %}{% endblock %}">
+                <a href="/database">
+                    <i data-lucide="database" style="width: 18px; height: 18px;"></i>
+                    データベース
                 </a>
             </li>
             <li class="sidebar-item {% block nav_settings %}{% endblock %}">
                 <a href="/settings">
                     <i data-lucide="settings" style="width: 18px; height: 18px;"></i>
                     システム設定
-                </a>
-            </li>
-            <li class="sidebar-item {% block nav_spaces %}{% endblock %}">
-                <a href="/spaces">
-                    <i data-lucide="layout-grid" style="width: 18px; height: 18px;"></i>
-                    スペース管理
-                </a>
-            </li>
-            <li class="sidebar-item {% block nav_database %}{% endblock %}">
-                <a href="/database">
-                    <i data-lucide="database" style="width: 18px; height: 18px;"></i>
-                    データベース
                 </a>
             </li>
         </ul>
@@ -91,8 +186,45 @@
         function initIcons() {
             lucide.createIcons();
         }
-        document.addEventListener("DOMContentLoaded", initIcons);
-        document.addEventListener("htmx:afterSwap", initIcons);
+        
+        function initSidebarGroups() {
+            document.querySelectorAll('.sidebar-item-group').forEach(group => {
+                const hasActiveChild = group.querySelector('.active');
+                const subMenu = group.querySelector('.sidebar-sub-menu');
+                const chevron = group.querySelector('.chevron');
+                if (hasActiveChild) {
+                    subMenu.style.display = 'flex';
+                    if (chevron) chevron.style.transform = 'rotate(180deg)';
+                } else {
+                    subMenu.style.display = 'none';
+                    if (chevron) chevron.style.transform = 'rotate(0deg)';
+                }
+            });
+        }
+
+        function toggleSidebarGroup(header) {
+            const group = header.closest('.sidebar-item-group');
+            const subMenu = group.querySelector('.sidebar-sub-menu');
+            const chevron = group.querySelector('.chevron');
+            const isExpanded = subMenu.style.display === 'flex';
+            
+            if (isExpanded) {
+                subMenu.style.display = 'none';
+                if (chevron) chevron.style.transform = 'rotate(0deg)';
+            } else {
+                subMenu.style.display = 'flex';
+                if (chevron) chevron.style.transform = 'rotate(180deg)';
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            initIcons();
+            initSidebarGroups();
+        });
+        document.addEventListener("htmx:afterSwap", () => {
+            initIcons();
+            initSidebarGroups();
+        });
     </script>
     {% block scripts %}{% endblock %}
 </body>

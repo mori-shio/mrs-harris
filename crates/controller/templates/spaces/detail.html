@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}スペース詳細 | Mrs. Harris{% endblock %}
+
+{% block nav_spaces %}active{% endblock %}
+
+{% block content %}
+<!-- Breadcrumbs -->
+<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
+    <a href="/" style="color: var(--text-muted); text-decoration: none;">ホーム</a>
+    <span style="margin: 0 8px; opacity: 0.4;">/</span>
+    <a href="/spaces" style="color: var(--text-muted); text-decoration: none;">スペース管理</a>
+    <span style="margin: 0 8px; opacity: 0.4;">/</span>
+    <span style="color: var(--text-primary); font-weight: 600;">スペース詳細: {{ space.name }}</span>
+</nav>
+
+<!-- Page Header -->
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; gap: 16px;">
+    <div class="page-title" style="display: flex; align-items: center; gap: 12px;">
+        <a href="/spaces" style="color: var(--text-muted); display: inline-flex; align-items: center; text-decoration: none;" hx-boost="true">
+            <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+        </a>
+        <div>
+            <h2>{{ space.name }} <span style="font-size: 0.95rem; font-weight: 400; color: var(--text-muted); margin-left: 8px;">スペース</span></h2>
+            <p>{% if let Some(desc) = space.description %}{{ desc }}{% else %}説明はありません。{% endif %}</p>
+        </div>
+    </div>
+    <div style="display: flex; gap: 8px;">
+        <a href="/spaces/{{ space.id }}/edit" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px;">
+            <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
+            編集
+        </a>
+        <form action="/spaces/{{ space.id }}/delete" method="POST" style="margin: 0;" onsubmit="return confirm('本当にこのスペースを削除しますか？\n所属していたジョブは自動的かつ安全に「未分類」に移動します。')">
+            <button type="submit" class="btn btn-secondary" style="color: var(--color-danger); border-color: rgba(239,68,68,0.2); display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+                <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                削除
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Metadata Cards Grid -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 28px;">
+    <div class="card" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
+        <div style="width: 42px; height: 42px; border-radius: 8px; background: rgba(14,165,233,0.06); border: 1px solid rgba(14,165,233,0.12); display: flex; align-items: center; justify-content: center;">
+            <i data-lucide="folder-git-2" style="width: 20px; height: 20px; color: var(--color-primary);"></i>
+        </div>
+        <div>
+            <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 2px;">所属ジョブ数</span>
+            <span style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">
+                {{ jobs.len() }}
+            </span>
+        </div>
+    </div>
+    
+    <div class="card" style="padding: 16px 20px; display: flex; align-items: center; gap: 16px;">
+        <div style="width: 42px; height: 42px; border-radius: 8px; background: rgba(168,85,247,0.06); border: 1px solid rgba(168,85,247,0.12); display: flex; align-items: center; justify-content: center;">
+            <i data-lucide="clock" style="width: 20px; height: 20px; color: #a855f7;"></i>
+        </div>
+        <div>
+            <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 2px;">作成日時</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; font-weight: 600; color: var(--text-secondary);">
+                {{ created_at_str }}
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- Jobs List Section -->
+<div class="page-title" style="margin-bottom: 16px;">
+    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; color: var(--text-secondary);">所属ジョブ一覧</h3>
+</div>
+
+<div class="card">
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ジョブ名</th>
+                    <th>タイプ</th>
+                    <th>スケジュール</th>
+                    <th>起動タイプ</th>
+                    <th>ステータス</th>
+                    <th>タグ</th>
+                    <th style="text-align: right;">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if jobs.is_empty() %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+                        このスペースに所属しているジョブはありません。新規ジョブ作成時にこのスペースを指定してください。
+                    </td>
+                </tr>
+                {% else %}
+                {% for job in jobs %}
+                <tr>
+                    <td style="font-weight: 600;">
+                        <a href="/jobs/{{ job.id }}" style="color: var(--text-primary); text-decoration: none; display: flex; flex-direction: column; gap: 4px;">
+                            <span>{{ job.name }}</span>
+                            {% if job.description.is_some() %}
+                            <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-muted);">{{ job.description.as_ref().unwrap() }}</span>
+                            {% endif %}
+                        </a>
+                    </td>
+                    <td>
+                        <span class="badge" style="background-color: rgba(255,255,255,0.05); color: var(--text-secondary); border-color: var(--border-color);">
+                            {{ job.job_type_ja }}
+                        </span>
+                    </td>
+                    <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
+                        {% if job.schedule_expr.is_some() %}
+                        {{ job.schedule_expr.as_ref().unwrap() }}
+                        {% else %}
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">なし (手動/DAGのみ)</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span style="font-size: 0.85rem; display: flex; align-items: center; gap: 6px; text-transform: uppercase;">
+                            {% if job.worker_type == "fargate" %}
+                            <i data-lucide="box" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
+                            Fargate
+                            {% else %}
+                            <i data-lucide="zap" style="width: 14px; height: 14px; color: var(--color-warning);"></i>
+                            Lambda
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        {% if job.is_active %}
+                        <span class="badge" style="background-color: var(--color-success-glow); color: var(--color-success); border-color: rgba(16,185,129,0.2); box-shadow: 0 0 8px rgba(16,185,129,0.1);">
+                            有効
+                        </span>
+                        {% else %}
+                        <span class="badge" style="background-color: rgba(148,163,184,0.05); color: var(--text-muted); border-color: var(--border-color);">
+                            無効
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                            {% for tag in job.tags %}
+                            <span style="font-size: 0.75rem; background-color: rgba(56, 189, 248, 0.05); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 4px;">
+                                {{ tag }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </td>
+                    <td style="text-align: right;">
+                        <div style="display: inline-flex; gap: 8px;">
+                            <!-- Manual run trigger via HTMX -->
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; background-color: var(--color-primary-glow); color: var(--color-primary); border-color: rgba(14, 165, 233, 0.2);"
+                                    hx-post="/api/jobs/{{ job.id }}/trigger" hx-swap="none"
+                                    onclick="event.stopPropagation(); alert('ジョブ実行をトリガーしました！ダッシュボードで確認してください。')">
+                                <i data-lucide="play" style="width: 12px; height: 12px;"></i>
+                                実行
+                            </button>
+                            <a href="/jobs/{{ job.id }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" hx-boost="true">
+                                <i data-lucide="eye" style="width: 12px; height: 12px;"></i>
+                                詳細
+                            </a>
+                            <a href="/jobs/{{ job.id }}/edit" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" hx-boost="true">
+                                <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i>
+                                編集
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

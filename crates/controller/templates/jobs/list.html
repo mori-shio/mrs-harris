@@ -18,10 +18,6 @@
         <p>登録されているスケジュールジョブおよびDAGパイプラインの管理</p>
     </div>
     <div style="display: flex; gap: 12px;">
-        <button class="btn btn-secondary" onclick="openImportModal()">
-            <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
-            TOMLインポート
-        </button>
         <a href="/jobs/new" class="btn btn-primary">
             <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
             新規ジョブ作成
@@ -112,11 +108,12 @@
             {% endif %}
             {{ tab.name }}
         </button>
+        {% if tab.id == "unclassified" %}
+            <button type="button" class="space-tab" onclick="openCreateSpaceModal()" style="padding: 10px 12px; margin-left: 2px; color: var(--text-muted); border-bottom: 2px solid transparent;" title="新規スペースを作成">
+                <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+            </button>
+        {% endif %}
     {% endfor %}
-    
-    <a href="/spaces" class="space-tab-add" title="スペース管理・追加" hx-boost="true">
-        <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
-    </a>
 </div>
 
 <script>
@@ -163,43 +160,46 @@
     {% include "jobs/list_partial.html" %}
 </div>
 
-<!-- TOML Import Modal -->
-<div class="modal-overlay" id="import-modal">
-    <div class="modal-content" style="max-width: 650px;">
+<!-- Create Space Modal -->
+<div class="modal-overlay" id="create-space-modal">
+    <div class="modal-content" style="max-width: 550px;">
         <div class="modal-header">
-            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700;">TOMLジョブ定義インポート</h3>
-            <button class="modal-close" onclick="closeImportModal()">&times;</button>
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700;">新規スペース作成</h3>
+            <button class="modal-close" onclick="closeCreateSpaceModal()">&times;</button>
         </div>
-        <form action="/jobs/import" method="POST">
-            <div class="form-group">
-                <label for="toml_content">TOML 設定内容</label>
-                <textarea id="toml_content" name="toml_content" class="form-control" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; height: 320px;" placeholder="# 例:
-name = 'my_backup_job'
-description = 'デイリーDBバックアップ'
-job_type = 'cron'
-schedule_expr = '0 0 * * *'
-worker_type = 'lambda'
-timeout_sec = 1800
-
-[payload]
-command = 'pg_dump'
-args = ['-h', 'db', '-U', 'postgres']
-" required></textarea>
+        <form action="/spaces/new" method="POST" hx-boost="false">
+            <input type="hidden" name="redirect_to" value="/jobs">
+            
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="space_name" style="display: block; font-weight: 600; margin-bottom: 8px;">スペース名 <span style="color: var(--color-danger);">*</span></label>
+                <input type="text" id="space_name" name="name" class="form-control" placeholder="hoge" required style="width: 100%; box-sizing: border-box;">
+                <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 6px;">
+                    スペースの名前（一意である必要があります）
+                </span>
             </div>
-            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
-                <button type="button" class="btn btn-secondary" onclick="closeImportModal()">キャンセル</button>
-                <button type="submit" class="btn btn-primary">インポート実行</button>
+
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="space_description" style="display: block; font-weight: 600; margin-bottom: 8px;">説明</label>
+                <textarea id="space_description" name="description" class="form-control" style="min-height: 80px; width: 100%; box-sizing: border-box;" placeholder="スペースの説明を入力してください..."></textarea>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateSpaceModal()">キャンセル</button>
+                <button type="submit" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <i data-lucide="save" style="width: 16px; height: 16px;"></i>
+                    保存する
+                </button>
             </div>
         </form>
     </div>
 </div>
 
 <script>
-    function openImportModal() {
-        document.getElementById('import-modal').classList.add('active');
+    function openCreateSpaceModal() {
+        document.getElementById('create-space-modal').classList.add('active');
     }
-    function closeImportModal() {
-        document.getElementById('import-modal').classList.remove('active');
+    function closeCreateSpaceModal() {
+        document.getElementById('create-space-modal').classList.remove('active');
     }
 </script>
 {% endblock %}
