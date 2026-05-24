@@ -96,6 +96,7 @@ pub struct Job {
     pub is_active: bool,
     pub tags: Vec<String>,
     pub worker_definition_id: Option<Uuid>,
+    pub space_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -119,6 +120,7 @@ pub struct NewJob {
     #[serde(default)]
     pub tags: Vec<String>,
     pub worker_definition_id: Option<Uuid>,
+    pub space_id: Option<Uuid>,
 }
 
 fn default_timeout() -> u32 {
@@ -146,6 +148,7 @@ pub struct JobUpdate {
     pub is_active: Option<bool>,
     pub tags: Option<Vec<String>>,
     pub worker_definition_id: Option<Option<Uuid>>,
+    pub space_id: Option<Option<Uuid>>,
 }
 
 /// ジョブフィルタ
@@ -155,6 +158,7 @@ pub struct JobFilter {
     pub is_active: Option<bool>,
     pub tag: Option<String>,
     pub search: Option<String>,
+    pub space_id: Option<String>,
     pub limit: Option<u32>,
     pub offset: Option<u32>,
 }

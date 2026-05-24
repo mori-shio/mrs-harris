@@ -10,6 +10,7 @@ pub mod runs;
 pub mod settings;
 pub mod workers;
 pub mod worker_definitions;
+pub mod spaces;
 
 /// Web ダッシュボードルーター
 pub fn router() -> Router<AppState> {
@@ -23,6 +24,7 @@ pub fn router() -> Router<AppState> {
         .merge(settings::router())
         .merge(worker_definitions::router())
         .merge(database::router())
+        .merge(spaces::router())
 }
 
 /// Askama テンプレート用の IntoResponse 簡易実装マクロ

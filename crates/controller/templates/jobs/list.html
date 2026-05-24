@@ -29,9 +29,108 @@
     </div>
 </div>
 
+<style>
+    .space-tabs-nav {
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        margin-top: 12px;
+        margin-bottom: 24px;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 1px;
+    }
+    
+    .space-tab {
+        background: none;
+        border: none;
+        padding: 10px 18px;
+        color: var(--text-muted);
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .space-tab:hover {
+        color: var(--text-primary);
+        border-bottom-color: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.01);
+    }
+    
+    .space-tab.active {
+        color: var(--color-primary);
+        border-bottom-color: var(--color-primary);
+        font-weight: 600;
+        background: rgba(14, 165, 233, 0.04);
+    }
+
+    .space-tab-add {
+        color: var(--text-muted);
+        text-decoration: none;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        transition: all 0.2s ease;
+        margin-left: auto;
+        margin-bottom: 4px;
+    }
+    .space-tab-add:hover {
+        background: rgba(14, 165, 233, 0.1);
+        border-color: rgba(14, 165, 233, 0.2);
+        color: var(--color-primary);
+        transform: rotate(90deg);
+    }
+</style>
+
+<!-- Space Filter Tabs -->
+<div class="space-tabs-nav">
+    {% for tab in spaces %}
+        <button class="space-tab {% if tab.is_active %}active{% endif %}"
+                hx-get="/jobs"
+                hx-target="#jobs-list-container"
+                hx-include="#filter-form"
+                onclick="selectSpaceTab(this, '{{ tab.id }}')">
+            {% if tab.id.is_empty() %}
+                <i data-lucide="layers" style="width: 14px; height: 14px;"></i>
+            {% elif tab.id == "unclassified" %}
+                <i data-lucide="help-circle" style="width: 14px; height: 14px;"></i>
+            {% else %}
+                <i data-lucide="folder" style="width: 14px; height: 14px;"></i>
+            {% endif %}
+            {{ tab.name }}
+        </button>
+    {% endfor %}
+    
+    <a href="/spaces" class="space-tab-add" title="スペース管理・追加" hx-boost="true">
+        <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+    </a>
+</div>
+
+<script>
+    function selectSpaceTab(element, spaceId) {
+        document.getElementById('space_id').value = spaceId;
+        document.querySelectorAll('.space-tab').forEach(t => t.classList.remove('active'));
+        element.classList.add('active');
+    }
+</script>
+
 <!-- Filter controls -->
 <div class="card" style="margin-bottom: 24px; padding: 16px 24px;">
     <form id="filter-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: flex-end;">
+        <input type="hidden" id="space_id" name="space_id" value="{{ current_space_id }}">
         <div class="form-group" style="margin-bottom: 0;">
             <label for="search" style="font-size: 0.8rem;">検索キーワード</label>
             <input type="text" id="search" name="search" class="form-control" placeholder="名前や説明で検索..." 

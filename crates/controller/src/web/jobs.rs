@@ -44,10 +44,19 @@ pub struct JobRunRenderItem {
     pub started_at_str: String,
 }
 
+#[derive(Clone)]
+pub struct JobSpaceTab {
+    pub id: String,
+    pub name: String,
+    pub is_active: bool,
+}
+
 #[derive(Template)]
 #[template(path = "jobs/list.html")]
 struct JobsListTemplate {
     jobs: Vec<JobRenderItem>,
+    spaces: Vec<JobSpaceTab>,
+    current_space_id: String,
 }
 crate::impl_into_response!(JobsListTemplate);
 
@@ -105,6 +114,8 @@ struct JobFormTemplate {
     job_type: String,
     worker_definition_id: String,
     worker_defs: Vec<mrs_harris_common::models::worker::WorkerDefinition>,
+    spaces: Vec<mrs_harris_common::models::space::Space>,
+    space_id: Option<Uuid>,
     schedule_expr: String,
     script: String,
     env: String,
@@ -132,6 +143,7 @@ pub struct JobFormData {
     description: Option<String>,
     job_type: String,
     worker_definition_id: String,
+    space_id: Option<String>,
     schedule_expr: Option<String>,
     
     // Command payload (Non-DAG)
@@ -218,12 +230,14 @@ async fn jobs_page(
         .and_then(|t| JobType::from_str(t).ok());
     let is_active = query_filter.get("is_active")
         .and_then(|v| bool::from_str(v).ok());
+    let space_id = query_filter.get("space_id").filter(|s| !s.trim().is_empty()).cloned();
 
     let filter = JobFilter {
         job_type,
         is_active,
         tag: None,
         search,
+        space_id: space_id.clone(),
         limit: None,
         offset: None,
     };
@@ -238,7 +252,46 @@ async fn jobs_page(
     if is_partial {
         JobsListPartialTemplate { jobs }.into_response()
     } else {
-        JobsListTemplate { jobs }.into_response()
+        // Fetch spaces for the dynamic space tabs filter
+        let spaces_rows = sqlx::query("SELECT id, name FROM spaces ORDER BY name ASC")
+            .fetch_all(&state.db)
+            .await
+            .unwrap_or_default();
+
+        let mut spaces = Vec::new();
+        let current_sid = space_id.clone().unwrap_or_default();
+
+        // 1. "All" tab
+        spaces.push(JobSpaceTab {
+            id: String::new(),
+            name: "すべて".to_string(),
+            is_active: current_sid.is_empty(),
+        });
+
+        // 2. Dynamic space tabs
+        for row in spaces_rows {
+            let sid: String = row.try_get("id").unwrap_or_default();
+            let name: String = row.try_get("name").unwrap_or_default();
+            let active = current_sid == sid;
+            spaces.push(JobSpaceTab {
+                id: sid,
+                name,
+                is_active: active,
+            });
+        }
+
+        // 3. "Unclassified" tab
+        spaces.push(JobSpaceTab {
+            id: "unclassified".to_string(),
+            name: "未分類".to_string(),
+            is_active: current_sid == "unclassified",
+        });
+
+        JobsListTemplate {
+            jobs,
+            spaces,
+            current_space_id: current_sid,
+        }.into_response()
     }
 }
 
@@ -248,6 +301,30 @@ async fn new_job_page(
 ) -> impl IntoResponse {
     let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db).await.unwrap_or_default();
 
+    // Query spaces from DB manually
+    let spaces_rows = sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces ORDER BY name ASC")
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default();
+
+    let mut spaces = Vec::new();
+    for row in spaces_rows {
+        let id_str: String = row.try_get("id").unwrap_or_default();
+        let id = Uuid::parse_str(&id_str).unwrap_or_default();
+        let name: String = row.try_get("name").unwrap_or_default();
+        let description: Option<String> = row.try_get("description").ok();
+        let created_at = row.try_get("created_at").unwrap_or_else(|_| Utc::now());
+        let updated_at = row.try_get("updated_at").unwrap_or_else(|_| Utc::now());
+        
+        spaces.push(mrs_harris_common::models::space::Space {
+            id,
+            name,
+            description,
+            created_at,
+            updated_at,
+        });
+    }
+
     JobFormTemplate {
         is_edit: false,
         job_id: None,
@@ -256,6 +333,8 @@ async fn new_job_page(
         job_type: "one_shot".to_string(),
         worker_definition_id: String::new(),
         worker_defs,
+        spaces,
+        space_id: None,
         schedule_expr: String::new(),
         script: String::new(),
         env: String::new(),
@@ -371,6 +450,10 @@ async fn create_job_submit(
         serde_json::to_value(&shell).unwrap_or(serde_json::Value::Null)
     };
 
+    let space_id = form.space_id
+        .filter(|s| !s.trim().is_empty())
+        .and_then(|s| Uuid::parse_str(&s).ok());
+
     let new_job = NewJob {
         name: form.name,
         description: form.description.filter(|d| !d.trim().is_empty()),
@@ -383,6 +466,7 @@ async fn create_job_submit(
         is_active,
         tags,
         worker_definition_id: Some(worker_def_id),
+        space_id,
     };
 
     // Save job within a Transaction if it's a DAG to save tasks/edges
@@ -397,8 +481,8 @@ async fn create_job_submit(
     let is_active_val: i8 = if new_job.is_active { 1 } else { 0 };
 
     sqlx::query(
-        r#"INSERT INTO jobs (id, name, description, job_type, payload, schedule_expr, worker_type, retry_policy, timeout_sec, is_active, tags, worker_definition_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+        r#"INSERT INTO jobs (id, name, description, job_type, payload, schedule_expr, worker_type, retry_policy, timeout_sec, is_active, tags, worker_definition_id, space_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
     )
     .bind(job_id.to_string())
     .bind(&new_job.name)
@@ -412,6 +496,7 @@ async fn create_job_submit(
     .bind(is_active_val)
     .bind(tags_json)
     .bind(worker_def_id.to_string())
+    .bind(new_job.space_id.map(|uid| uid.to_string()))
     .bind(Utc::now())
     .bind(Utc::now())
     .execute(&mut *tx)
@@ -892,6 +977,30 @@ async fn edit_job_page(
         }
     }
 
+    // Query spaces from DB manually
+    let spaces_rows = sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces ORDER BY name ASC")
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default();
+
+    let mut spaces = Vec::new();
+    for row in spaces_rows {
+        let id_str: String = row.try_get("id").unwrap_or_default();
+        let id = Uuid::parse_str(&id_str).unwrap_or_default();
+        let name: String = row.try_get("name").unwrap_or_default();
+        let description: Option<String> = row.try_get("description").ok();
+        let created_at = row.try_get("created_at").unwrap_or_else(|_| Utc::now());
+        let updated_at = row.try_get("updated_at").unwrap_or_else(|_| Utc::now());
+        
+        spaces.push(mrs_harris_common::models::space::Space {
+            id,
+            name,
+            description,
+            created_at,
+            updated_at,
+        });
+    }
+
     JobFormTemplate {
         is_edit: true,
         job_id: Some(job.id),
@@ -900,6 +1009,8 @@ async fn edit_job_page(
         job_type: job.job_type.to_string(),
         worker_definition_id: job.worker_definition_id.map(|uid| uid.to_string()).unwrap_or_default(),
         worker_defs,
+        spaces,
+        space_id: job.space_id,
         schedule_expr: job.schedule_expr.unwrap_or_default(),
         script,
         env,
@@ -1013,6 +1124,10 @@ async fn edit_job_submit(
         serde_json::to_value(&shell).unwrap_or(serde_json::Value::Null)
     };
 
+    let space_id = form.space_id
+        .filter(|s| !s.trim().is_empty())
+        .and_then(|s| Uuid::parse_str(&s).ok());
+
     // Save changes in a transaction to handle DAG updates cleanly
     let pool = &state.db;
     let mut tx = pool.begin().await.unwrap();
@@ -1023,7 +1138,7 @@ async fn edit_job_submit(
 
     sqlx::query(
         r#"UPDATE jobs 
-           SET name = ?, description = ?, job_type = ?, payload = ?, schedule_expr = ?, worker_type = ?, retry_policy = ?, timeout_sec = ?, is_active = ?, tags = ?, worker_definition_id = ?, updated_at = ?
+           SET name = ?, description = ?, job_type = ?, payload = ?, schedule_expr = ?, worker_type = ?, retry_policy = ?, timeout_sec = ?, is_active = ?, tags = ?, worker_definition_id = ?, space_id = ?, updated_at = ?
            WHERE id = ?"#
     )
     .bind(&form.name)
@@ -1037,6 +1152,7 @@ async fn edit_job_submit(
     .bind(is_active_val)
     .bind(tags_json)
     .bind(worker_def_id.to_string())
+    .bind(space_id.map(|uid| uid.to_string()))
     .bind(Utc::now())
     .bind(id.to_string())
     .execute(&mut *tx)
@@ -1186,6 +1302,7 @@ async fn import_toml_submit(
         is_active: true,
         tags: import.tags,
         worker_definition_id: Some(worker_def_id),
+        space_id: None,
     };
 
     let pool = &state.db;
@@ -1199,8 +1316,8 @@ async fn import_toml_submit(
     let is_active_val: i8 = 1;
 
     sqlx::query(
-        r#"INSERT INTO jobs (id, name, description, job_type, payload, schedule_expr, worker_type, retry_policy, timeout_sec, is_active, tags, worker_definition_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+        r#"INSERT INTO jobs (id, name, description, job_type, payload, schedule_expr, worker_type, retry_policy, timeout_sec, is_active, tags, worker_definition_id, space_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
     )
     .bind(job_id.to_string())
     .bind(&new_job.name)
@@ -1214,6 +1331,7 @@ async fn import_toml_submit(
     .bind(is_active_val)
     .bind(tags_json)
     .bind(worker_def_id.to_string())
+    .bind(None::<String>) // space_id
     .bind(Utc::now())
     .bind(Utc::now())
     .execute(&mut *tx)

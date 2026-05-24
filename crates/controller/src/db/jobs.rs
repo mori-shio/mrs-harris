@@ -38,6 +38,10 @@ fn map_row_to_job(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<Job> {
     let worker_definition_id = worker_definition_id_str
         .and_then(|s| Uuid::parse_str(&s).ok());
     
+    let space_id_str: Option<String> = row.try_get("space_id")?;
+    let space_id = space_id_str
+        .and_then(|s| Uuid::parse_str(&s).ok());
+    
     let created_at: DateTime<Utc> = row.try_get("created_at")?;
     let updated_at: DateTime<Utc> = row.try_get("updated_at")?;
 
@@ -54,6 +58,7 @@ fn map_row_to_job(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<Job> {
         is_active,
         tags,
         worker_definition_id,
+        space_id,
         created_at,
         updated_at,
     })
@@ -68,10 +73,11 @@ pub async fn create_job(pool: &MySqlPool, new_job: &NewJob) -> anyhow::Result<Jo
     let tags_json = serde_json::to_value(&new_job.tags)?;
     let is_active_val: i8 = if new_job.is_active { 1 } else { 0 };
     let worker_def_id_str = new_job.worker_definition_id.map(|uid| uid.to_string());
+    let space_id_str = new_job.space_id.map(|uid| uid.to_string());
 
     sqlx::query(
-        r#"INSERT INTO jobs (id, name, description, job_type, payload, schedule_expr, worker_type, retry_policy, timeout_sec, is_active, tags, worker_definition_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+        r#"INSERT INTO jobs (id, name, description, job_type, payload, schedule_expr, worker_type, retry_policy, timeout_sec, is_active, tags, worker_definition_id, space_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
     )
     .bind(id.to_string())
     .bind(&new_job.name)
@@ -85,6 +91,7 @@ pub async fn create_job(pool: &MySqlPool, new_job: &NewJob) -> anyhow::Result<Jo
     .bind(is_active_val)
     .bind(tags_json)
     .bind(worker_def_id_str)
+    .bind(space_id_str)
     .execute(pool)
     .await?;
 
@@ -117,6 +124,13 @@ pub async fn list_jobs(pool: &MySqlPool, filter: &JobFilter) -> anyhow::Result<V
     if filter.search.is_some() {
         query_str.push_str(" AND (name LIKE ? OR description LIKE ?)");
     }
+    if let Some(ref space_id) = filter.space_id {
+        if space_id == "unclassified" {
+            query_str.push_str(" AND space_id IS NULL");
+        } else if !space_id.trim().is_empty() {
+            query_str.push_str(" AND space_id = ?");
+        }
+    }
     
     query_str.push_str(" ORDER BY created_at DESC");
 
@@ -138,6 +152,11 @@ pub async fn list_jobs(pool: &MySqlPool, filter: &JobFilter) -> anyhow::Result<V
     if let Some(ref search) = filter.search {
         let search_pattern = format!("%{}%", search);
         query = query.bind(search_pattern.clone()).bind(search_pattern);
+    }
+    if let Some(ref space_id) = filter.space_id {
+        if space_id != "unclassified" && !space_id.trim().is_empty() {
+            query = query.bind(space_id);
+        }
     }
 
     let rows = query.fetch_all(pool).await?;
@@ -186,6 +205,9 @@ pub async fn update_job(pool: &MySqlPool, id: &Uuid, update: &JobUpdate) -> anyh
     if update.worker_definition_id.is_some() {
         sets.push("worker_definition_id = ?");
     }
+    if update.space_id.is_some() {
+        sets.push("space_id = ?");
+    }
 
     if sets.is_empty() {
         return get_job(pool, id).await?.ok_or_else(|| anyhow::anyhow!("Job not found"));
@@ -222,6 +244,9 @@ pub async fn update_job(pool: &MySqlPool, id: &Uuid, update: &JobUpdate) -> anyh
     }
     if let Some(ref worker_definition_id) = update.worker_definition_id {
         query = query.bind(worker_definition_id.map(|uid| uid.to_string()));
+    }
+    if let Some(ref space_id) = update.space_id {
+        query = query.bind(space_id.map(|uid| uid.to_string()));
     }
 
     query.bind(id.to_string()).execute(pool).await?;

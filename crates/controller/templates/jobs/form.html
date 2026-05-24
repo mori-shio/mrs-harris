@@ -121,6 +121,20 @@
                 <textarea id="description" name="description" class="form-control" style="min-height: 80px;" placeholder="ジョブの説明を入力してください...">{{ description }}</textarea>
             </div>
 
+            <!-- 所属スペース -->
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="space_id">所属スペース</label>
+                <select id="space_id" name="space_id" class="form-control">
+                    <option value="">未分類 (Unclassified)</option>
+                    {% for space in spaces %}
+                    <option value="{{ space.id.to_string() }}" {% if let Some(sid) = space_id %}{% if *sid == space.id %}selected{% endif %}{% endif %}>
+                        {{ space.name }}{% if let Some(desc) = space.description.as_ref() %} - {{ desc }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">ジョブを整理・分類するためのスペースを指定します。</span>
+            </div>
+
             <!-- ワーカー (起動タイプ) -->
             <div class="form-group" style="margin-top: 20px;">
                 <label for="worker_definition_id">実行ワーカー (ノード定義) <span style="color: var(--color-danger);">*</span></label>
