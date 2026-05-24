@@ -110,7 +110,7 @@
                 <div class="sidebar-group-header" onclick="toggleSidebarGroup(this)">
                     <span class="group-title">
                         <i data-lucide="git-pull-request" style="width: 18px; height: 18px;"></i>
-                        ジョブ
+                        ジョブ管理
                     </span>
                     <i data-lucide="chevron-down" class="chevron" style="width: 16px; height: 16px; transition: transform 0.2s;"></i>
                 </div>
@@ -118,13 +118,13 @@
                     <li class="sidebar-sub-item {% block nav_jobs %}{% endblock %}">
                         <a href="/jobs">
                             <i data-lucide="list" style="width: 14px; height: 14px;"></i>
-                            ジョブ一覧
+                            ジョブ
                         </a>
                     </li>
                     <li class="sidebar-sub-item {% block nav_spaces %}{% endblock %}">
                         <a href="/spaces">
                             <i data-lucide="layout-grid" style="width: 14px; height: 14px;"></i>
-                            スペース管理
+                            スペース
                         </a>
                     </li>
                 </ul>
@@ -135,7 +135,7 @@
                 <div class="sidebar-group-header" onclick="toggleSidebarGroup(this)">
                     <span class="group-title">
                         <i data-lucide="cpu" style="width: 18px; height: 18px;"></i>
-                        ワーカー
+                        ワーカー管理
                     </span>
                     <i data-lucide="chevron-down" class="chevron" style="width: 16px; height: 16px; transition: transform 0.2s;"></i>
                 </div>
@@ -149,7 +149,7 @@
                     <li class="sidebar-sub-item {% block nav_workers %}{% endblock %}">
                         <a href="/workers">
                             <i data-lucide="activity" style="width: 14px; height: 14px;"></i>
-                            ワーカー状態
+                            状態監視
                         </a>
                     </li>
                 </ul>
