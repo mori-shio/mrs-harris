@@ -136,6 +136,18 @@
         document.querySelectorAll('.space-tab').forEach(t => t.classList.remove('active'));
         element.classList.add('active');
     }
+
+    // HTMXのリクエスト送信前に、空のクエリパラメータを削除してURLの見栄えをクリーンに保つ
+    document.addEventListener('htmx:configRequest', function(evt) {
+        if (evt.detail.elt && evt.detail.elt.closest('#filter-form')) {
+            const params = evt.detail.parameters;
+            for (const key in params) {
+                if (params[key] === '') {
+                    delete params[key];
+                }
+            }
+        }
+    });
 </script>
 
 <!-- Filter controls -->
