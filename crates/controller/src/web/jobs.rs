@@ -57,6 +57,9 @@ struct JobsListTemplate {
     jobs: Vec<JobRenderItem>,
     spaces: Vec<JobSpaceTab>,
     current_space_id: String,
+    current_search: String,
+    current_job_type: String,
+    current_is_active: String,
 }
 crate::impl_into_response!(JobsListTemplate);
 
@@ -210,13 +213,42 @@ async fn jobs_page(
         .and_then(|t| JobType::from_str(t).ok());
     let is_active = query_filter.get("is_active")
         .and_then(|v| bool::from_str(v).ok());
-    let space_id = query_filter.get("space_id").filter(|s| !s.trim().is_empty()).cloned();
+
+    // Resolve space_id parameter by looking at either `space` or `space_id`
+    let space_param = query_filter.get("space")
+        .or(query_filter.get("space_id"))
+        .filter(|s| !s.trim().is_empty())
+        .cloned();
+
+    let mut space_id = None;
+    if let Some(sp) = space_param {
+        if sp == "unclassified" || sp == "未分類" {
+            space_id = Some("unclassified".to_string());
+        } else if Uuid::parse_str(&sp).is_ok() {
+            space_id = Some(sp);
+        } else {
+            // It's a space name. Query the DB for the space ID.
+            let resolved_id: Option<String> = sqlx::query("SELECT id FROM spaces WHERE name = ?")
+                .bind(&sp)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten()
+                .map(|row| row.try_get("id").unwrap_or_default());
+            if let Some(rid) = resolved_id {
+                space_id = Some(rid);
+            } else {
+                // If space name is not found, default to showing no space matches
+                space_id = Some(Uuid::nil().to_string());
+            }
+        }
+    }
 
     let filter = JobFilter {
         job_type,
         is_active,
         tag: None,
-        search,
+        search: search.clone(),
         space_id: space_id.clone(),
         limit: None,
         offset: None,
@@ -267,10 +299,17 @@ async fn jobs_page(
             is_active: current_sid == "unclassified",
         });
 
+        let current_search = query_filter.get("search").cloned().unwrap_or_default();
+        let current_job_type = query_filter.get("job_type").cloned().unwrap_or_default();
+        let current_is_active = query_filter.get("is_active").cloned().unwrap_or_default();
+
         JobsListTemplate {
             jobs,
             spaces,
             current_space_id: current_sid,
+            current_search,
+            current_job_type,
+            current_is_active,
         }.into_response()
     }
 }
