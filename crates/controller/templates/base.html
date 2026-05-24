@@ -188,11 +188,25 @@
         }
         
         function initSidebarGroups() {
-            document.querySelectorAll('.sidebar-item-group').forEach(group => {
-                const hasActiveChild = group.querySelector('.active');
+            document.querySelectorAll('.sidebar-item-group').forEach((group, index) => {
+                const groupTitleEl = group.querySelector('.group-title');
+                const groupName = groupTitleEl ? groupTitleEl.textContent.trim() : 'group-' + index;
                 const subMenu = group.querySelector('.sidebar-sub-menu');
                 const chevron = group.querySelector('.chevron');
+                
+                const hasActiveChild = group.querySelector('.active');
+                const savedState = localStorage.getItem('sidebar-group-' + groupName);
+                
+                let shouldExpand = false;
                 if (hasActiveChild) {
+                    shouldExpand = true;
+                } else if (savedState !== null) {
+                    shouldExpand = savedState === 'true';
+                } else {
+                    shouldExpand = false;
+                }
+                
+                if (shouldExpand) {
                     subMenu.style.display = 'flex';
                     if (chevron) chevron.style.transform = 'rotate(180deg)';
                 } else {
@@ -204,6 +218,8 @@
 
         function toggleSidebarGroup(header) {
             const group = header.closest('.sidebar-item-group');
+            const groupTitleEl = group.querySelector('.group-title');
+            const groupName = groupTitleEl ? groupTitleEl.textContent.trim() : 'group';
             const subMenu = group.querySelector('.sidebar-sub-menu');
             const chevron = group.querySelector('.chevron');
             const isExpanded = subMenu.style.display === 'flex';
@@ -211,9 +227,11 @@
             if (isExpanded) {
                 subMenu.style.display = 'none';
                 if (chevron) chevron.style.transform = 'rotate(0deg)';
+                localStorage.setItem('sidebar-group-' + groupName, 'false');
             } else {
                 subMenu.style.display = 'flex';
                 if (chevron) chevron.style.transform = 'rotate(180deg)';
+                localStorage.setItem('sidebar-group-' + groupName, 'true');
             }
         }
 

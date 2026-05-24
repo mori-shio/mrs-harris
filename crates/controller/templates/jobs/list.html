@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}ジョブ定義 | Mrs. Harris{% endblock %}
+{% block title %}ジョブ一覧 | Mrs. Harris{% endblock %}
 
 {% block nav_jobs %}active{% endblock %}
 
@@ -9,12 +9,12 @@
 <nav style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
     <a href="/" style="color: var(--text-muted); text-decoration: none;">ホーム</a>
     <span style="margin: 0 8px; opacity: 0.4;">/</span>
-    <span style="color: var(--text-primary); font-weight: 600;">ジョブ定義</span>
+    <span style="color: var(--text-primary); font-weight: 600;">ジョブ一覧</span>
 </nav>
 
 <div class="page-header">
     <div class="page-title">
-        <h2>ジョブ定義管理</h2>
+        <h2>ジョブ一覧</h2>
         <p>登録されているスケジュールジョブおよびDAGパイプラインの管理</p>
     </div>
     <div style="display: flex; gap: 12px;">
@@ -67,27 +67,32 @@
         background: rgba(14, 165, 233, 0.04);
     }
 
-    .space-tab-add {
+    .space-tab-add-trigger {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: var(--radius-sm);
+        padding: 6px 10px;
+        margin-left: 6px;
         color: var(--text-muted);
-        text-decoration: none;
-        font-size: 0.85rem;
+        cursor: pointer;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.06);
         transition: all 0.2s ease;
-        margin-left: auto;
+        border-bottom: 2px solid transparent;
         margin-bottom: 4px;
     }
-    .space-tab-add:hover {
-        background: rgba(14, 165, 233, 0.1);
-        border-color: rgba(14, 165, 233, 0.2);
+    .space-tab-add-trigger:hover {
         color: var(--color-primary);
-        transform: rotate(90deg);
+        background: rgba(14, 165, 233, 0.15);
+        border-color: rgba(14, 165, 233, 0.3);
+    }
+    .space-tab-add-trigger:focus, .space-tab-add-trigger:focus-visible {
+        outline: none;
+        color: var(--color-primary);
+        background: rgba(14, 165, 233, 0.2);
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3);
     }
 </style>
 
@@ -109,7 +114,7 @@
             {{ tab.name }}
         </button>
         {% if tab.id == "unclassified" %}
-            <button type="button" class="space-tab" onclick="openCreateSpaceModal()" style="padding: 10px 12px; margin-left: 2px; color: var(--text-muted); border-bottom: 2px solid transparent;" title="新規スペースを作成">
+            <button type="button" class="space-tab-add-trigger" onclick="openCreateSpaceModal()" title="新規スペースを作成">
                 <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
             </button>
         {% endif %}
@@ -161,7 +166,7 @@
 </div>
 
 <!-- Create Space Modal -->
-<div class="modal-overlay" id="create-space-modal">
+<div class="modal-overlay" id="create-space-modal" style="padding-left: 260px;">
     <div class="modal-content" style="max-width: 550px;">
         <div class="modal-header">
             <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700;">新規スペース作成</h3>
