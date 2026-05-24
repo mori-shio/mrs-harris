@@ -57,6 +57,7 @@ struct JobsListTemplate {
     jobs: Vec<JobRenderItem>,
     spaces: Vec<JobSpaceTab>,
     current_space_id: String,
+    current_space_name: String,
     current_search: String,
     current_job_type: String,
     current_is_active: String,
@@ -221,11 +222,24 @@ async fn jobs_page(
         .cloned();
 
     let mut space_id = None;
+    let mut current_space_name = String::new();
     if let Some(sp) = space_param {
         if sp == "unclassified" || sp == "未分類" {
             space_id = Some("unclassified".to_string());
+            current_space_name = "unclassified".to_string();
         } else if Uuid::parse_str(&sp).is_ok() {
-            space_id = Some(sp);
+            space_id = Some(sp.clone());
+            // Look up space name by ID for current_space_name
+            let resolved_name: Option<String> = sqlx::query("SELECT name FROM spaces WHERE id = ?")
+                .bind(&sp)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten()
+                .map(|row| row.try_get("name").unwrap_or_default());
+            if let Some(rname) = resolved_name {
+                current_space_name = rname;
+            }
         } else {
             // It's a space name. Query the DB for the space ID.
             let resolved_id: Option<String> = sqlx::query("SELECT id FROM spaces WHERE name = ?")
@@ -237,9 +251,11 @@ async fn jobs_page(
                 .map(|row| row.try_get("id").unwrap_or_default());
             if let Some(rid) = resolved_id {
                 space_id = Some(rid);
+                current_space_name = sp;
             } else {
                 // If space name is not found, default to showing no space matches
                 space_id = Some(Uuid::nil().to_string());
+                current_space_name = sp;
             }
         }
     }
@@ -307,6 +323,7 @@ async fn jobs_page(
             jobs,
             spaces,
             current_space_id: current_sid,
+            current_space_name,
             current_search,
             current_job_type,
             current_is_active,
