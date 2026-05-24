@@ -286,11 +286,11 @@
     <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 16px 0; padding-top: 12px; padding-bottom: 4px;">
         <div class="summary-item">
             <span class="summary-label">説明</span>
-            <div class="summary-value" style="font-weight: 500; color: var(--text-secondary); line-height: 1.6; display: block; white-space: pre-wrap; word-break: break-all;">
+            <div class="summary-value" style="line-height: 1.6; display: block; white-space: pre-wrap; word-break: break-all;">
                 {% if let Some(desc) = job.description.as_ref() %}
                     {{ desc }}
                 {% else %}
-                    <span style="color: var(--text-muted); font-style: italic;">説明はありません。</span>
+                    <span style="color: var(--text-muted); font-weight: 400; font-style: italic;">説明はありません。</span>
                 {% endif %}
             </div>
         </div>
@@ -303,7 +303,7 @@
             <div class="summary-item">
                 <span class="summary-label">ジョブ ID</span>
                 <div class="summary-value">
-                    <span id="job-id-text" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--text-secondary);">{{ job.id }}</span>
+                    <span id="job-id-text" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;">{{ job.id }}</span>
                 </div>
             </div>
             
