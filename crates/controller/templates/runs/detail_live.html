@@ -1,42 +1,41 @@
-<div id="run-detail-live-poll" hx-get="/runs/{{ run.id }}/live" hx-trigger="every 3s" hx-swap="outerHTML" hx-indicator="#polling-indicator">
-    <!-- Breadcrumbs -->
-    <nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
-        <a href="/" style="color: var(--text-muted); text-decoration: none;">ホーム</a>
-        <span style="margin: 0 8px; opacity: 0.4;">/</span>
-        <a href="/jobs" style="color: var(--text-muted); text-decoration: none;" hx-boost="true">ジョブ</a>
-        <span style="margin: 0 8px; opacity: 0.4;">/</span>
-        <a href="/jobs/{{ run.job_id }}" style="color: var(--text-muted); text-decoration: none;" hx-boost="true">{{ job_name }}</a>
-        <span style="margin: 0 8px; opacity: 0.4;">/</span>
-        <span style="color: var(--text-primary); font-weight: 600;">実行詳細 #{{ run_number }}</span>
-    </nav>
+<!-- Breadcrumbs -->
+<nav style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
+    <a href="/" style="color: var(--text-muted); text-decoration: none;">ホーム</a>
+    <span style="margin: 0 8px; opacity: 0.4;">/</span>
+    <a href="/jobs" style="color: var(--text-muted); text-decoration: none;" hx-boost="true">ジョブ</a>
+    <span style="margin: 0 8px; opacity: 0.4;">/</span>
+    <a href="/jobs/{{ run.job_id }}" style="color: var(--text-muted); text-decoration: none;" hx-boost="true">{{ job_name }}</a>
+    <span style="margin: 0 8px; opacity: 0.4;">/</span>
+    <span style="color: var(--text-primary); font-weight: 600;">実行詳細 #{{ run_number }}</span>
+</nav>
 
-    <div class="page-header" style="margin-top: 0;">
-        <div class="page-title">
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <a href="/jobs/{{ run.job_id }}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
-                    <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
-                </a>
-                <h2>{{ job_name }} <span style="font-family: 'JetBrains Mono', monospace; font-size: 1.25rem; color: var(--color-primary);">#{{ run_number }}</span></h2>
-                <div id="polling-indicator" class="htmx-indicator" style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted);">
-                    <i data-lucide="refresh-cw" class="spin" style="width: 12px; height: 12px;"></i>
-                    更新中...
-                </div>
+<div class="page-header" style="margin-top: 0; margin-bottom: 24px;">
+    <div class="page-title">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <a href="/jobs/{{ run.job_id }}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
+                <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+            </a>
+            <h2>{{ job_name }} <span style="font-family: 'JetBrains Mono', monospace; color: var(--color-primary);">#{{ run_number }}</span></h2>
+            <div id="polling-indicator" class="htmx-indicator" style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted);">
+                <i data-lucide="refresh-cw" class="spin" style="width: 12px; height: 12px;"></i>
+                更新中...
             </div>
-            <p style="margin-left: 32px; margin-top: 4px; color: var(--text-muted); font-size: 0.85rem; display: flex; align-items: center; gap: 4px;"><i data-lucide="info" style="width: 14px; height: 14px;"></i>実行状況のリアルタイム監視</p>
-        </div>
-        <div style="display: flex; gap: 12px;">
-            {% if run.status.to_string() == "running" || run.status.to_string() == "pending" || run.status.to_string() == "queued" %}
-            <button class="btn btn-danger" 
-                    hx-post="/api/runs/{{ run.id }}/cancel" 
-                    hx-swap="none"
-                    onclick="alert('実行のキャンセルをリクエストしました！')">
-                <i data-lucide="octagon" style="width: 16px; height: 16px;"></i>
-                強制停止
-            </button>
-            {% endif %}
         </div>
     </div>
+    <div style="display: flex; gap: 12px;">
+        {% if run.status.to_string() == "running" || run.status.to_string() == "pending" || run.status.to_string() == "queued" %}
+        <button class="btn btn-danger" 
+                hx-post="/api/runs/{{ run.id }}/cancel" 
+                hx-swap="none"
+                onclick="alert('実行のキャンセルをリクエストしました！')">
+            <i data-lucide="octagon" style="width: 16px; height: 16px;"></i>
+            強制停止
+        </button>
+        {% endif %}
+    </div>
+</div>
 
+<div id="run-detail-live-poll" hx-get="/runs/{{ run.id }}/live" hx-select="#run-detail-live-poll" hx-trigger="every 3s" hx-swap="outerHTML" hx-indicator="#polling-indicator">
     <div style="display: grid; grid-template-columns: 1fr 340px; gap: 24px;">
         <!-- Left: Visualizer / Logs -->
         <div style="display: flex; flex-direction: column; gap: 24px;">
