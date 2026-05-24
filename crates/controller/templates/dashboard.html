@@ -5,6 +5,15 @@
 {% block nav_dashboard %}active{% endblock %}
 
 {% block content %}
+<style>
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    .spin {
+        animation: spin 4s linear infinite;
+    }
+</style>
 <div class="page-header">
     <div class="page-title">
         <h2>システムダッシュボード</h2>
@@ -27,14 +36,4 @@
 
 {% endblock %}
 
-{% block head %}
-<style>
-    @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
-    .spin {
-        animation: spin 4s linear infinite;
-    }
-</style>
-{% endblock %}
+

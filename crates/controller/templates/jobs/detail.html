@@ -4,7 +4,9 @@
 
 {% block nav_jobs %}active{% endblock %}
 
-{% block head %}
+{% block head %}{% endblock %}
+
+{% block content %}
 <style>
     /* Sleek EC2-style tabs navigation */
     .ec2-tabs-nav {
@@ -224,9 +226,6 @@
         to { opacity: 1; transform: scale(1) translateY(0); }
     }
 </style>
-{% endblock %}
-
-{% block content %}
 <!-- Breadcrumbs -->
 <nav style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
     <a href="/" style="color: var(--text-muted); text-decoration: none;">ホーム</a>
