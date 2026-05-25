@@ -765,7 +765,7 @@ async fn job_detail_page(
         };
 
         let config_version_str = match r.config_version {
-            Some(v) => format!("Ver.{}", v),
+            Some(v) => format!("v{}", v),
             None => "-".to_string(),
         };
 
@@ -1069,7 +1069,7 @@ async fn job_runs_list(
         };
 
         let config_version_str = match r.config_version {
-            Some(v) => format!("Ver.{}", v),
+            Some(v) => format!("v{}", v),
             None => "-".to_string(),
         };
 
