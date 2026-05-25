@@ -78,16 +78,42 @@ struct JobHistoryRenderItem {
     payload_json: String,
 }
 
+#[derive(serde::Deserialize)]
+struct RunsQuery {
+    page: Option<u32>,
+}
+
+#[derive(Template)]
+#[template(path = "jobs/runs_table.html")]
+struct JobRunsTableTemplate {
+    job_id: Uuid,
+    recent_runs: Vec<JobRunRenderItem>,
+    total_runs: i64,
+    current_page: u32,
+    total_pages: u32,
+    start_index: usize,
+    end_index: usize,
+    pages: Vec<u32>,
+}
+crate::impl_into_response!(JobRunsTableTemplate);
+
 #[derive(Template)]
 #[template(path = "jobs/detail.html")]
 struct JobDetailTemplate {
     job: Job,
+    job_id: Uuid,
     job_type_str: &'static str,
     worker_type_str: &'static str,
     worker_definition_name: String,
     timeout_minutes: u32,
     retry_backoff_str: &'static str,
     recent_runs: Vec<JobRunRenderItem>,
+    total_runs: i64,
+    current_page: u32,
+    total_pages: u32,
+    start_index: usize,
+    end_index: usize,
+    pages: Vec<u32>,
     is_dag: bool,
     command_preview: String,
     env_vars: Option<String>,
@@ -179,6 +205,7 @@ pub fn router() -> Router<AppState> {
         .route("/jobs", get(jobs_page))
         .route("/jobs/new", get(new_job_page).post(create_job_submit))
         .route("/jobs/{id}", get(job_detail_page))
+        .route("/jobs/{id}/runs", get(job_runs_list))
         .route("/jobs/{id}/edit", get(edit_job_page).post(edit_job_submit))
 }
 
@@ -648,8 +675,28 @@ async fn job_detail_page(
         BackoffStrategy::Exponential => "指数",
     };
 
-    // Load recent job runs
-    let runs_db = crate::db::runs::list_runs(&state.db, Some(&id), Some(10), None).await.unwrap_or_default();
+    // Load recent job runs with pagination metadata
+    let current_page = 1u32;
+    let limit = 10u32;
+    let offset = 0u32;
+    let total_runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM job_runs WHERE job_id = ?")
+        .bind(id.to_string())
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(0);
+    
+    let total_pages = ((total_runs as f64) / (limit as f64)).ceil() as u32;
+    let start_index = if total_runs == 0 { 0 } else { 1 };
+    let end_index = std::cmp::min(limit as usize, total_runs as usize);
+    let pages = (1..=total_pages).collect::<Vec<u32>>();
+
+    let runs_db = match crate::db::runs::list_runs(&state.db, Some(&id), Some(limit), Some(offset)).await {
+        Ok(runs) => runs,
+        Err(e) => {
+            tracing::error!("Failed to list runs in job_detail_page: {:?}", e);
+            Vec::new()
+        }
+    };
     let mut recent_runs = Vec::new();
     for r in runs_db {
         let status_ja = match r.status {
@@ -876,12 +923,19 @@ async fn job_detail_page(
 
     JobDetailTemplate {
         job,
+        job_id: id,
         job_type_str,
         worker_type_str,
         worker_definition_name,
         timeout_minutes,
         retry_backoff_str,
         recent_runs,
+        total_runs,
+        current_page,
+        total_pages,
+        start_index,
+        end_index,
+        pages,
         is_dag,
         command_preview,
         env_vars,
@@ -898,6 +952,103 @@ async fn job_detail_page(
         dag_tasks_json,
         dag_edges_json,
         history,
+    }
+}
+
+async fn job_runs_list(
+    _claims: WebClaims,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Query(query): Query<RunsQuery>,
+) -> impl IntoResponse {
+    let current_page = query.page.unwrap_or(1).max(1);
+    let limit = 10u32;
+    let offset = (current_page - 1) * limit;
+
+    let total_runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM job_runs WHERE job_id = ?")
+        .bind(id.to_string())
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(0);
+
+    let total_pages = ((total_runs as f64) / (limit as f64)).ceil() as u32;
+    let start_index = if total_runs == 0 { 0 } else { (offset as usize) + 1 };
+    let end_index = std::cmp::min((offset + limit) as usize, total_runs as usize);
+    let pages = (1..=total_pages).collect::<Vec<u32>>();
+
+    let runs_db = match crate::db::runs::list_runs(&state.db, Some(&id), Some(limit), Some(offset)).await {
+        Ok(runs) => runs,
+        Err(e) => {
+            tracing::error!("Failed to list runs in job_runs_list: {:?}", e);
+            Vec::new()
+        }
+    };
+    
+    let mut recent_runs = Vec::new();
+    for r in runs_db {
+        let status_ja = match r.status {
+            RunStatus::Pending => "保留中",
+            RunStatus::Scheduled => "予約済",
+            RunStatus::Queued => "キュー済",
+            RunStatus::Running => "実行中",
+            RunStatus::Succeeded => "成功",
+            RunStatus::Failed => "失敗",
+            RunStatus::Retrying => "リトライ中",
+            RunStatus::Cancelled => "キャンセル済",
+            RunStatus::DeadLetter => "致命的エラー (DLQ)",
+        };
+
+        let trigger_ja = match r.trigger_type {
+            TriggerType::Scheduled => "自動スケジュール",
+            TriggerType::Manual => "手動実行",
+            TriggerType::Dependency => "DAG依存",
+        };
+
+        let duration_str = match r.duration_ms {
+            Some(ms) => {
+                if ms >= 1000 {
+                    format!("{:.1}s", ms as f64 / 1000.0)
+                } else {
+                    format!("{}ms", ms)
+                }
+            }
+            None => "-".to_string(),
+        };
+
+        let started_at_str = match r.started_at {
+            Some(dt) => dt.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string(),
+            None => "-".to_string(),
+        };
+
+        let run_number: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM job_runs WHERE job_id = ? AND created_at <= ?"
+        )
+        .bind(&r.job_id.to_string())
+        .bind(r.created_at)
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(0);
+
+        recent_runs.push(JobRunRenderItem {
+            id: r.id,
+            status_str: r.status.to_string(),
+            status_ja,
+            run_number,
+            trigger_ja,
+            duration_str,
+            started_at_str,
+        });
+    }
+
+    JobRunsTableTemplate {
+        job_id: id,
+        recent_runs,
+        total_runs,
+        current_page,
+        total_pages,
+        start_index,
+        end_index,
+        pages,
     }
 }
 

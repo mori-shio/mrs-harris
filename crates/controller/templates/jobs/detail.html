@@ -228,7 +228,7 @@
 </style>
 <div id="job-detail-main-view">
 <!-- Breadcrumbs -->
-<nav style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
+<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
     <a href="/" style="color: var(--text-muted); text-decoration: none;">ホーム</a>
     <span style="margin: 0 8px; opacity: 0.4;">/</span>
     <a href="/jobs" style="color: var(--text-muted); text-decoration: none;">ジョブ</a>
@@ -399,41 +399,7 @@
 <!-- ========== TAB: 実行履歴 ========== -->
 <div id="tab-runs" class="ec2-tab-pane active">
     <div class="card" style="padding: 20px 24px;">
-        <div class="table-container" style="margin-top: 0;">
-            <table class="data-table" style="font-size:0.85rem;">
-                <thead>
-                    <tr>
-                        <th>実行</th>
-                        <th>ステータス</th>
-                        <th>トリガー</th>
-                        <th>実行時間</th>
-                        <th>開始日時</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if recent_runs.is_empty() %}
-                    <tr>
-                        <td colspan="6" style="text-align:center;color:var(--text-muted);padding:48px 0;">
-                            <i data-lucide="inbox" style="width:28px;height:28px;margin:0 auto 10px;display:block;opacity:0.35;"></i>
-                            実行履歴はまだありません
-                        </td>
-                    </tr>
-                    {% else %}
-                    {% for run in recent_runs %}
-                    <tr>
-                        <td><a href="#{{ run.run_number }}" style="font-family:'JetBrains Mono',monospace;font-size:0.88rem;font-weight:600;color:var(--color-primary);text-decoration:none;">#{{ run.run_number }}</a></td>
-                        <td><span class="badge badge-{{ run.status_str }}">{{ run.status_ja }}</span></td>
-                        <td>{{ run.trigger_ja }}</td>
-                        <td>{{ run.duration_str }}</td>
-                        <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">{{ run.started_at_str }}</td>
-                        <td><a href="#{{ run.run_number }}" class="btn btn-secondary" style="padding:4px 10px;font-size:0.78rem;">ログ</a></td>
-                    </tr>
-                    {% endfor %}
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
+        {% include "jobs/runs_table.html" %}
     </div>
 </div>
 

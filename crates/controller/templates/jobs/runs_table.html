@@ -1,0 +1,92 @@
+<div id="runs-table-container">
+    <div class="table-container" style="margin-top: 0;">
+        <table class="data-table" style="font-size:0.85rem;">
+            <thead>
+                <tr>
+                    <th>実行</th>
+                    <th>ステータス</th>
+                    <th>トリガー</th>
+                    <th>実行時間</th>
+                    <th>開始日時</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if recent_runs.is_empty() %}
+                <tr>
+                    <td colspan="6" style="text-align:center;color:var(--text-muted);padding:48px 0;">
+                        <i data-lucide="inbox" style="width:28px;height:28px;margin:0 auto 10px;display:block;opacity:0.35;"></i>
+                        実行履歴はまだありません
+                    </td>
+                </tr>
+                {% else %}
+                {% for run in recent_runs %}
+                <tr>
+                    <td><a href="#{{ run.run_number }}" style="font-family:'JetBrains Mono',monospace;font-size:0.88rem;font-weight:600;color:var(--color-primary);text-decoration:none;">#{{ run.run_number }}</a></td>
+                    <td><span class="badge badge-{{ run.status_str }}">{{ run.status_ja }}</span></td>
+                    <td>{{ run.trigger_ja }}</td>
+                    <td>{{ run.duration_str }}</td>
+                    <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">{{ run.started_at_str }}</td>
+                    <td><a href="#{{ run.run_number }}" class="btn btn-secondary" style="padding:4px 10px;font-size:0.78rem;">ログ</a></td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    {% if total_pages > 1 %}
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.06);">
+        <div style="font-size:0.8rem; color:var(--text-muted);">
+            全 {{ total_runs }} 件中 {{ start_index }} - {{ end_index }} 件を表示
+        </div>
+        <div style="display:flex; gap:6px;">
+            {% if current_page > 1 %}
+            <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; cursor:pointer;"
+                    hx-get="/jobs/{{ job_id }}/runs?page={{ current_page - 1 }}" hx-target="#runs-table-container" hx-swap="outerHTML">
+                <i data-lucide="chevron-left" style="width:14px; height:14px;"></i>
+                前へ
+            </button>
+            {% else %}
+            <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; opacity:0.4; cursor:not-allowed;" disabled>
+                <i data-lucide="chevron-left" style="width:14px; height:14px;"></i>
+                前へ
+            </button>
+            {% endif %}
+
+            <!-- Page numbers -->
+            {% for p in pages %}
+            {% if *p == current_page %}
+            <button class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem; min-width:32px; text-align:center; cursor:default;">{{ p }}</button>
+            {% else %}
+            <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; min-width:32px; text-align:center; cursor:pointer;"
+                    hx-get="/jobs/{{ job_id }}/runs?page={{ p }}" hx-target="#runs-table-container" hx-swap="outerHTML">
+                {{ p }}
+            </button>
+            {% endif %}
+            {% endfor %}
+
+            {% if current_page < total_pages %}
+            <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; cursor:pointer;"
+                    hx-get="/jobs/{{ job_id }}/runs?page={{ current_page + 1 }}" hx-target="#runs-table-container" hx-swap="outerHTML">
+                次へ
+                <i data-lucide="chevron-right" style="width:14px; height:14px;"></i>
+            </button>
+            {% else %}
+            <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; opacity:0.4; cursor:not-allowed;" disabled>
+                次へ
+                <i data-lucide="chevron-right" style="width:14px; height:14px;"></i>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+    
+    <script>
+        // Re-initialize icons after HTMX swap
+        if (window.lucide) {
+            lucide.createIcons();
+        }
+    </script>
+</div>
