@@ -4,7 +4,7 @@
             height: 53px;
         }
     </style>
-    <div class="table-container" style="margin-top: 0; {% if total_runs > 10 %}height: 590px; overflow-y: hidden;{% endif %}">
+    <div class="table-container" style="margin-top: 0;">
         <table class="data-table" data-no-sort style="font-size:0.85rem;">
             <thead>
                 <tr>
@@ -50,6 +50,11 @@
                     <td>{{ run.duration_str }}</td>
                     <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">{{ run.started_at_str }}</td>
                     <td><a href="#{{ run.run_number }}" class="btn btn-secondary" style="padding:4px 10px;font-size:0.78rem;">ログ</a></td>
+                </tr>
+                {% endfor %}
+                {% for _ in empty_runs %}
+                <tr style="height: 53px; visibility: hidden;">
+                    <td colspan="6">&nbsp;</td>
                 </tr>
                 {% endfor %}
                 {% endif %}

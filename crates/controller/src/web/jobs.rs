@@ -96,6 +96,7 @@ struct JobRunsTableTemplate {
     end_index: usize,
     pages: Vec<u32>,
     current_sort: String,
+    empty_runs: Vec<()>,
 }
 crate::impl_into_response!(JobRunsTableTemplate);
 
@@ -117,6 +118,7 @@ struct JobDetailTemplate {
     end_index: usize,
     pages: Vec<u32>,
     current_sort: String,
+    empty_runs: Vec<()>,
     is_dag: bool,
     command_preview: String,
     env_vars: Option<String>,
@@ -928,6 +930,12 @@ async fn job_detail_page(
         });
     }
 
+    let empty_runs = if total_runs > 10 {
+        vec![(); 10 - recent_runs.len()]
+    } else {
+        Vec::new()
+    };
+
     JobDetailTemplate {
         job,
         job_id: id,
@@ -944,6 +952,7 @@ async fn job_detail_page(
         end_index,
         pages,
         current_sort,
+        empty_runs,
         is_dag,
         command_preview,
         env_vars,
@@ -1050,6 +1059,12 @@ async fn job_runs_list(
         });
     }
 
+    let empty_runs = if total_runs > 10 {
+        vec![(); 10 - recent_runs.len()]
+    } else {
+        Vec::new()
+    };
+
     JobRunsTableTemplate {
         job_id: id,
         recent_runs,
@@ -1060,6 +1075,7 @@ async fn job_runs_list(
         end_index,
         pages,
         current_sort,
+        empty_runs,
     }
 }
 
