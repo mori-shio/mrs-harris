@@ -94,9 +94,9 @@
             
             <!-- 最上部右上のジョブ有効化トグルボタン -->
             <div style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.03); padding: 10px 18px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.06); backdrop-filter: var(--glass-blur);">
-                <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">有効化</span>
+                <span id="is_active_label" style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">{% if is_active %}有効{% else %}無効{% endif %}</span>
                 <label class="switch">
-                    <input type="checkbox" id="is_active" name="is_active" {% if is_active %}checked{% endif %}>
+                    <input type="checkbox" id="is_active" name="is_active" {% if is_active %}checked{% endif %} onchange="document.getElementById('is_active_label').textContent = this.checked ? '有効' : '無効';">
                     <span class="slider round"></span>
                 </label>
             </div>
@@ -217,15 +217,17 @@
 
             <!-- リトライを有効化の「有効化 (◯---)」左寄せレイアウト -->
             <div class="form-group" style="margin-top: 24px;">
-                <label style="font-weight: 600; display: block; margin-bottom: 8px;">リトライ</label>
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <label class="switch">
-                        <input type="checkbox" id="has_retry" name="has_retry" onchange="toggleRetryFields()" {% if has_retry %}checked{% endif %}>
-                        <span class="slider round"></span>
-                    </label>
-                    <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">有効化</span>
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <label style="font-weight: 600; margin-bottom: 0; user-select: none;">リトライ</label>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label class="switch">
+                            <input type="checkbox" id="has_retry" name="has_retry" onchange="toggleRetryFields()" {% if has_retry %}checked{% endif %}>
+                            <span class="slider round"></span>
+                        </label>
+                        <span id="has_retry_label" style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">{% if has_retry %}有効{% else %}無効{% endif %}</span>
+                    </div>
                 </div>
-                <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 6px;">ジョブが異常終了した際、自動リトライを実行します。</span>
+                <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 8px;">ジョブが異常終了した際、自動リトライを実行します。</span>
             </div>
 
             <!-- Retry policy fields -->
@@ -254,7 +256,7 @@
 
             <div class="form-group" style="margin-top: 20px;">
                 <label for="tags_str">タグ (カンマ区切り)</label>
-                <input type="text" id="tags_str" name="tags_str" class="form-control" placeholder="prod, backup, sql" value="{{ tags_str }}">
+                <input type="text" id="tags_str" name="tags_str" class="form-control" placeholder="prod, backup, sql" value="{{ tags_str }}" autocomplete="off">
             </div>
         </div>
 
@@ -391,11 +393,14 @@
     function toggleRetryFields() {
         const hasRetryCheckbox = document.getElementById('has_retry');
         const retryFields = document.getElementById('retry-fields');
+        const hasRetryLabel = document.getElementById('has_retry_label');
         
         if (hasRetryCheckbox.checked) {
             retryFields.style.display = 'block';
+            if (hasRetryLabel) hasRetryLabel.textContent = '有効';
         } else {
             retryFields.style.display = 'none';
+            if (hasRetryLabel) hasRetryLabel.textContent = '無効';
         }
     }
     

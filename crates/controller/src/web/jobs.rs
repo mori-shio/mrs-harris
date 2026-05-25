@@ -43,6 +43,7 @@ pub struct JobRunRenderItem {
     pub attempt: u32,
     pub duration_str: String,
     pub started_at_str: String,
+    pub config_version_str: String,
 }
 
 #[derive(Clone)]
@@ -763,6 +764,11 @@ async fn job_detail_page(
             None => "-".to_string(),
         };
 
+        let config_version_str = match r.config_version {
+            Some(v) => format!("Ver.{}", v),
+            None => "-".to_string(),
+        };
+
         let run_number: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM job_runs WHERE job_id = ? AND created_at <= ?"
         )
@@ -781,6 +787,7 @@ async fn job_detail_page(
             attempt: r.attempt,
             duration_str,
             started_at_str,
+            config_version_str,
         });
     }
 
@@ -1061,6 +1068,11 @@ async fn job_runs_list(
             None => "-".to_string(),
         };
 
+        let config_version_str = match r.config_version {
+            Some(v) => format!("Ver.{}", v),
+            None => "-".to_string(),
+        };
+
         let run_number: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM job_runs WHERE job_id = ? AND created_at <= ?"
         )
@@ -1079,6 +1091,7 @@ async fn job_runs_list(
             attempt: r.attempt,
             duration_str,
             started_at_str,
+            config_version_str,
         });
     }
 

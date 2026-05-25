@@ -59,6 +59,7 @@ pub struct JobRun {
     pub error: Option<String>,
     pub version: u32,
     pub worker_definition_id: Option<Uuid>,
+    pub config_version: Option<u32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

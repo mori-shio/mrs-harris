@@ -306,7 +306,8 @@ async fn launch_task_worker(
     tracing::info!("Launching DAG task worker for {} (task_run_id: {})", task_name, task_run_id);
 
     let parent_run = crate::db::runs::get_run(&state.db, &dag_run_id).await.ok().flatten();
-    let worker_definition_id = parent_run.and_then(|r| r.worker_definition_id);
+    let worker_definition_id = parent_run.as_ref().and_then(|r| r.worker_definition_id);
+    let config_version = parent_run.as_ref().and_then(|r| r.config_version);
 
     // ダミーの JobRun を作成して launch_worker に渡す
     let now = Utc::now();
@@ -326,6 +327,7 @@ async fn launch_task_worker(
         output: None,
         error: None,
         version: 1,
+        config_version,
         worker_definition_id,
         created_at: now,
         updated_at: now,

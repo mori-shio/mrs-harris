@@ -192,8 +192,7 @@ main.main-content {
 
 .card:hover {
     border-color: var(--border-hover);
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px 1px rgba(14, 165, 233, 0.05);
-    transform: translateY(-2px);
+    box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.3);
 }
 
 /* Dashboard Stats Grid */
@@ -412,6 +411,17 @@ table.data-table tbody tr:hover {
     border-color: var(--color-primary);
     box-shadow: 0 0 10px -2px rgba(14, 165, 233, 0.3);
 }
+
+/* Prevent browser autofill from changing background/text color */
+.form-control:-webkit-autofill,
+.form-control:-webkit-autofill:hover,
+.form-control:-webkit-autofill:focus,
+.form-control:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--text-primary) !important;
+    -webkit-box-shadow: 0 0 0px 1000px rgba(15, 23, 42, 0.95) inset !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
 
 textarea.form-control {
     min-height: 120px;

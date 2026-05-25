@@ -44,6 +44,8 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
     let worker_definition_id = worker_definition_id_str
         .and_then(|s| Uuid::parse_str(&s).ok());
 
+    let config_version: Option<u32> = row.try_get("config_version").ok().flatten();
+
     let created_at: DateTime<Utc> = row.try_get("created_at")?;
     let updated_at: DateTime<Utc> = row.try_get("updated_at")?;
 
@@ -64,6 +66,7 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
         error,
         version,
         worker_definition_id,
+        config_version,
         created_at,
         updated_at,
     })
@@ -77,9 +80,20 @@ pub async fn create_run(pool: &MySqlPool, new_run: &NewRun) -> anyhow::Result<Jo
     let trigger_type_str = new_run.trigger_type.to_string();
     let worker_def_id_str = new_run.worker_definition_id.map(|uid| uid.to_string());
 
+    // クエリで現在のジョブ設定バージョン履歴のMAX(version)を取得する。履歴がなければ 1 とする。
+    let version_row = sqlx::query("SELECT MAX(version) as max_v FROM job_history WHERE job_id = ?")
+        .bind(new_run.job_id.to_string())
+        .fetch_optional(pool)
+        .await?;
+    
+    let config_version = match version_row {
+        Some(row) => row.try_get::<Option<u32>, &str>("max_v").unwrap_or(None).unwrap_or(1),
+        None => 1,
+    };
+
     sqlx::query(
-        r#"INSERT INTO job_runs (id, job_id, status, worker_type, trigger_type, attempt, scheduled_at, version, worker_definition_id)
-           VALUES (?, ?, ?, ?, ?, 1, ?, 1, ?)"#
+        r#"INSERT INTO job_runs (id, job_id, status, worker_type, trigger_type, attempt, scheduled_at, version, worker_definition_id, config_version)
+           VALUES (?, ?, ?, ?, ?, 1, ?, 1, ?, ?)"#
     )
     .bind(id.to_string())
     .bind(new_run.job_id.to_string())
@@ -88,6 +102,7 @@ pub async fn create_run(pool: &MySqlPool, new_run: &NewRun) -> anyhow::Result<Jo
     .bind(trigger_type_str)
     .bind(new_run.scheduled_at)
     .bind(worker_def_id_str)
+    .bind(config_version)
     .execute(pool)
     .await?;
 
