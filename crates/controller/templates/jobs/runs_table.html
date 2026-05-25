@@ -50,14 +50,14 @@
                 </tr>
                 {% endfor %}
                 {% for _ in empty_runs %}
-                <tr class="dummy-row">
-                    <td><a href="#" style="font-family:'JetBrains Mono',monospace;font-size:0.88rem;font-weight:600;color:var(--color-primary);text-decoration:none;">#0</a></td>
-                    <td><span class="badge badge-succeeded">成功</span></td>
-                    <td>手動実行</td>
-                    <td>1回目</td>
-                    <td>-</td>
-                    <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">-</td>
-                    <td><a href="#" class="btn btn-secondary" style="padding:4px 10px;font-size:0.78rem;">ログ</a></td>
+                <tr class="dummy-row" aria-hidden="true">
+                    <td>&nbsp;</td>
+                    <td><span class="badge badge-succeeded" style="visibility:hidden;">成功</span></td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">&nbsp;</td>
+                    <td><a href="#" class="btn btn-secondary" style="padding:4px 10px;font-size:0.78rem;visibility:hidden;">ログ</a></td>
                 </tr>
                 {% endfor %}
                 {% endif %}
