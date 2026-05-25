@@ -23,16 +23,15 @@
                     </th>
                     <th class="no-sort">ステータス</th>
                     <th class="no-sort">トリガー</th>
-                    <th class="no-sort">ver.</th>
+                    <th class="no-sort">バージョン</th>
                     <th class="no-sort">開始日時</th>
                     <th class="no-sort">実行時間</th>
-                    <th class="no-sort"></th>
                 </tr>
             </thead>
             <tbody>
                 {% if recent_runs.is_empty() %}
                 <tr>
-                    <td colspan="7" style="text-align:center;color:var(--text-muted);padding:48px 0;">
+                    <td colspan="6" style="text-align:center;color:var(--text-muted);padding:48px 0;">
                         <i data-lucide="inbox" style="width:28px;height:28px;margin:0 auto 10px;display:block;opacity:0.35;"></i>
                         実行履歴はまだありません
                     </td>
@@ -46,7 +45,6 @@
                     <td style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;">{{ run.config_version_str }}</td>
                     <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">{{ run.started_at_str }}</td>
                     <td>{{ run.duration_str }}</td>
-                    <td><a href="#{{ run.run_number }}" class="btn btn-secondary" style="padding:4px 10px;font-size:0.78rem;">ログ</a></td>
                 </tr>
                 {% endfor %}
                 {% for _ in empty_runs %}
@@ -57,7 +55,6 @@
                     <td>&nbsp;</td>
                     <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">&nbsp;</td>
                     <td>&nbsp;</td>
-                    <td><a href="#" class="btn btn-secondary" style="padding:4px 10px;font-size:0.78rem;visibility:hidden;">ログ</a></td>
                 </tr>
                 {% endfor %}
                 {% endif %}
