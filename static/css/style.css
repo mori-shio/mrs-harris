@@ -664,3 +664,14 @@ select.form-control {
         stroke-dashoffset: -8;
     }
 }
+
+/* Dummy rows for consistent table heights */
+tr.dummy-row {
+    pointer-events: none;
+}
+tr.dummy-row td {
+    color: transparent !important;
+}
+tr.dummy-row td * {
+    visibility: hidden !important;
+}

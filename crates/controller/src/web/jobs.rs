@@ -39,6 +39,7 @@ pub struct JobRunRenderItem {
     pub status_ja: &'static str,
     pub run_number: i64,
     pub trigger_ja: &'static str,
+    pub attempt: u32,
     pub duration_str: String,
     pub started_at_str: String,
 }
@@ -757,6 +758,7 @@ async fn job_detail_page(
             status_ja,
             run_number,
             trigger_ja,
+            attempt: r.attempt,
             duration_str,
             started_at_str,
         });
@@ -1054,6 +1056,7 @@ async fn job_runs_list(
             status_ja,
             run_number,
             trigger_ja,
+            attempt: r.attempt,
             duration_str,
             started_at_str,
         });
