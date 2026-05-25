@@ -13,5 +13,5 @@ ALTER TABLE jobs ADD CONSTRAINT fk_jobs_space FOREIGN KEY (space_id) REFERENCES 
 
 -- 初期テストデータ（hoge & huga スペース）の自動挿入
 INSERT INTO spaces (id, name, description) VALUES 
-('s1111111-1111-1111-1111-111111111111', 'hoge', 'hogeスペースのジョブ管理領域'),
-('s2222222-2222-2222-2222-222222222222', 'huga', 'hugaスペースのジョブ管理領域');
+('01111111-1111-1111-1111-111111111111', 'hoge', 'hogeスペースのジョブ管理領域'),
+('02222222-2222-2222-2222-222222222222', 'huga', 'hugaスペースのジョブ管理領域');

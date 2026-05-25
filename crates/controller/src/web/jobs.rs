@@ -27,6 +27,7 @@ pub struct JobRenderItem {
     pub description: Option<String>,
     pub job_type_ja: &'static str,
     pub worker_type: String,
+    pub worker_name: String,
     pub schedule_expr: Option<String>,
     pub is_active: bool,
     pub tags: Vec<String>,
@@ -215,12 +216,16 @@ pub fn router() -> Router<AppState> {
         .route("/jobs/{id}/edit", get(edit_job_page).post(edit_job_submit))
 }
 
-pub fn map_job_to_render(job: &Job) -> JobRenderItem {
+pub fn map_job_to_render(job: &Job, worker_name_map: &std::collections::HashMap<Uuid, String>) -> JobRenderItem {
     let job_type_ja = match job.job_type {
         JobType::Cron => "Cron (定期)",
         JobType::Dag => "DAG (連結)",
         JobType::OneShot => "OneShot (単発)",
     };
+
+    let worker_name = job.worker_definition_id
+        .and_then(|id| worker_name_map.get(&id).cloned())
+        .unwrap_or_else(|| "-".to_string());
 
     JobRenderItem {
         id: job.id,
@@ -228,6 +233,7 @@ pub fn map_job_to_render(job: &Job) -> JobRenderItem {
         description: job.description.clone(),
         job_type_ja,
         worker_type: job.worker_type.to_string(),
+        worker_name,
         schedule_expr: job.schedule_expr.clone(),
         is_active: job.is_active,
         tags: job.tags.clone(),
@@ -303,7 +309,21 @@ async fn jobs_page(
     };
 
     let jobs_db = crate::db::jobs::list_jobs(&state.db, &filter).await.unwrap_or_default();
-    let jobs = jobs_db.iter().map(map_job_to_render).collect::<Vec<_>>();
+    
+    let worker_rows = sqlx::query("SELECT id, name FROM worker_definitions")
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default();
+    let mut worker_name_map = std::collections::HashMap::new();
+    for row in worker_rows {
+        let id_str: String = row.try_get("id").unwrap_or_default();
+        if let Ok(uid) = Uuid::parse_str(&id_str) {
+            let name: String = row.try_get("name").unwrap_or_default();
+            worker_name_map.insert(uid, name);
+        }
+    }
+
+    let jobs = jobs_db.iter().map(|j| map_job_to_render(j, &worker_name_map)).collect::<Vec<_>>();
 
     let is_partial = headers.get("hx-target")
         .map(|v| v == "jobs-list-container")
@@ -411,7 +431,7 @@ async fn new_job_page(
         ssm_recursive: false,
         dag_tasks_json: String::new(),
         timeout_sec: 3600,
-        has_retry: true,
+        has_retry: false,
         max_retries: 3,
         backoff: "exponential".to_string(),
         base_delay_sec: 10,

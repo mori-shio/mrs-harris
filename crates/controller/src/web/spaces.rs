@@ -259,7 +259,21 @@ async fn space_detail_page(
     };
     
     let jobs_db = crate::db::jobs::list_jobs(pool, &filter).await.unwrap_or_default();
-    let jobs = jobs_db.iter().map(crate::web::jobs::map_job_to_render).collect::<Vec<_>>();
+    
+    let worker_rows = sqlx::query("SELECT id, name FROM worker_definitions")
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+    let mut worker_name_map = std::collections::HashMap::new();
+    for row in worker_rows {
+        let id_str: String = row.try_get("id").unwrap_or_default();
+        if let Ok(uid) = Uuid::parse_str(&id_str) {
+            let name: String = row.try_get("name").unwrap_or_default();
+            worker_name_map.insert(uid, name);
+        }
+    }
+
+    let jobs = jobs_db.iter().map(|j| crate::web::jobs::map_job_to_render(j, &worker_name_map)).collect::<Vec<_>>();
 
     SpaceDetailTemplate {
         space,

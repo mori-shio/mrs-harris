@@ -6,7 +6,7 @@
                     <th>ジョブ名</th>
                     <th>タイプ</th>
                     <th>スケジュール</th>
-                    <th>起動タイプ</th>
+                    <th>実行ワーカー</th>
                     <th>ステータス</th>
                     <th>タグ</th>
                     <th style="text-align: right;">操作</th>
@@ -25,9 +25,6 @@
                     <td style="font-weight: 600;">
                         <a href="/jobs/{{ job.id }}" style="color: var(--text-primary); text-decoration: none; display: flex; flex-direction: column; gap: 4px;">
                             <span>{{ job.name }}</span>
-                            {% if job.description.is_some() %}
-                            <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-muted);">{{ job.description.as_ref().unwrap() }}</span>
-                            {% endif %}
                         </a>
                     </td>
                     <td>
@@ -43,14 +40,9 @@
                         {% endif %}
                     </td>
                     <td>
-                        <span style="font-size: 0.85rem; display: flex; align-items: center; gap: 6px; text-transform: uppercase;">
-                            {% if job.worker_type == "fargate" %}
-                            <i data-lucide="box" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
-                            Fargate
-                            {% else %}
-                            <i data-lucide="zap" style="width: 14px; height: 14px; color: var(--color-warning);"></i>
-                            Lambda
-                            {% endif %}
+                        <span style="font-size: 0.85rem; display: flex; align-items: center; gap: 6px; color: var(--text-secondary);">
+                            <i data-lucide="cpu" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
+                            {{ job.worker_name }}
                         </span>
                     </td>
                     <td>
