@@ -235,13 +235,138 @@
             }
         }
 
+        function initTableSorting() {
+            document.querySelectorAll("table.data-table, table.table").forEach(table => {
+                if (table.hasAttribute("data-no-sort")) return;
+
+                const headers = table.querySelectorAll("thead th");
+                const tbody = table.querySelector("tbody");
+                if (!tbody) return;
+
+                headers.forEach((th, colIndex) => {
+                    const text = th.textContent.trim();
+                    if (!text || th.classList.contains("no-sort") || th.querySelector("input[type='checkbox']")) {
+                        return;
+                    }
+
+                    if (th.dataset.sortInit) return;
+                    th.dataset.sortInit = "true";
+                    th.style.cursor = "pointer";
+                    th.style.userSelect = "none";
+                    th.style.position = "relative";
+
+                    const originalContent = th.innerHTML;
+                    th.innerHTML = `
+                        <div style="display: inline-flex; align-items: center; width: 100%; justify-content: space-between; gap: 8px;">
+                            <span style="white-space: nowrap;">${originalContent}</span>
+                            <span class="sort-icon-wrapper" style="margin-left: auto; display: inline-flex; align-items: center; opacity: 0.35; transition: opacity 0.2s; color: var(--color-primary);">
+                                <i data-lucide="chevrons-up-down" style="width: 13px; height: 13px;"></i>
+                            </span>
+                        </div>
+                    `;
+
+                    const wrapper = th.querySelector(".sort-icon-wrapper");
+                    th.addEventListener("mouseenter", () => {
+                        if (th.dataset.sortDir !== "asc" && th.dataset.sortDir !== "desc") {
+                            wrapper.style.opacity = "0.8";
+                        }
+                    });
+                    th.addEventListener("mouseleave", () => {
+                        if (th.dataset.sortDir !== "asc" && th.dataset.sortDir !== "desc") {
+                            wrapper.style.opacity = "0.35";
+                        }
+                    });
+
+                    th.addEventListener("click", () => {
+                        const currentDir = th.dataset.sortDir;
+                        let nextDir = "asc";
+                        if (currentDir === "asc") {
+                            nextDir = "desc";
+                        }
+
+                        headers.forEach(otherTh => {
+                            if (otherTh !== th) {
+                                otherTh.dataset.sortDir = "";
+                                const otherWrapper = otherTh.querySelector(".sort-icon-wrapper");
+                                if (otherWrapper) {
+                                    otherWrapper.style.opacity = "0.35";
+                                    otherWrapper.innerHTML = `<i data-lucide="chevrons-up-down" style="width: 13px; height: 13px;"></i>`;
+                                }
+                            }
+                        });
+
+                        th.dataset.sortDir = nextDir;
+                        wrapper.style.opacity = "1.0";
+                        if (nextDir === "asc") {
+                            wrapper.innerHTML = `<i data-lucide="arrow-up" style="width: 13px; height: 13px;"></i>`;
+                        } else {
+                            wrapper.innerHTML = `<i data-lucide="arrow-down" style="width: 13px; height: 13px;"></i>`;
+                        }
+
+                        if (window.lucide) {
+                            lucide.createIcons();
+                        }
+
+                        const rows = Array.from(tbody.querySelectorAll("tr"));
+                        if (rows.length <= 1 && rows[0] && rows[0].querySelector("td[colspan]")) {
+                            return;
+                        }
+
+                        rows.sort((rowA, rowB) => {
+                            const cellA = rowA.children[colIndex];
+                            const cellB = rowB.children[colIndex];
+                            if (!cellA || !cellB) return 0;
+
+                            let valA = cellA.getAttribute("data-sort-value") || cellA.textContent.trim();
+                            let valB = cellB.getAttribute("data-sort-value") || cellB.textContent.trim();
+
+                            const dateRegex = /^\d{4}-\d{2}-\d{2}/;
+                            if (dateRegex.test(valA) && dateRegex.test(valB)) {
+                                const dA = new Date(valA.replace(/-/g, '/'));
+                                const dB = new Date(valB.replace(/-/g, '/'));
+                                return nextDir === "asc" ? dA - dB : dB - dA;
+                            }
+
+                            const cleanNum = (str) => {
+                                let cleaned = str.replace(/[^\d.-]/g, '');
+                                if (cleaned === "" || cleaned === "-") return null;
+                                let parsed = parseFloat(cleaned);
+                                return isNaN(parsed) ? null : parsed;
+                            };
+
+                            const numA = cleanNum(valA);
+                            const numB = cleanNum(valB);
+                            if (numA !== null && numB !== null) {
+                                return nextDir === "asc" ? numA - numB : numB - numA;
+                            }
+
+                            const badgeA = cellA.querySelector(".badge");
+                            const badgeB = cellB.querySelector(".badge");
+                            if (badgeA && badgeB) {
+                                valA = badgeA.textContent.trim();
+                                valB = badgeB.textContent.trim();
+                            }
+
+                            return nextDir === "asc"
+                                ? valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
+                                : valB.localeCompare(valA, undefined, { numeric: true, sensitivity: 'base' });
+                        });
+
+                        rows.forEach(row => tbody.appendChild(row));
+                    });
+                });
+            });
+        }
+
         document.addEventListener("DOMContentLoaded", () => {
             initIcons();
             initSidebarGroups();
+            initTableSorting();
         });
         document.addEventListener("htmx:afterSwap", () => {
             initIcons();
             initSidebarGroups();
+            initTableSorting();
         });
     </script>
     {% block scripts %}{% endblock %}
