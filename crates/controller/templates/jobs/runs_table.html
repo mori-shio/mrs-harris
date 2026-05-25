@@ -1,5 +1,10 @@
 <div id="runs-table-container">
-    <div class="table-container" style="margin-top: 0;">
+    <style>
+        #runs-table-container .data-table tbody tr {
+            height: 53px;
+        }
+    </style>
+    <div class="table-container" style="margin-top: 0; {% if total_runs > 10 %}min-height: 582px;{% endif %}">
         <table class="data-table" style="font-size:0.85rem;">
             <thead>
                 <tr>
