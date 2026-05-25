@@ -133,12 +133,17 @@ pub async fn list_runs(
     job_id: Option<&Uuid>,
     limit: Option<u32>,
     offset: Option<u32>,
+    desc: bool,
 ) -> anyhow::Result<Vec<JobRun>> {
     let mut query_str = "SELECT * FROM job_runs WHERE 1=1".to_string();
     if job_id.is_some() {
         query_str.push_str(" AND job_id = ?");
     }
-    query_str.push_str(" ORDER BY created_at DESC");
+    if desc {
+        query_str.push_str(" ORDER BY created_at DESC");
+    } else {
+        query_str.push_str(" ORDER BY created_at ASC");
+    }
 
     if let Some(limit) = limit {
         query_str.push_str(&format!(" LIMIT {}", limit));

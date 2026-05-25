@@ -33,6 +33,7 @@ async fn list_runs(
         filter.job_id.as_ref(),
         filter.limit,
         filter.offset,
+        true,
     )
     .await
     .map_err(|e| {

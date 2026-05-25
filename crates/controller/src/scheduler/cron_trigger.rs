@@ -30,7 +30,7 @@ pub async fn check_cron_jobs(state: &AppState) -> anyhow::Result<()> {
         };
 
         // 2. 最新の実行レコードを取得
-        let latest_runs = crate::db::runs::list_runs(&state.db, Some(&job.id), Some(1), None).await?;
+        let latest_runs = crate::db::runs::list_runs(&state.db, Some(&job.id), Some(1), None, true).await?;
         let latest_run = latest_runs.first();
 
         //chrono v0.4 の TimeDelta (Duration) を使う

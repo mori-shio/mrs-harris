@@ -5,15 +5,32 @@
         }
     </style>
     <div class="table-container" style="margin-top: 0; {% if total_runs > 10 %}height: 580px; overflow-y: hidden;{% endif %}">
-        <table class="data-table" style="font-size:0.85rem;">
+        <table class="data-table" data-no-sort style="font-size:0.85rem;">
             <thead>
                 <tr>
-                    <th>実行</th>
-                    <th>ステータス</th>
-                    <th>トリガー</th>
-                    <th>実行時間</th>
-                    <th>開始日時</th>
-                    <th></th>
+                    <th class="no-sort" style="cursor: pointer; user-select: none;"
+                        {% if current_sort == "asc" %}
+                        hx-get="/jobs/{{ job_id }}/runs?page=1&sort=desc"
+                        {% else %}
+                        hx-get="/jobs/{{ job_id }}/runs?page=1&sort=asc"
+                        {% endif %}
+                        hx-target="#runs-table-container" hx-swap="outerHTML">
+                        <div style="display: inline-flex; align-items: center; gap: 6px;">
+                            <span>実行</span>
+                            <span style="display: inline-flex; align-items: center; color: var(--color-primary);">
+                                {% if current_sort == "asc" %}
+                                <i data-lucide="arrow-up" style="width: 13px; height: 13px;"></i>
+                                {% else %}
+                                <i data-lucide="arrow-down" style="width: 13px; height: 13px;"></i>
+                                {% endif %}
+                            </span>
+                        </div>
+                    </th>
+                    <th class="no-sort">ステータス</th>
+                    <th class="no-sort">トリガー</th>
+                    <th class="no-sort">実行時間</th>
+                    <th class="no-sort">開始日時</th>
+                    <th class="no-sort"></th>
                 </tr>
             </thead>
             <tbody>
@@ -49,7 +66,7 @@
         <div style="display:flex; gap:6px;">
             {% if current_page > 1 %}
             <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; cursor:pointer;"
-                    hx-get="/jobs/{{ job_id }}/runs?page={{ current_page - 1 }}" hx-target="#runs-table-container" hx-swap="outerHTML">
+                    hx-get="/jobs/{{ job_id }}/runs?page={{ current_page - 1 }}&sort={{ current_sort }}" hx-target="#runs-table-container" hx-swap="outerHTML">
                 <i data-lucide="chevron-left" style="width:14px; height:14px;"></i>
                 前へ
             </button>
@@ -66,7 +83,7 @@
             <button class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem; min-width:32px; text-align:center; cursor:default;">{{ p }}</button>
             {% else %}
             <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; min-width:32px; text-align:center; cursor:pointer;"
-                    hx-get="/jobs/{{ job_id }}/runs?page={{ p }}" hx-target="#runs-table-container" hx-swap="outerHTML">
+                    hx-get="/jobs/{{ job_id }}/runs?page={{ p }}&sort={{ current_sort }}" hx-target="#runs-table-container" hx-swap="outerHTML">
                 {{ p }}
             </button>
             {% endif %}
@@ -74,7 +91,7 @@
 
             {% if current_page < total_pages %}
             <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; cursor:pointer;"
-                    hx-get="/jobs/{{ job_id }}/runs?page={{ current_page + 1 }}" hx-target="#runs-table-container" hx-swap="outerHTML">
+                    hx-get="/jobs/{{ job_id }}/runs?page={{ current_page + 1 }}&sort={{ current_sort }}" hx-target="#runs-table-container" hx-swap="outerHTML">
                 次へ
                 <i data-lucide="chevron-right" style="width:14px; height:14px;"></i>
             </button>

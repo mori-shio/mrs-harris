@@ -81,6 +81,7 @@ struct JobHistoryRenderItem {
 #[derive(serde::Deserialize)]
 struct RunsQuery {
     page: Option<u32>,
+    sort: Option<String>,
 }
 
 #[derive(Template)]
@@ -94,6 +95,7 @@ struct JobRunsTableTemplate {
     start_index: usize,
     end_index: usize,
     pages: Vec<u32>,
+    current_sort: String,
 }
 crate::impl_into_response!(JobRunsTableTemplate);
 
@@ -114,6 +116,7 @@ struct JobDetailTemplate {
     start_index: usize,
     end_index: usize,
     pages: Vec<u32>,
+    current_sort: String,
     is_dag: bool,
     command_preview: String,
     env_vars: Option<String>,
@@ -655,6 +658,7 @@ async fn job_detail_page(
     claims: WebClaims,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
+    Query(query): Query<RunsQuery>,
 ) -> impl IntoResponse {
     let job = crate::db::jobs::get_job(&state.db, &id).await.unwrap().unwrap();
     
@@ -679,6 +683,9 @@ async fn job_detail_page(
     let current_page = 1u32;
     let limit = 10u32;
     let offset = 0u32;
+    let current_sort = query.sort.unwrap_or_else(|| "desc".to_string());
+    let desc = current_sort != "asc";
+
     let total_runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM job_runs WHERE job_id = ?")
         .bind(id.to_string())
         .fetch_one(&state.db)
@@ -690,7 +697,7 @@ async fn job_detail_page(
     let end_index = std::cmp::min(limit as usize, total_runs as usize);
     let pages = (1..=total_pages).collect::<Vec<u32>>();
 
-    let runs_db = match crate::db::runs::list_runs(&state.db, Some(&id), Some(limit), Some(offset)).await {
+    let runs_db = match crate::db::runs::list_runs(&state.db, Some(&id), Some(limit), Some(offset), desc).await {
         Ok(runs) => runs,
         Err(e) => {
             tracing::error!("Failed to list runs in job_detail_page: {:?}", e);
@@ -936,6 +943,7 @@ async fn job_detail_page(
         start_index,
         end_index,
         pages,
+        current_sort,
         is_dag,
         command_preview,
         env_vars,
@@ -964,6 +972,8 @@ async fn job_runs_list(
     let current_page = query.page.unwrap_or(1).max(1);
     let limit = 10u32;
     let offset = (current_page - 1) * limit;
+    let current_sort = query.sort.unwrap_or_else(|| "desc".to_string());
+    let desc = current_sort != "asc";
 
     let total_runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM job_runs WHERE job_id = ?")
         .bind(id.to_string())
@@ -976,7 +986,7 @@ async fn job_runs_list(
     let end_index = std::cmp::min((offset + limit) as usize, total_runs as usize);
     let pages = (1..=total_pages).collect::<Vec<u32>>();
 
-    let runs_db = match crate::db::runs::list_runs(&state.db, Some(&id), Some(limit), Some(offset)).await {
+    let runs_db = match crate::db::runs::list_runs(&state.db, Some(&id), Some(limit), Some(offset), desc).await {
         Ok(runs) => runs,
         Err(e) => {
             tracing::error!("Failed to list runs in job_runs_list: {:?}", e);
@@ -1049,6 +1059,7 @@ async fn job_runs_list(
         start_index,
         end_index,
         pages,
+        current_sort,
     }
 }
 
