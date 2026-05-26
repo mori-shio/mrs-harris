@@ -1,3 +1,13 @@
+<style>
+    /* レコード（行）にフォーカス（ホバー）した時、ジョブ名リンクをリンク色の青色にする */
+    .data-table tbody tr:hover .job-link {
+        color: var(--color-primary) !important;
+    }
+    /* ジョブ名カラムの文字自身にフォーカス（ホバー）した時、アンダーバーを出す */
+    .data-table tbody tr .job-link:hover {
+        text-decoration: underline !important;
+    }
+</style>
 <div class="card" style="padding: 20px 24px;">
     <div class="table-container" style="margin-top: 0;">
         <table class="data-table">
@@ -23,7 +33,7 @@
                 {% for job in jobs %}
                 <tr>
                     <td style="font-weight: 600;">
-                        <a href="/jobs/{{ job.id }}" style="color: var(--text-primary); text-decoration: none; display: flex; flex-direction: column; gap: 4px;">
+                        <a href="/jobs/{{ job.id }}" class="job-link" style="color: var(--text-primary); text-decoration: none; display: flex; flex-direction: column; gap: 4px;">
                             <span>{{ job.name }}</span>
                         </a>
                     </td>

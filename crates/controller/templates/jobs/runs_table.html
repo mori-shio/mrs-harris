@@ -50,7 +50,7 @@
                 {% else %}
                 {% for run in recent_runs %}
                 <tr>
-                    <td><a href="#{{ run.run_number }}" style="font-family:'JetBrains Mono',monospace;font-size:0.88rem;font-weight:600;color:var(--color-primary);text-decoration:none;">#{{ run.run_number }}</a></td>
+                    <td><a href="#{{ run.run_number }}" class="vd-link" style="font-family:'JetBrains Mono',monospace;font-size:0.88rem;font-weight:600;color:var(--color-primary);text-decoration:none;">#{{ run.run_number }}</a></td>
                     <td><span class="badge badge-{{ run.status_str }}">{{ run.status_ja }}</span></td>
                     <td>{{ run.trigger_ja }}</td>
                     <td style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;">{{ run.config_version_str }}</td>
