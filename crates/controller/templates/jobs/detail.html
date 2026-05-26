@@ -399,6 +399,10 @@
 <!-- ========== TAB: 実行履歴 ========== -->
 <div id="tab-runs" class="ec2-tab-pane active">
     <div class="card" style="padding: 20px 24px;">
+        <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+            <i data-lucide="history" style="width:15px;height:15px;color:var(--color-primary);"></i>
+            実行履歴
+        </h4>
         {% include "jobs/runs_table.html" %}
     </div>
 </div>
@@ -606,7 +610,11 @@
 <!-- ========== TAB: 設定変更履歴 ========== -->
 <div id="tab-history" class="ec2-tab-pane">
     <div class="card" style="padding:24px;">
-        <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin:0;display:flex;align-items:center;gap:8px;">
+                <i data-lucide="scroll-text" style="width:15px;height:15px;color:var(--color-primary);"></i>
+                バージョン
+            </h4>
             <button class="btn btn-secondary" onclick="compareVersions()" style="font-size:0.82rem;padding:6px 12px;background:rgba(14,165,233,0.08);color:var(--color-primary);border-color:rgba(14,165,233,0.25);">
                 <i data-lucide="git-compare" style="width:14px;height:14px;"></i> ABでの差分比較
             </button>
