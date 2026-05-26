@@ -6,7 +6,7 @@
     <span style="margin: 0 8px; opacity: 0.4;">/</span>
     <a href="/jobs/{{ run.job_id }}" style="color: var(--text-muted); text-decoration: none;" hx-boost="true">{{ job_name }}</a>
     <span style="margin: 0 8px; opacity: 0.4;">/</span>
-    <span style="color: var(--text-primary); font-weight: 600;">実行詳細 #{{ run_number }}</span>
+    <span style="color: var(--text-primary); font-weight: 600;">実行履歴 <span style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted); font-weight: normal;">#{{ run_number }}</span></span>
 </nav>
 
 <div class="page-header" style="margin-top: 0; margin-bottom: 24px;">
@@ -15,7 +15,7 @@
             <a href="/jobs/{{ run.job_id }}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
                 <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
             </a>
-            <h2>{{ job_name }} <span style="font-family: 'JetBrains Mono', monospace; color: var(--color-primary);">#{{ run_number }}</span></h2>
+            <h2>実行履歴 <span style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">#{{ run_number }}</span></h2>
             <div id="polling-indicator" class="htmx-indicator" style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted);">
                 <i data-lucide="refresh-cw" class="spin" style="width: 12px; height: 12px;"></i>
                 更新中...
@@ -36,153 +36,150 @@
 </div>
 
 <div id="run-detail-live-poll" hx-get="/runs/{{ run.id }}/live" hx-select="#run-detail-live-poll" hx-trigger="every 3s" hx-swap="outerHTML" hx-indicator="#polling-indicator">
-    <div style="display: grid; grid-template-columns: 1fr 340px; gap: 24px;">
-        <!-- Left: Visualizer / Logs -->
-        <div style="display: flex; flex-direction: column; gap: 24px;">
-            
-            <!-- DAG Task Flows & Statuses -->
-            {% if is_dag %}
-            <div class="card">
-                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 16px;">DAG タスクステータス</h3>
-                <div class="dag-svg-container">
-                    <svg id="dag-svg" width="100%" height="280" style="overflow: visible;">
-                        <defs>
-                            <marker id="arrow" viewBox="0 0 10 10" refX="24" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                                <path d="M 0 1 L 10 5 L 0 9 z" fill="rgba(255,255,255,0.25)" />
-                            </marker>
-                        </defs>
-                        <g id="dag-g"></g>
-                    </svg>
-                </div>
-
-                <!-- Task executions table -->
-                <h4 style="font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 600; margin-top: 24px; margin-bottom: 12px;">タスク実行一覧</h4>
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>タスク名</th>
-                                <th>ステータス</th>
-                                <th>試行</th>
-                                <th>実行時間</th>
-                                <th>エラー情報</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% if task_runs.is_empty() %}
-                            <tr>
-                                <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px 0;">
-                                    起動されたタスクはまだありません
-                                </td>
-                            </tr>
-                            {% else %}
-                            {% for tr in task_runs %}
-                            <tr>
-                                <td style="font-weight: 600;">{{ tr.task_name }}</td>
-                                <td>
-                                    <span class="badge badge-{{ tr.status_str }}">{{ tr.status_ja }}</span>
-                                </td>
-                                <td>{{ tr.attempt }}</td>
-                                <td>{{ tr.duration_str }}</td>
-                                <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--color-danger);">
-                                    {{ tr.error.as_ref().unwrap_or(&"-".to_string()) }}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+        
+        <!-- DAG Task Flows & Statuses -->
+        {% if is_dag %}
+        <div class="card" style="padding: 24px;">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="git-fork" style="width: 18px; height: 18px; color: var(--color-primary);"></i>
+                DAG タスクステータス
+            </h3>
+            <div class="dag-svg-container" style="background:rgba(0,0,0,0.15);border-radius:var(--radius-md);padding:16px;border:1px solid rgba(255,255,255,0.04);">
+                <svg id="dag-svg" width="100%" height="280" style="overflow: visible;">
+                    <defs>
+                        <marker id="arrow" viewBox="0 0 10 10" refX="24" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M 0 1 L 10 5 L 0 9 z" fill="rgba(255,255,255,0.25)" />
+                        </marker>
+                    </defs>
+                    <g id="dag-g"></g>
+                </svg>
             </div>
-            {% endif %}
 
-            <!-- Live Logs Terminal Viewer (Does NOT reload with HTMX, using persist or websocket) -->
-            <div class="card" hx-preserve id="log-card">
-                <div class="log-viewer-container">
-                    <div class="log-viewer-header">
-                        <span style="font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                            <i data-lucide="terminal" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
-                            実行ログ
-                        </span>
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <span id="log-status" style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
-                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--text-muted);" id="log-indicator"></span>
-                                準備中
-                            </span>
-                        </div>
-                    </div>
-                    <div class="log-viewer-body" id="log-body" style="height: 400px; max-height: 400px; scroll-behavior: smooth;"></div>
+            <!-- Task executions table -->
+            <h4 style="font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 600; margin-top: 24px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="list" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+                タスク実行一覧
+            </h4>
+            <div class="table-container" style="margin-top: 0;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>タスク名</th>
+                            <th>ステータス</th>
+                            <th>試行</th>
+                            <th>実行時間</th>
+                            <th>エラー情報</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if task_runs.is_empty() %}
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px 0;">
+                                起動されたタスクはまだありません
+                            </td>
+                        </tr>
+                        {% else %}
+                        {% for tr in task_runs %}
+                        <tr>
+                            <td style="font-weight: 600;">{{ tr.task_name }}</td>
+                            <td>
+                                <span class="badge badge-{{ tr.status_str }}">{{ tr.status_ja }}</span>
+                            </td>
+                            <td>{{ tr.attempt }}</td>
+                            <td>{{ tr.duration_str }}</td>
+                            <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--color-danger);">
+                                {{ tr.error.as_ref().unwrap_or(&"-".to_string()) }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 実行ステータスカード -->
+        <div class="card" style="padding: 24px;">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="info" style="width: 18px; height: 18px; color: var(--color-primary);"></i>
+                実行ステータス
+            </h3>
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div class="meta-row" style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <div class="meta-key" style="color: var(--text-muted); font-size: 0.88rem;">ジョブ名</div>
+                    <div class="meta-val" style="font-weight: 600; color: var(--text-primary); font-size: 0.88rem;">{{ job_name }}</div>
                 </div>
+
+                <div class="meta-row" style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <div class="meta-key" style="color: var(--text-muted); font-size: 0.88rem;">状態</div>
+                    <div class="meta-val" style="font-size: 0.88rem;">
+                        <span class="badge badge-{{ run.status.to_string() }}">{{ status_ja }}</span>
+                    </div>
+                </div>
+
+                <div class="meta-row" style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <div class="meta-key" style="color: var(--text-muted); font-size: 0.88rem;">実行番号</div>
+                    <div class="meta-val" style="font-weight: 600; font-family: 'JetBrains Mono', monospace; color: var(--color-primary); font-size: 0.88rem;">#{{ run_number }}</div>
+                </div>
+
+                <div class="meta-row" style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <div class="meta-key" style="color: var(--text-muted); font-size: 0.88rem;">バージョン</div>
+                    <div class="meta-val" style="font-weight: 600; font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); font-size: 0.88rem;">v{{ run.version }}</div>
+                </div>
+
+                <div class="meta-row" style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <div class="meta-key" style="color: var(--text-muted); font-size: 0.88rem;">開始日時</div>
+                    <div class="meta-val" style="font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); font-size: 0.88rem;">{{ started_at_str }}</div>
+                </div>
+
+                <div class="meta-row" style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <div class="meta-key" style="color: var(--text-muted); font-size: 0.88rem;">終了日時</div>
+                    <div class="meta-val" style="font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); font-size: 0.88rem;">{{ finished_at_str }}</div>
+                </div>
+
+                <div class="meta-row" style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <div class="meta-key" style="color: var(--text-muted); font-size: 0.88rem;">実行時間</div>
+                    <div class="meta-val" style="font-weight: 600; color: var(--color-primary-light); font-size: 0.88rem;">{{ duration_str }}</div>
+                </div>
+
+                <div class="meta-row" style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: none;">
+                    <div class="meta-key" style="color: var(--text-muted); font-size: 0.88rem;">実行 ID</div>
+                    <div class="meta-val" style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted); font-size: 0.84rem;">{{ run.id }}</div>
+                </div>
+
+                {% if run.error.is_some() %}
+                <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px; margin-top: 8px;">
+                    <div style="font-size: 0.8rem; color: var(--color-danger);">エラーメッセージ</div>
+                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--color-danger); background-color: var(--color-danger-glow); border: 1px solid rgba(244,63,94,0.15); padding: 10px; border-radius: 6px; margin-top: 6px; white-space: pre-wrap; overflow-x: auto;">{{ run.error.as_ref().unwrap() }}</div>
+                </div>
+                {% endif %}
             </div>
         </div>
 
-        <!-- Right: Execution Meta & Stats -->
-        <div style="display: flex; flex-direction: column; gap: 24px;">
-            <div class="card">
-                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px;">実行ステータス</h3>
-
-                <div style="display: flex; flex-direction: column; gap: 16px;">
-                    <div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">現在の状態</div>
-                        <div style="margin-top: 8px;">
-                            <span class="badge badge-{{ run.status.to_string() }}" style="font-size: 0.9rem; padding: 6px 14px;">{{ status_ja }}</span>
-                        </div>
+        <!-- Live Logs Terminal Viewer (Does NOT reload with HTMX, using persist or websocket) -->
+        <div class="card" hx-preserve id="log-card" style="padding: 24px;">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="terminal" style="width: 18px; height: 18px; color: var(--color-primary);"></i>
+                実行ログ
+            </h3>
+            
+            <div class="log-viewer-container">
+                <div class="log-viewer-header">
+                    <span style="font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                        <i data-lucide="terminal" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+                        ログ出力
+                    </span>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span id="log-status" style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--text-muted);" id="log-indicator"></span>
+                            準備中
+                        </span>
                     </div>
-
-                    <div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">実行番号</div>
-                        <div style="font-weight: 600; margin-top: 4px; font-family: 'JetBrains Mono', monospace; color: var(--color-primary);">
-                            #{{ run_number }}
-                        </div>
-                    </div>
-
-                    <div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">試行</div>
-                        <div style="font-weight: 600; margin-top: 4px;">
-                            {% if run.attempt == 1 %}
-                            <span style="color: var(--text-muted);">初回</span>
-                            {% else %}
-                            <span style="color: var(--color-warning); font-weight: 600;">{{ run.attempt }}回目</span>
-                            {% endif %}
-                        </div>
-                    </div>
-
-                    <div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">トリガー元</div>
-                        <div style="font-weight: 600; margin-top: 4px;">{{ trigger_ja }}</div>
-                    </div>
-
-                    <div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">総実行時間</div>
-                        <div style="font-weight: 600; margin-top: 4px; font-size: 1.1rem; color: var(--color-primary);">
-                            {{ duration_str }}
-                        </div>
-                    </div>
-
-                    <div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">開始日時</div>
-                        <div style="font-weight: 600; margin-top: 4px; font-size: 0.9rem;">{{ started_at_str }}</div>
-                    </div>
-
-                    <div>
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">終了日時</div>
-                        <div style="font-weight: 600; margin-top: 4px; font-size: 0.9rem;">{{ finished_at_str }}</div>
-                    </div>
-
-                    <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
-                        <div style="font-size: 0.8rem; color: var(--text-muted);">実行 ID</div>
-                        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; margin-top: 4px; color: var(--text-muted);">
-                            {{ run.id }}
-                        </div>
-                    </div>
-
-                    {% if run.error.is_some() %}
-                    <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
-                        <div style="font-size: 0.8rem; color: var(--color-danger);">エラーメッセージ</div>
-                        <div style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--color-danger); background-color: var(--color-danger-glow); border: 1px solid rgba(244,63,94,0.15); padding: 10px; border-radius: 6px; margin-top: 6px; white-space: pre-wrap; overflow-x: auto;">{{ run.error.as_ref().unwrap() }}</div>
-                    </div>
-                    {% endif %}
                 </div>
+                <div class="log-viewer-body" id="log-body" style="height: 400px; max-height: 400px; scroll-behavior: smooth;"></div>
             </div>
         </div>
     </div>
