@@ -1,9 +1,14 @@
+<style>
+    .runs-sort-th-inactive:hover .sort-icon-wrapper {
+        opacity: 0.8 !important;
+    }
+</style>
 <div id="runs-table-container">
     <div class="table-container" style="margin-top: 0;">
         <table class="data-table" data-no-sort style="font-size:0.85rem;">
             <thead>
                 <tr>
-                    <th class="no-sort" style="cursor: pointer; user-select: none; position: relative;"
+                    <th class="no-sort runs-sort-th {% if current_sort == "default" %}runs-sort-th-inactive{% endif %}" style="cursor: pointer; user-select: none;"
                         {% if current_sort == "asc" %}
                         hx-get="/jobs/{{ job_id }}/runs?page=1&sort=desc"
                         {% else %}
@@ -12,13 +17,19 @@
                         hx-target="#runs-table-container" hx-swap="outerHTML">
                         <div style="display: inline-flex; align-items: center; width: 100%; justify-content: space-between; gap: 8px;">
                             <span style="white-space: nowrap;">実行</span>
-                            <span class="sort-icon-wrapper" style="margin-left: auto; display: inline-flex; align-items: center; opacity: 1.0; transition: opacity 0.2s; color: var(--color-primary);">
-                                {% if current_sort == "asc" %}
-                                <i data-lucide="arrow-up" style="width: 13px; height: 13px;"></i>
-                                {% else %}
-                                <i data-lucide="arrow-down" style="width: 13px; height: 13px;"></i>
-                                {% endif %}
+                            {% if current_sort == "default" %}
+                            <span class="sort-icon-wrapper" style="margin-left: auto; display: inline-flex; align-items: center; opacity: 0.35; transition: opacity 0.2s; color: var(--color-primary);">
+                                <i data-lucide="chevrons-up-down" style="width: 13px; height: 13px;"></i>
                             </span>
+                            {% elif current_sort == "desc" %}
+                            <span class="sort-icon-wrapper" style="margin-left: auto; display: inline-flex; align-items: center; opacity: 1; transition: opacity 0.2s; color: var(--color-primary);">
+                                <i data-lucide="arrow-down" style="width: 13px; height: 13px;"></i>
+                            </span>
+                            {% else %}
+                            <span class="sort-icon-wrapper" style="margin-left: auto; display: inline-flex; align-items: center; opacity: 1; transition: opacity 0.2s; color: var(--color-primary);">
+                                <i data-lucide="arrow-up" style="width: 13px; height: 13px;"></i>
+                            </span>
+                            {% endif %}
                         </div>
                     </th>
                     <th class="no-sort">ステータス</th>

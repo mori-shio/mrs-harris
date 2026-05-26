@@ -707,7 +707,7 @@ async fn job_detail_page(
     let current_page = 1u32;
     let limit = 10u32;
     let offset = 0u32;
-    let current_sort = query.sort.unwrap_or_else(|| "desc".to_string());
+    let current_sort = query.sort.clone().unwrap_or_else(|| "default".to_string());
     let desc = current_sort != "asc";
 
     let total_runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM job_runs WHERE job_id = ?")
@@ -1010,7 +1010,7 @@ async fn job_runs_list(
     let current_page = query.page.unwrap_or(1).max(1);
     let limit = 10u32;
     let offset = (current_page - 1) * limit;
-    let current_sort = query.sort.unwrap_or_else(|| "desc".to_string());
+    let current_sort = query.sort.clone().unwrap_or_else(|| "default".to_string());
     let desc = current_sort != "asc";
 
     let total_runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM job_runs WHERE job_id = ?")
