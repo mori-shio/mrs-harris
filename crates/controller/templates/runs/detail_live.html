@@ -6,7 +6,7 @@
     <span style="margin: 0 8px; opacity: 0.4;">/</span>
     <a href="/jobs/{{ run.job_id }}" style="color: var(--text-muted); text-decoration: none;" hx-boost="true">{{ job_name }}</a>
     <span style="margin: 0 8px; opacity: 0.4;">/</span>
-    <span style="color: var(--text-primary); font-weight: 600;">実行履歴 <span style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted); font-weight: normal;">#{{ run_number }}</span></span>
+    <span style="color: var(--text-primary); font-weight: 600;">実行履歴&nbsp;&nbsp;<span style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted); font-weight: normal;">#{{ run_number }}</span></span>
 </nav>
 
 <div class="page-header" style="margin-top: 0; margin-bottom: 24px;">
@@ -15,7 +15,7 @@
             <a href="/jobs/{{ run.job_id }}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
                 <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
             </a>
-            <h2>実行履歴 <span style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">#{{ run_number }}</span></h2>
+            <h2>実行履歴&nbsp;&nbsp;<span style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">#{{ run_number }}</span></h2>
             <div id="polling-indicator" class="htmx-indicator" style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted);">
                 <i data-lucide="refresh-cw" class="spin" style="width: 12px; height: 12px;"></i>
                 更新中...
@@ -129,7 +129,7 @@
                     <!-- Run Number -->
                     <div class="summary-item" style="display: flex; flex-direction: column; gap: 6px;">
                         <span class="summary-label" style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500;">実行番号</span>
-                        <div class="summary-value" style="font-size: 0.88rem; font-weight: 600; color: var(--color-primary); font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 6px; line-height: 1.5;">
+                        <div class="summary-value" style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 6px; line-height: 1.5;">
                             #{{ run_number }}
                         </div>
                     </div>
@@ -137,15 +137,19 @@
                     <!-- Version -->
                     <div class="summary-item" style="display: flex; flex-direction: column; gap: 6px;">
                         <span class="summary-label" style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500;">バージョン</span>
-                        <div class="summary-value" style="font-size: 0.88rem; font-weight: 600; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 6px; line-height: 1.5;">
-                            v{{ run.version }}
+                        <div class="summary-value" style="font-size: 0.88rem; font-weight: 600; font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 6px; line-height: 1.5;">
+                            {% if let Some(v) = run.config_version %}
+                                <a href="javascript:void(0)" class="vd-link" onclick="showVersionDetail('{{ v }}', '{{ config_payload_json|urlencode }}')" style="color: var(--color-primary); text-decoration: none;">v{{ v }}</a>
+                            {% else %}
+                                <a href="javascript:void(0)" class="vd-link" onclick="showVersionDetail('1', '{{ config_payload_json|urlencode }}')" style="color: var(--color-primary); text-decoration: none;">v1</a>
+                            {% endif %}
                         </div>
                     </div>
 
                     <!-- Started At -->
                     <div class="summary-item" style="display: flex; flex-direction: column; gap: 6px;">
                         <span class="summary-label" style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500;">開始日時</span>
-                        <div class="summary-value" style="font-size: 0.84rem; font-weight: 500; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 6px; line-height: 1.5;">
+                        <div class="summary-value" style="font-size: 0.84rem; font-weight: 500; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 6px; line-height: 1.5;">
                             {{ started_at_str }}
                         </div>
                     </div>
@@ -153,7 +157,7 @@
                     <!-- Finished At -->
                     <div class="summary-item" style="display: flex; flex-direction: column; gap: 6px;">
                         <span class="summary-label" style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500;">終了日時</span>
-                        <div class="summary-value" style="font-size: 0.84rem; font-weight: 500; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 6px; line-height: 1.5;">
+                        <div class="summary-value" style="font-size: 0.84rem; font-weight: 500; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 6px; line-height: 1.5;">
                             {{ finished_at_str }}
                         </div>
                     </div>

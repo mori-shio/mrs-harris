@@ -42,6 +42,7 @@ struct RunDetailTemplate {
     dag_tasks_json: String,
     dag_edges_json: String,
     task_runs_json: String,
+    config_payload_json: String,
 }
 crate::impl_into_response!(RunDetailTemplate);
 
@@ -61,6 +62,7 @@ struct RunDetailLiveTemplate {
     dag_tasks_json: String,
     dag_edges_json: String,
     task_runs_json: String,
+    config_payload_json: String,
 }
 crate::impl_into_response!(RunDetailLiveTemplate);
 
@@ -90,6 +92,7 @@ async fn fetch_run_detail_data(
     String, // dag_tasks_json
     String, // dag_edges_json
     String, // task_runs_json
+    String, // config_payload_json
 )> {
     let run = crate::db::runs::get_run(pool, &id)
         .await?
@@ -259,6 +262,16 @@ async fn fetch_run_detail_data(
         None => "-".to_string(),
     };
 
+    let run_config_version = run.config_version.unwrap_or(1);
+    let config_payload_json: String = sqlx::query_scalar(
+        "SELECT payload FROM job_history WHERE job_id = ? AND version = ?"
+    )
+    .bind(run.job_id.to_string())
+    .bind(run_config_version)
+    .fetch_one(pool)
+    .await
+    .unwrap_or_else(|_| "{}".to_string());
+
     Ok((
         run,
         job_name,
@@ -273,6 +286,7 @@ async fn fetch_run_detail_data(
         dag_tasks_json,
         dag_edges_json,
         task_runs_json,
+        config_payload_json,
     ))
 }
 
@@ -297,6 +311,7 @@ async fn run_detail_page(
                 dag_tasks_json: data.10,
                 dag_edges_json: data.11,
                 task_runs_json: data.12,
+                config_payload_json: data.13,
             }
             .into_response()
         }
@@ -328,6 +343,7 @@ async fn run_detail_live(
                 dag_tasks_json: data.10,
                 dag_edges_json: data.11,
                 task_runs_json: data.12,
+                config_payload_json: data.13,
             }
             .into_response()
         }
@@ -356,6 +372,7 @@ async fn fetch_run_detail_data_by_number(
     String, // dag_tasks_json
     String, // dag_edges_json
     String, // task_runs_json
+    String, // config_payload_json
 )> {
     let run = crate::db::runs::get_run_by_number(pool, &job_id, run_number)
         .await?
@@ -385,6 +402,7 @@ async fn run_detail_by_number(
                 dag_tasks_json: data.10,
                 dag_edges_json: data.11,
                 task_runs_json: data.12,
+                config_payload_json: data.13,
             }
             .into_response()
         }
@@ -416,6 +434,7 @@ async fn run_detail_by_number_live(
                 dag_tasks_json: data.10,
                 dag_edges_json: data.11,
                 task_runs_json: data.12,
+                config_payload_json: data.13,
             }
             .into_response()
         }
