@@ -3,16 +3,16 @@
         <table class="data-table" data-no-sort style="font-size:0.85rem;">
             <thead>
                 <tr>
-                    <th class="no-sort" style="cursor: pointer; user-select: none;"
+                    <th class="no-sort" style="cursor: pointer; user-select: none; position: relative;"
                         {% if current_sort == "asc" %}
                         hx-get="/jobs/{{ job_id }}/runs?page=1&sort=desc"
                         {% else %}
                         hx-get="/jobs/{{ job_id }}/runs?page=1&sort=asc"
                         {% endif %}
                         hx-target="#runs-table-container" hx-swap="outerHTML">
-                        <div style="display: inline-flex; align-items: center; gap: 6px;">
-                            <span>実行</span>
-                            <span style="display: inline-flex; align-items: center; color: var(--color-primary);">
+                        <div style="display: inline-flex; align-items: center; width: 100%; justify-content: space-between; gap: 8px;">
+                            <span style="white-space: nowrap;">実行</span>
+                            <span class="sort-icon-wrapper" style="margin-left: auto; display: inline-flex; align-items: center; opacity: 1.0; transition: opacity 0.2s; color: var(--color-primary);">
                                 {% if current_sort == "asc" %}
                                 <i data-lucide="arrow-up" style="width: 13px; height: 13px;"></i>
                                 {% else %}
