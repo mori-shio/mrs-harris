@@ -15,7 +15,7 @@ use mrs_harris_common::models::dag::DagTaskDefinition;
 use mrs_harris_common::models::job::{
     BackoffStrategy, Job, JobFilter, JobType, NewJob, RetryPolicy, ShellPayload,
 };
-use mrs_harris_common::models::run::{JobRun, RunStatus, TriggerType};
+use mrs_harris_common::models::run::JobRun;
 
 use super::auth::WebClaims;
 use crate::app::AppState;
@@ -33,7 +33,7 @@ pub struct JobRenderItem {
 
 #[derive(Clone)]
 pub struct JobRunRenderItem {
-    pub status_str: String,
+    pub status_badge_class: &'static str,
     pub status_ja: &'static str,
     pub run_number: i64,
     pub trigger_ja: &'static str,
@@ -43,23 +43,8 @@ pub struct JobRunRenderItem {
 }
 
 fn job_run_render_item_from_run(run: &JobRun) -> JobRunRenderItem {
-    let status_ja = match run.status {
-        RunStatus::Pending => "保留中",
-        RunStatus::Scheduled => "予約済",
-        RunStatus::Queued => "キュー済",
-        RunStatus::Running => "実行中",
-        RunStatus::Succeeded => "成功",
-        RunStatus::Failed => "失敗",
-        RunStatus::Retrying => "リトライ中",
-        RunStatus::Cancelled => "キャンセル済",
-        RunStatus::DeadLetter => "致命的エラー (DLQ)",
-    };
-
-    let trigger_ja = match run.trigger_type {
-        TriggerType::Scheduled => "自動スケジュール",
-        TriggerType::Manual => "手動実行",
-        TriggerType::Dependency => "DAG依存",
-    };
+    let status_ja = run.status.label_ja();
+    let trigger_ja = run.trigger_type.label_ja();
 
     let duration_str = match run.duration_ms {
         Some(ms) if ms >= 1000 => format!("{:.1}s", ms as f64 / 1000.0),
@@ -81,7 +66,7 @@ fn job_run_render_item_from_run(run: &JobRun) -> JobRunRenderItem {
     };
 
     JobRunRenderItem {
-        status_str: run.status.to_string(),
+        status_badge_class: run.status.badge_class(),
         status_ja,
         run_number: run.run_number,
         trigger_ja,

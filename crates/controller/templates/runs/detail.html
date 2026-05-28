@@ -151,7 +151,7 @@
                     } else if (status === 'skipped') {
                         strokeColor = 'var(--color-warning)';
                         fillColor = 'rgba(245, 158, 11, 0.08)';
-                    } else if (status === 'queued') {
+                    } else if (status === 'queued' || status === 'scheduled' || status === 'pending') {
                         strokeColor = '#94a3b8';
                         fillColor = 'rgba(148, 163, 184, 0.08)';
                     }

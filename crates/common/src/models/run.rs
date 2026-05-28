@@ -29,6 +29,73 @@ impl RunStatus {
             Self::Succeeded | Self::Failed | Self::Cancelled | Self::DeadLetter
         )
     }
+
+    pub fn label_ja(&self) -> &'static str {
+        match self {
+            Self::Pending => "保留中",
+            Self::Scheduled => "予約済み",
+            Self::Queued => "キュー待ち",
+            Self::Running => "実行中",
+            Self::Succeeded => "成功",
+            Self::Failed => "失敗",
+            Self::Retrying => "再試行中",
+            Self::Cancelled => "キャンセル済み",
+            Self::DeadLetter => "失敗 (要確認)",
+        }
+    }
+
+    pub fn badge_class(&self) -> &'static str {
+        match self {
+            Self::Pending | Self::Scheduled | Self::Queued => "pending",
+            Self::Running => "running",
+            Self::Succeeded => "succeeded",
+            Self::Failed | Self::DeadLetter => "failed",
+            Self::Retrying => "retrying",
+            Self::Cancelled => "cancelled",
+        }
+    }
+}
+
+impl TriggerType {
+    pub fn label_ja(&self) -> &'static str {
+        match self {
+            Self::Scheduled => "自動スケジュール",
+            Self::Manual => "手動実行",
+            Self::Dependency => "DAG依存",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{RunStatus, TriggerType};
+
+    #[test]
+    fn run_status_label_and_badge_are_stable() {
+        assert_eq!(RunStatus::Pending.label_ja(), "保留中");
+        assert_eq!(RunStatus::Scheduled.label_ja(), "予約済み");
+        assert_eq!(RunStatus::Queued.label_ja(), "キュー待ち");
+        assert_eq!(RunStatus::Retrying.label_ja(), "再試行中");
+        assert_eq!(RunStatus::Cancelled.label_ja(), "キャンセル済み");
+        assert_eq!(RunStatus::DeadLetter.label_ja(), "失敗 (要確認)");
+
+        assert_eq!(RunStatus::Pending.badge_class(), "pending");
+        assert_eq!(RunStatus::Scheduled.badge_class(), "pending");
+        assert_eq!(RunStatus::Queued.badge_class(), "pending");
+        assert_eq!(RunStatus::Running.badge_class(), "running");
+        assert_eq!(RunStatus::Succeeded.badge_class(), "succeeded");
+        assert_eq!(RunStatus::Failed.badge_class(), "failed");
+        assert_eq!(RunStatus::DeadLetter.badge_class(), "failed");
+        assert_eq!(RunStatus::Retrying.badge_class(), "retrying");
+        assert_eq!(RunStatus::Cancelled.badge_class(), "cancelled");
+    }
+
+    #[test]
+    fn trigger_type_label_is_stable() {
+        assert_eq!(TriggerType::Scheduled.label_ja(), "自動スケジュール");
+        assert_eq!(TriggerType::Manual.label_ja(), "手動実行");
+        assert_eq!(TriggerType::Dependency.label_ja(), "DAG依存");
+    }
 }
 
 /// トリガー種別

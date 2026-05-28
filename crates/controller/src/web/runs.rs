@@ -14,7 +14,7 @@ use sqlx::{MySqlPool, Row};
 use std::str::FromStr;
 
 use mrs_harris_common::models::job::JobType;
-use mrs_harris_common::models::run::{JobRun, LogLine, LogStream, RunStatus, TriggerType};
+use mrs_harris_common::models::run::{JobRun, LogLine, LogStream};
 
 use super::auth::WebClaims;
 use crate::app::AppState;
@@ -23,6 +23,7 @@ use crate::app::AppState;
 pub struct TaskRunItem {
     pub task_name: String,
     pub status_str: String,
+    pub status_badge_class: String,
     pub status_ja: String,
     pub attempt: u32,
     pub duration_str: String,
@@ -38,6 +39,7 @@ struct RunDetailTemplate {
     is_dag: bool,
     task_runs: Vec<TaskRunItem>,
     status_ja: String,
+    status_badge_class: &'static str,
     duration_str: String,
     started_at_str: String,
     finished_at_str: String,
@@ -57,6 +59,7 @@ struct RunDetailLiveTemplate {
     is_dag: bool,
     task_runs: Vec<TaskRunItem>,
     status_ja: String,
+    status_badge_class: &'static str,
     duration_str: String,
     started_at_str: String,
     finished_at_str: String,
@@ -92,6 +95,7 @@ async fn fetch_run_detail_data(
     bool,   // is_dag
     Vec<TaskRunItem>,
     String, // status_ja
+    &'static str, // status_badge_class
     String, // trigger_ja
     String, // duration_str
     String, // started_at_str
@@ -136,15 +140,18 @@ async fn fetch_run_detail_data(
             let duration_ms: Option<i64> = row.try_get("duration_ms")?;
             let error: Option<String> = row.try_get("error")?;
 
-            let status_ja = match status_db_str.as_str() {
-                "pending" => "保留中",
-                "queued" => "キュー済",
-                "running" => "実行中",
-                "succeeded" => "成功",
-                "failed" => "失敗",
-                "retrying" => "リトライ中",
-                "skipped" => "スキップ",
-                _ => "不明",
+            let (status_ja, status_badge_class) = match status_db_str.as_str() {
+                "pending" => ("保留中", "pending"),
+                "scheduled" => ("予約済み", "pending"),
+                "queued" => ("キュー待ち", "pending"),
+                "running" => ("実行中", "running"),
+                "succeeded" => ("成功", "succeeded"),
+                "failed" => ("失敗", "failed"),
+                "retrying" => ("再試行中", "retrying"),
+                "cancelled" => ("キャンセル済み", "cancelled"),
+                "dead_letter" => ("失敗 (要確認)", "failed"),
+                "skipped" => ("スキップ", "skipped"),
+                _ => ("不明", "pending"),
             };
 
             let duration_str = match duration_ms {
@@ -161,6 +168,7 @@ async fn fetch_run_detail_data(
             task_runs.push(TaskRunItem {
                 task_name,
                 status_str: status_db_str,
+                status_badge_class: status_badge_class.to_string(),
                 status_ja: status_ja.to_string(),
                 attempt,
                 duration_str,
@@ -219,25 +227,9 @@ async fn fetch_run_detail_data(
             serde_json::to_string(&runs_json_items).unwrap_or_else(|_| "[]".to_string());
     }
 
-    let status_ja = match run.status {
-        RunStatus::Pending => "保留中",
-        RunStatus::Scheduled => "予約済",
-        RunStatus::Queued => "キュー済",
-        RunStatus::Running => "実行中",
-        RunStatus::Succeeded => "成功",
-        RunStatus::Failed => "失敗",
-        RunStatus::Retrying => "リトライ中",
-        RunStatus::Cancelled => "キャンセル済",
-        RunStatus::DeadLetter => "致命的エラー (DLQ)",
-    }
-    .to_string();
-
-    let trigger_ja = match run.trigger_type {
-        TriggerType::Scheduled => "自動スケジュール",
-        TriggerType::Manual => "手動実行",
-        TriggerType::Dependency => "DAG依存",
-    }
-    .to_string();
+    let status_ja = run.status.label_ja().to_string();
+    let status_badge_class = run.status.badge_class();
+    let trigger_ja = run.trigger_type.label_ja().to_string();
 
     let duration_str = match run.duration_ms {
         Some(ms) => {
@@ -282,6 +274,7 @@ async fn fetch_run_detail_data(
         is_dag,
         task_runs,
         status_ja,
+        status_badge_class,
         trigger_ja,
         duration_str,
         started_at_str,
@@ -306,13 +299,14 @@ async fn run_detail_page(
             is_dag: data.3,
             task_runs: data.4,
             status_ja: data.5,
-            duration_str: data.7,
-            started_at_str: data.8,
-            finished_at_str: data.9,
-            dag_tasks_json: data.10,
-            dag_edges_json: data.11,
-            task_runs_json: data.12,
-            config_payload_json: data.13,
+            status_badge_class: data.6,
+            duration_str: data.8,
+            started_at_str: data.9,
+            finished_at_str: data.10,
+            dag_tasks_json: data.11,
+            dag_edges_json: data.12,
+            task_runs_json: data.13,
+            config_payload_json: data.14,
         }
         .into_response(),
         Err(e) => {
@@ -339,13 +333,14 @@ async fn run_detail_live(
             is_dag: data.3,
             task_runs: data.4,
             status_ja: data.5,
-            duration_str: data.7,
-            started_at_str: data.8,
-            finished_at_str: data.9,
-            dag_tasks_json: data.10,
-            dag_edges_json: data.11,
-            task_runs_json: data.12,
-            config_payload_json: data.13,
+            status_badge_class: data.6,
+            duration_str: data.8,
+            started_at_str: data.9,
+            finished_at_str: data.10,
+            dag_tasks_json: data.11,
+            dag_edges_json: data.12,
+            task_runs_json: data.13,
+            config_payload_json: data.14,
         }
         .into_response(),
         Err(e) => {
@@ -370,6 +365,7 @@ async fn fetch_run_detail_data_by_number(
     bool,   // is_dag
     Vec<TaskRunItem>,
     String, // status_ja
+    &'static str, // status_badge_class
     String, // trigger_ja
     String, // duration_str
     String, // started_at_str
@@ -407,13 +403,14 @@ async fn run_detail_by_number(
             is_dag: data.3,
             task_runs: data.4,
             status_ja: data.5,
-            duration_str: data.7,
-            started_at_str: data.8,
-            finished_at_str: data.9,
-            dag_tasks_json: data.10,
-            dag_edges_json: data.11,
-            task_runs_json: data.12,
-            config_payload_json: data.13,
+            status_badge_class: data.6,
+            duration_str: data.8,
+            started_at_str: data.9,
+            finished_at_str: data.10,
+            dag_tasks_json: data.11,
+            dag_edges_json: data.12,
+            task_runs_json: data.13,
+            config_payload_json: data.14,
         }
         .into_response(),
         Err(e) => {
@@ -448,13 +445,14 @@ async fn run_detail_by_number_live(
             is_dag: data.3,
             task_runs: data.4,
             status_ja: data.5,
-            duration_str: data.7,
-            started_at_str: data.8,
-            finished_at_str: data.9,
-            dag_tasks_json: data.10,
-            dag_edges_json: data.11,
-            task_runs_json: data.12,
-            config_payload_json: data.13,
+            status_badge_class: data.6,
+            duration_str: data.8,
+            started_at_str: data.9,
+            finished_at_str: data.10,
+            dag_tasks_json: data.11,
+            dag_edges_json: data.12,
+            task_runs_json: data.13,
+            config_payload_json: data.14,
         }
         .into_response(),
         Err(e) => {

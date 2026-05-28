@@ -16,7 +16,7 @@ use crate::app::AppState;
 pub struct DashboardRunItem {
     pub id: i64,
     pub job_name: String,
-    pub status: RunStatus,
+    pub status_badge_class: &'static str,
     pub status_ja: String,
     pub worker_type: WorkerType,
     pub trigger_ja: String,
@@ -137,23 +137,8 @@ async fn fetch_dashboard_data(pool: &MySqlPool) -> anyhow::Result<DashboardLiveT
         let started_at: Option<DateTime<Utc>> = r.try_get("started_at")?;
         let duration_ms: Option<i64> = r.try_get("duration_ms")?;
 
-        let status_ja = match status {
-            RunStatus::Pending => "保留中".to_string(),
-            RunStatus::Scheduled => "予約済".to_string(),
-            RunStatus::Queued => "キュー済".to_string(),
-            RunStatus::Running => "実行中".to_string(),
-            RunStatus::Succeeded => "成功".to_string(),
-            RunStatus::Failed => "失敗".to_string(),
-            RunStatus::Retrying => "リトライ中".to_string(),
-            RunStatus::Cancelled => "キャンセル済".to_string(),
-            RunStatus::DeadLetter => "致命的エラー (DLQ)".to_string(),
-        };
-
-        let trigger_ja = match trigger_type {
-            TriggerType::Scheduled => "自動スケジュール".to_string(),
-            TriggerType::Manual => "手動実行".to_string(),
-            TriggerType::Dependency => "DAG依存".to_string(),
-        };
+        let status_ja = status.label_ja().to_string();
+        let trigger_ja = trigger_type.label_ja().to_string();
 
         let duration_str = match duration_ms {
             Some(ms) => {
@@ -177,7 +162,7 @@ async fn fetch_dashboard_data(pool: &MySqlPool) -> anyhow::Result<DashboardLiveT
         recent_runs.push(DashboardRunItem {
             id,
             job_name,
-            status,
+            status_badge_class: status.badge_class(),
             status_ja,
             worker_type,
             trigger_ja,
