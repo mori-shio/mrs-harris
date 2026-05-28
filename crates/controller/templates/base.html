@@ -203,13 +203,11 @@
             requestSubmitWithoutSubmitterForms: new WeakSet(),
             requestSubmitPatched: false,
             scrollLockCount: 0,
-            originalBodyOverflow: "",
-            originalBodyPaddingRight: "",
+            originalBodyOverflowY: "",
+            originalBodyOverflowX: "",
             originalBodyPosition: "",
             originalBodyTop: "",
-            originalBodyLeft: "",
             originalBodyWidth: "",
-            scrollLockX: 0,
             scrollLockY: 0
         };
 
@@ -218,26 +216,18 @@
             if (!body) return;
 
             if (window.appUi.scrollLockCount === 0) {
-                const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-                window.appUi.scrollLockX = window.scrollX;
                 window.appUi.scrollLockY = window.scrollY;
-                window.appUi.originalBodyOverflow = body.style.overflow;
-                window.appUi.originalBodyPaddingRight = body.style.paddingRight;
+                window.appUi.originalBodyOverflowY = body.style.overflowY;
+                window.appUi.originalBodyOverflowX = body.style.overflowX;
                 window.appUi.originalBodyPosition = body.style.position;
                 window.appUi.originalBodyTop = body.style.top;
-                window.appUi.originalBodyLeft = body.style.left;
                 window.appUi.originalBodyWidth = body.style.width;
 
-                if (scrollbarWidth > 0) {
-                    const computedPaddingRight = parseFloat(window.getComputedStyle(body).paddingRight) || 0;
-                    body.style.paddingRight = (computedPaddingRight + scrollbarWidth) + "px";
-                }
-
-                body.style.overflow = "hidden";
                 body.style.position = "fixed";
                 body.style.top = (-window.appUi.scrollLockY) + "px";
-                body.style.left = (-window.appUi.scrollLockX) + "px";
                 body.style.width = "100%";
+                body.style.overflowY = "scroll";
+                body.style.overflowX = "hidden";
             }
 
             window.appUi.scrollLockCount += 1;
@@ -250,13 +240,12 @@
             window.appUi.scrollLockCount -= 1;
 
             if (window.appUi.scrollLockCount === 0) {
-                body.style.overflow = window.appUi.originalBodyOverflow;
-                body.style.paddingRight = window.appUi.originalBodyPaddingRight;
+                body.style.overflowY = window.appUi.originalBodyOverflowY;
+                body.style.overflowX = window.appUi.originalBodyOverflowX;
                 body.style.position = window.appUi.originalBodyPosition;
                 body.style.top = window.appUi.originalBodyTop;
-                body.style.left = window.appUi.originalBodyLeft;
                 body.style.width = window.appUi.originalBodyWidth;
-                window.scrollTo(window.appUi.scrollLockX, window.appUi.scrollLockY);
+                window.scrollTo(0, window.appUi.scrollLockY);
             }
         };
 
