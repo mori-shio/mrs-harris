@@ -617,7 +617,7 @@
 
 <!-- ========== TAB: 設定変更履歴 ========== -->
 <div id="tab-history" class="ec2-tab-pane">
-    <div class="card" style="padding:24px;">
+    <div id="job-history-panel" class="card" style="padding:24px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
             <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin:0;display:flex;align-items:center;gap:8px;">
                 <i data-lucide="scroll-text" style="width:15px;height:15px;color:var(--color-primary);"></i>
@@ -891,6 +891,19 @@ function restoreCompareState() {
     });
 }
 
+function getCompareNoticeContainer() {
+    return document.getElementById('job-history-panel') || document.getElementById('history-table-container');
+}
+
+function clearCompareNotice() {
+    var container = getCompareNoticeContainer();
+    if (!container) return;
+    var host = container.querySelector('.inline-notice-host');
+    if (host) {
+        host.remove();
+    }
+}
+
 function toggleCompareRadio(radio) {
     var isA = radio.name === 'compare-a';
     var stateKey = isA ? 'a' : 'b';
@@ -910,6 +923,8 @@ function toggleCompareRadio(radio) {
             payload: radio.dataset.payload
         };
     }
+
+    clearCompareNotice();
 }
 
 document.addEventListener('DOMContentLoaded', initCompareState);
@@ -925,9 +940,16 @@ function compareVersions() {
     ensureCompareStateInitialized();
 
     if (!window.compareState.a.version || !window.compareState.b.version) {
-        alert('比較する2つのバージョン（AとB）を選択してください。');
+        var noticeContainer = getCompareNoticeContainer();
+        if (noticeContainer && typeof window.renderInlineNotice === 'function') {
+            window.renderInlineNotice(noticeContainer, {
+                message: '比較する2つのバージョン（AとB）を選択してください。'
+            });
+        }
         return;
     }
+
+    clearCompareNotice();
     
     var verA = window.compareState.a.version;
     var verB = window.compareState.b.version;

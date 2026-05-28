@@ -659,6 +659,19 @@
                 });
             }
 
+            function getCompareNoticeContainer() {
+                return document.getElementById('job-history-panel') || document.getElementById('history-table-container');
+            }
+
+            function clearCompareNotice() {
+                const container = getCompareNoticeContainer();
+                if (!container) return;
+                const host = container.querySelector(".inline-notice-host");
+                if (host) {
+                    host.remove();
+                }
+            }
+
             window.toggleCompareRadio = function(radio) {
                 const stateKey = radio.name === 'compare-a' ? 'a' : 'b';
 
@@ -678,6 +691,8 @@
                     version: radio.value,
                     payload: radio.dataset.payload
                 };
+
+                clearCompareNotice();
             };
 
             window.compareVersions = function() {
@@ -685,9 +700,16 @@
                 window.compareState.initialized = true;
 
                 if (!window.compareState.a.version || !window.compareState.b.version) {
-                    alert('比較する2つのバージョン（AとB）を選択してください。');
+                    const noticeContainer = getCompareNoticeContainer();
+                    if (noticeContainer && typeof window.renderInlineNotice === "function") {
+                        window.renderInlineNotice(noticeContainer, {
+                            message: '比較する2つのバージョン（AとB）を選択してください。'
+                        });
+                    }
                     return;
                 }
+
+                clearCompareNotice();
 
                 const payloadA = JSON.parse(decodeURIComponent(window.compareState.a.payload));
                 const payloadB = JSON.parse(decodeURIComponent(window.compareState.b.payload));
