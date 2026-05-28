@@ -27,7 +27,7 @@
         <button class="btn btn-danger" 
                 hx-post="/api/runs/{{ run.id }}/cancel" 
                 hx-swap="none"
-                onclick="alert('実行のキャンセルをリクエストしました！')">
+                hx-on::after-request="if (event.detail.successful) { window.appToast({ message: '実行のキャンセルをリクエストしました。' }); }">
             <i data-lucide="octagon" style="width: 16px; height: 16px;"></i>
             強制停止
         </button>
