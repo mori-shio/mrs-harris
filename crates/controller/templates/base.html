@@ -181,7 +181,246 @@
         {% block content %}{% endblock %}
     </main>
 
+    <div id="app-dialog-root" class="app-dialog-overlay" aria-hidden="true">
+        <div class="app-dialog" role="dialog" aria-modal="true" aria-labelledby="app-dialog-title" aria-describedby="app-dialog-message">
+            <div class="app-dialog-header">
+                <h3 id="app-dialog-title">確認</h3>
+                <button type="button" class="app-dialog-close" data-dialog-close aria-label="閉じる">&times;</button>
+            </div>
+            <p id="app-dialog-message" class="app-dialog-message"></p>
+            <div class="app-dialog-actions">
+                <button type="button" class="btn btn-secondary" data-dialog-cancel>キャンセル</button>
+                <button type="button" class="btn btn-danger" data-dialog-confirm>実行</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-toast-region" aria-live="polite" aria-atomic="false"></div>
+
     <script>
+        window.appUi = window.appUi || {
+            activeDialogTrigger: null,
+            dialogResolver: null,
+            previousActiveElement: null
+        };
+
+        window.appConfirm = function(options = {}) {
+            const overlay = document.getElementById("app-dialog-root");
+            if (!overlay) {
+                return Promise.resolve(window.confirm(options.message || "確認しますか？"));
+            }
+
+            const dialog = overlay.querySelector(".app-dialog");
+            const title = document.getElementById("app-dialog-title");
+            const message = document.getElementById("app-dialog-message");
+            const confirmBtn = overlay.querySelector("[data-dialog-confirm]");
+            const cancelBtn = overlay.querySelector("[data-dialog-cancel]");
+            const tone = options.tone || "default";
+
+            if (window.appUi.dialogResolver) {
+                window.closeAppDialog(false);
+            }
+
+            overlay.classList.add("active");
+            overlay.setAttribute("aria-hidden", "false");
+            dialog.dataset.tone = tone;
+            title.textContent = options.title || "確認";
+            message.textContent = options.message || "";
+            confirmBtn.textContent = options.confirmLabel || "実行";
+            cancelBtn.textContent = options.cancelLabel || "キャンセル";
+            document.body.style.overflow = "hidden";
+            window.appUi.previousActiveElement = document.activeElement;
+
+            return new Promise(resolve => {
+                window.appUi.dialogResolver = resolve;
+                window.requestAnimationFrame(() => confirmBtn.focus());
+            });
+        };
+
+        window.closeAppDialog = function(confirmed) {
+            const overlay = document.getElementById("app-dialog-root");
+            if (!overlay) return;
+
+            overlay.classList.remove("active");
+            overlay.setAttribute("aria-hidden", "true");
+            overlay.querySelector(".app-dialog").dataset.tone = "default";
+            document.body.style.overflow = "";
+
+            const resolve = window.appUi.dialogResolver;
+            window.appUi.dialogResolver = null;
+
+            if (resolve) {
+                resolve(Boolean(confirmed));
+            }
+
+            const focusTarget = window.appUi.activeDialogTrigger || window.appUi.previousActiveElement;
+            window.appUi.activeDialogTrigger = null;
+            window.appUi.previousActiveElement = null;
+            if (focusTarget && typeof focusTarget.focus === "function") {
+                window.requestAnimationFrame(() => focusTarget.focus());
+            }
+        };
+
+        window.appToast = function(options = {}) {
+            const region = document.getElementById("app-toast-region");
+            if (!region || !options.message) return null;
+
+            const toast = document.createElement("div");
+            const tone = options.tone || "success";
+            const timeoutMs = options.timeoutMs || 4000;
+
+            toast.className = "app-toast app-toast-" + tone;
+            toast.setAttribute("role", tone === "danger" ? "alert" : "status");
+            toast.textContent = options.message;
+            region.appendChild(toast);
+
+            window.requestAnimationFrame(() => {
+                toast.classList.add("active");
+            });
+
+            window.setTimeout(() => {
+                toast.classList.remove("active");
+                window.setTimeout(() => {
+                    toast.remove();
+                }, 180);
+            }, timeoutMs);
+
+            return toast;
+        };
+
+        window.renderInlineNotice = function(container, options = {}) {
+            if (!container || !options.message) return null;
+
+            const host = container.classList.contains("inline-notice-host")
+                ? container
+                : container.querySelector(".inline-notice-host") || (() => {
+                    const nextHost = document.createElement("div");
+                    nextHost.className = "inline-notice-host";
+                    container.prepend(nextHost);
+                    return nextHost;
+                })();
+
+            host.replaceChildren();
+
+            const notice = document.createElement("div");
+            notice.className = "inline-notice inline-notice-" + (options.tone || "info");
+            notice.setAttribute("role", options.tone === "danger" ? "alert" : "status");
+            notice.textContent = options.message;
+            host.appendChild(notice);
+
+            return notice;
+        };
+
+        function resolveConfirmAction(trigger) {
+            const explicitKind = trigger.dataset.confirmKind;
+            if (explicitKind) return explicitKind;
+
+            if (trigger.tagName === "FORM") return "form";
+
+            const form = trigger.closest("form");
+            if (form && (trigger.tagName === "BUTTON" || trigger.tagName === "INPUT")) {
+                return "form";
+            }
+
+            return "click";
+        }
+
+        async function handleConfirmTrigger(trigger, event) {
+            if (!trigger || !trigger.dataset.confirmMessage || trigger.dataset.confirmPending === "true" || trigger.dataset.confirmBypass === "true") {
+                return false;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            trigger.dataset.confirmPending = "true";
+            window.appUi.activeDialogTrigger = trigger;
+
+            const confirmed = await window.appConfirm({
+                title: trigger.dataset.confirmTitle || "確認",
+                message: trigger.dataset.confirmMessage,
+                confirmLabel: trigger.dataset.confirmConfirmLabel || "実行",
+                cancelLabel: trigger.dataset.confirmCancelLabel || "キャンセル",
+                tone: trigger.dataset.confirmTone || "default"
+            });
+
+            trigger.dataset.confirmPending = "false";
+            if (!confirmed) {
+                return true;
+            }
+
+            const actionKind = resolveConfirmAction(trigger);
+            trigger.dataset.confirmBypass = "true";
+
+            try {
+                if (actionKind === "form") {
+                    const form = trigger.tagName === "FORM" ? trigger : trigger.closest("form");
+                    if (form) {
+                        if (trigger !== form && typeof form.requestSubmit === "function" && (trigger.tagName === "BUTTON" || trigger.tagName === "INPUT")) {
+                            form.requestSubmit(trigger);
+                        } else if (typeof form.requestSubmit === "function") {
+                            form.requestSubmit();
+                        } else {
+                            form.submit();
+                        }
+                    }
+                    return true;
+                }
+
+                if (actionKind === "htmx" && window.htmx && trigger.dataset.confirmEvent) {
+                    htmx.trigger(trigger, trigger.dataset.confirmEvent);
+                    return true;
+                }
+
+                trigger.click();
+                return true;
+            } finally {
+                window.setTimeout(() => {
+                    delete trigger.dataset.confirmBypass;
+                }, 0);
+            }
+        }
+
+        document.addEventListener("click", event => {
+            const trigger = event.target.closest("[data-confirm-message]");
+            if (!trigger) return;
+            void handleConfirmTrigger(trigger, event);
+        }, true);
+
+        document.addEventListener("submit", event => {
+            const trigger = event.target.closest("[data-confirm-message]");
+            if (!trigger) return;
+            void handleConfirmTrigger(trigger, event);
+        }, true);
+
+        document.addEventListener("click", event => {
+            const closeTrigger = event.target.closest("[data-dialog-close], [data-dialog-cancel]");
+            if (closeTrigger) {
+                window.closeAppDialog(false);
+                return;
+            }
+
+            if (event.target.matches("[data-dialog-confirm]")) {
+                window.closeAppDialog(true);
+            }
+        });
+
+        document.addEventListener("keydown", event => {
+            const overlay = document.getElementById("app-dialog-root");
+            if (!overlay || overlay.getAttribute("aria-hidden") === "true") return;
+
+            if (event.key === "Escape") {
+                event.preventDefault();
+                window.closeAppDialog(false);
+            }
+        });
+
+        document.addEventListener("click", event => {
+            const overlay = document.getElementById("app-dialog-root");
+            if (!overlay || event.target !== overlay) return;
+            window.closeAppDialog(false);
+        });
+
         // Initialize Lucide icons on page load and after HTMX swaps
         function initIcons() {
             lucide.createIcons();
