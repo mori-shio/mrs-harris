@@ -199,7 +199,9 @@
 
     <script>
         window.appUi = window.appUi || {
-            dialogResolver: null
+            dialogResolver: null,
+            requestSubmitWithoutSubmitterForms: new WeakSet(),
+            requestSubmitPatched: false
         };
 
         window.appConfirm = function(options = {}) {
@@ -282,6 +284,19 @@
             return notice;
         };
 
+        if (!window.appUi.requestSubmitPatched && window.HTMLFormElement && window.HTMLFormElement.prototype.requestSubmit) {
+            const originalRequestSubmit = window.HTMLFormElement.prototype.requestSubmit;
+            window.HTMLFormElement.prototype.requestSubmit = function(submitter) {
+                if (submitter === undefined) {
+                    window.appUi.requestSubmitWithoutSubmitterForms.add(this);
+                } else {
+                    window.appUi.requestSubmitWithoutSubmitterForms.delete(this);
+                }
+                return originalRequestSubmit.call(this, submitter);
+            };
+            window.appUi.requestSubmitPatched = true;
+        }
+
         function isSubmitControl(trigger) {
             if (!trigger) return false;
             if (trigger.tagName === "BUTTON") {
@@ -305,8 +320,8 @@
             if (form.dataset.confirmMessage) {
                 return form;
             }
-
-            return form.querySelector('button[data-confirm-message][type="submit"], button[data-confirm-message]:not([type]), input[data-confirm-message][type="submit"]');
+            
+            return null;
         }
 
         function resolveConfirmKind(trigger) {
@@ -407,7 +422,11 @@
         document.addEventListener("submit", event => {
             const form = event.target;
             if (!(form instanceof HTMLFormElement) || form.dataset.confirmBypass === "true") return;
-            const trigger = findSubmitConfirmTrigger(form, event.submitter);
+            const submitter = window.appUi.requestSubmitWithoutSubmitterForms.has(form)
+                ? null
+                : event.submitter;
+            window.appUi.requestSubmitWithoutSubmitterForms.delete(form);
+            const trigger = findSubmitConfirmTrigger(form, submitter);
             if (!trigger) return;
             void handleConfirmTrigger(trigger, event);
         }, true);
