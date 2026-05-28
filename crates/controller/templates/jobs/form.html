@@ -76,16 +76,25 @@
     <span style="margin: 0 8px;">/</span>
     <a href="/jobs" style="color: var(--text-muted); text-decoration: none;">ジョブ</a>
     <span style="margin: 0 8px;">/</span>
-    <span style="color: var(--text-primary);">{% if is_edit %}ジョブ 編集{% else %}ジョブ 新規作成{% endif %}</span>
+    {% if is_edit %}
+    <a href="/jobs/{{ original_name.as_ref().unwrap() }}" style="color: var(--text-muted); text-decoration: none;" hx-boost="true">{{ original_name.as_ref().unwrap() }}</a>
+    <span style="margin: 0 8px;">/</span>
+    <span style="color: var(--text-primary);">編集</span>
+    {% else %}
+    <span style="color: var(--text-primary);">ジョブ 新規作成</span>
+    {% endif %}
 </nav>
 
 <div style="max-width: 850px; margin: 0 auto;">
-    <form action="{% if is_edit %}/jobs/{{ job_id.unwrap() }}/edit{% else %}/jobs/new{% endif %}" method="POST" hx-boost="false">
+    <form action="{% if is_edit %}/jobs/{{ original_name.as_ref().unwrap() }}/edit{% else %}/jobs/new{% endif %}" method="POST" hx-boost="false">
+        {% if is_edit %}
+        <input type="hidden" name="current_job_id" value="{{ job_id.unwrap() }}">
+        {% endif %}
         
         <div class="page-header" style="margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center;">
             <div class="page-title">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <a href="{% if is_edit %}/jobs/{{ job_id.unwrap() }}{% else %}/jobs{% endif %}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
+                    <a href="{% if is_edit %}/jobs/{{ original_name.as_ref().unwrap() }}{% else %}/jobs{% endif %}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
                         <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
                     </a>
                     <h2>{% if is_edit %}ジョブ 編集{% else %}ジョブ 新規作成{% endif %}</h2>
@@ -109,6 +118,12 @@
                 基本情報
             </h3>
             
+            {% if let Some(msg) = error_message %}
+            <div class="alert alert-danger" style="background-color: rgba(239, 68, 68, 0.1); border: 1px solid var(--color-danger); color: var(--color-danger); padding: 12px; border-radius: var(--radius-sm); margin-bottom: 20px;">
+                {{ msg }}
+            </div>
+            {% endif %}
+
             <!-- 所属スペース -->
             <div class="form-group">
                 <label for="space_id">所属スペース</label>
@@ -125,7 +140,12 @@
 
             <div class="form-group" style="margin-top: 20px;">
                 <label for="name">ジョブ名 <span style="color: var(--color-danger);">*</span></label>
-                <input type="text" id="name" name="name" class="form-control" placeholder="my_backup_job" required value="{{ name }}">
+                <input type="text" id="name" name="name" class="form-control" placeholder="my_backup_job" required value="{{ name }}"
+                       hx-post="/api/jobs/validate-name" 
+                       hx-trigger="blur, keyup changed delay:500ms" 
+                       hx-target="#name-error"
+                       {% if is_edit %}hx-include="[name='current_job_id']"{% endif %}>
+                <div id="name-error"></div>
                 <span style="font-size: 0.8rem; color: var(--text-muted);">一意である必要があります。スペースや特殊文字は避け、スネークケースを推奨します。</span>
             </div>
 
@@ -235,12 +255,12 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                     <div class="form-group">
                         <label for="max_retries">最大リトライ回数</label>
-                        <input type="number" id="max_retries" name="max_retries" class="form-control" min="1" max="10" value="{{ max_retries }}">
+                        <input type="number" id="max_retries" name="max_retries" class="form-control" min="0" max="10" value="{{ max_retries }}">
                     </div>
 
                     <div class="form-group">
                         <label for="base_delay_sec">初期リトライ遅延 (秒)</label>
-                        <input type="number" id="base_delay_sec" name="base_delay_sec" class="form-control" min="1" max="3600" value="{{ base_delay_sec }}">
+                        <input type="number" id="base_delay_sec" name="base_delay_sec" class="form-control" min="0" max="3600" value="{{ base_delay_sec }}">
                     </div>
                 </div>
 
@@ -269,9 +289,10 @@
             
             <div class="form-group" style="margin-bottom: 0;">
                 <label for="script">実行するシェルスクリプト (複数行可能)</label>
-                <textarea id="script" name="script" class="form-control" style="min-height: 180px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;" placeholder="#!/bin/bash&#10;echo 'Hello, Mrs. Harris!'&#10;sleep 2&#10;echo 'Done.'">{{ script }}</textarea>
+                <textarea id="script" name="script" class="form-control" style="min-height: 180px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;" placeholder="set -eux&#10;echo 'Hello, Mrs. Harris!'&#10;sleep 2&#10;echo 'Done.'">{{ script }}</textarea>
                 <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 8px;">
-                    コマンド、引数を1つのテキストボックスにそのまま記述できます。複数行のスクリプトも記述可能です。
+                    ※ コマンド、引数を1つのテキストボックスにそのまま記述できます。複数行のスクリプトも記述可能です<br>
+                    ※ <code>set -eux</code> は、(-e)エラー発生時の即時停止、(-u)未定義変数の使用検知、(-x)実行コマンドのログ出力を有効にするための設定です
                 </span>
             </div>
         </div>
@@ -336,7 +357,7 @@
 
         <!-- Form Buttons -->
         <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 36px; padding-bottom: 36px;">
-            <a href="{% if is_edit %}/jobs/{{ job_id.unwrap() }}{% else %}/jobs{% endif %}" class="btn btn-secondary" hx-boost="true">キャンセル</a>
+            <a href="{% if is_edit %}/jobs/{{ original_name.as_ref().unwrap() }}{% else %}/jobs{% endif %}" class="btn btn-secondary" hx-boost="true">キャンセル</a>
             <button type="submit" class="btn btn-primary" style="padding: 10px 30px;">
                 <i data-lucide="save" style="width: 18px; height: 18px;"></i>
                 保存する
@@ -366,6 +387,10 @@
             dagFields.style.display = 'none';
             envSection.style.display = 'block';
             
+            cronInput.removeAttribute('disabled');
+            scriptInput.removeAttribute('disabled');
+            dagTextarea.setAttribute('disabled', 'disabled');
+            
             cronInput.setAttribute('required', 'required');
             scriptInput.setAttribute('required', 'required');
             dagTextarea.removeAttribute('required');
@@ -375,6 +400,10 @@
             dagFields.style.display = 'none';
             envSection.style.display = 'block';
             
+            cronInput.setAttribute('disabled', 'disabled');
+            scriptInput.removeAttribute('disabled');
+            dagTextarea.setAttribute('disabled', 'disabled');
+            
             cronInput.removeAttribute('required');
             scriptInput.setAttribute('required', 'required');
             dagTextarea.removeAttribute('required');
@@ -383,6 +412,10 @@
             payloadFields.style.display = 'none';
             dagFields.style.display = 'block';
             envSection.style.display = 'block'; // DAGの時も環境変数欄を表示
+            
+            cronInput.setAttribute('disabled', 'disabled');
+            scriptInput.setAttribute('disabled', 'disabled');
+            dagTextarea.removeAttribute('disabled');
             
             cronInput.removeAttribute('required');
             scriptInput.removeAttribute('required');

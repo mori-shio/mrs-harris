@@ -1,14 +1,14 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
 
 use super::run::RunStatus;
 
 /// カレンダー表示用エントリ
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalendarEntry {
-    pub run_id: Uuid,
-    pub job_id: Uuid,
+    pub run_id: i64,
+    pub job_id: i64,
     pub job_name: String,
     pub status: RunStatus,
     pub scheduled_at: Option<DateTime<Utc>>,

@@ -1,6 +1,6 @@
 use sqlx::MySqlPool;
 use argon2::{Argon2, PasswordHasher, password_hash::SaltString};
-use uuid::Uuid;
+
 use chrono::{DateTime, Utc};
 
 /// Admin ユーザーを作成
@@ -16,15 +16,15 @@ pub async fn create_admin_user(
         .map_err(|e| anyhow::anyhow!("パスワードハッシュエラー: {}", e))?
         .to_string();
 
-    let id = Uuid::new_v4();
+    
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
-        r#"INSERT INTO users (id, username, password_hash, role, created_at, updated_at)
-           VALUES (?, ?, ?, 'admin', ?, ?)
+        r#"INSERT INTO users (username, password_hash, role, created_at, updated_at)
+           VALUES (?, ?, 'admin', ?, ?)
            ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), updated_at = VALUES(updated_at)"#
     )
-    .bind(id.to_string())
+    
     .bind(username)
     .bind(&password_hash)
     .bind(&now)
@@ -49,8 +49,7 @@ pub async fn get_user_by_username(
         .await?;
 
     if let Some(r) = row {
-        let id_str: String = r.try_get("id")?;
-        let id = Uuid::parse_str(&id_str)?;
+        let id: i64 = r.try_get("id")?;
         let username: String = r.try_get("username")?;
         let password_hash: String = r.try_get("password_hash")?;
         let role_str: String = r.try_get("role")?;

@@ -257,25 +257,15 @@
 
                     const originalContent = th.innerHTML;
                     th.innerHTML = `
-                        <div style="display: inline-flex; align-items: center; width: 100%; justify-content: space-between; gap: 8px;">
-                            <span style="white-space: nowrap;">${originalContent}</span>
-                            <span class="sort-icon-wrapper" style="margin-left: auto; display: inline-flex; align-items: center; opacity: 0.35; transition: opacity 0.2s; color: var(--color-primary);">
+                        <div class="th-sort-container">
+                            <span class="th-sort-label">${originalContent}</span>
+                            <span class="th-sort-icon sort-icon-wrapper">
                                 <i data-lucide="chevrons-up-down" style="width: 13px; height: 13px;"></i>
                             </span>
                         </div>
                     `;
 
                     const wrapper = th.querySelector(".sort-icon-wrapper");
-                    th.addEventListener("mouseenter", () => {
-                        if (th.dataset.sortDir !== "asc" && th.dataset.sortDir !== "desc") {
-                            wrapper.style.opacity = "0.8";
-                        }
-                    });
-                    th.addEventListener("mouseleave", () => {
-                        if (th.dataset.sortDir !== "asc" && th.dataset.sortDir !== "desc") {
-                            wrapper.style.opacity = "0.35";
-                        }
-                    });
 
                     th.addEventListener("click", () => {
                         const currentDir = th.dataset.sortDir;
@@ -289,14 +279,14 @@
                                 otherTh.dataset.sortDir = "";
                                 const otherWrapper = otherTh.querySelector(".sort-icon-wrapper");
                                 if (otherWrapper) {
-                                    otherWrapper.style.opacity = "0.35";
+                                    otherWrapper.classList.remove("active");
                                     otherWrapper.innerHTML = `<i data-lucide="chevrons-up-down" style="width: 13px; height: 13px;"></i>`;
                                 }
                             }
                         });
 
                         th.dataset.sortDir = nextDir;
-                        wrapper.style.opacity = "1.0";
+                        wrapper.classList.add("active");
                         if (nextDir === "asc") {
                             wrapper.innerHTML = `<i data-lucide="arrow-up" style="width: 13px; height: 13px;"></i>`;
                         } else {

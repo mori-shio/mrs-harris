@@ -2,11 +2,11 @@ pub mod executor;
 pub mod log_capture;
 pub mod reporter;
 
-use uuid::Uuid;
+
 
 /// Worker コア実行処理
 pub async fn run_worker(
-    task_id: Uuid,
+    task_id: i64,
     callback_url: String,
     api_key: Option<String>,
 ) -> anyhow::Result<()> {

@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
 
 /// 通知チャネル種別
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString)]
@@ -31,7 +31,7 @@ pub struct EmailConfig {
 /// 通知チャネル
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotificationChannel {
-    pub id: Uuid,
+    pub id: i64,
     pub name: String,
     pub channel_type: ChannelType,
     pub config: serde_json::Value,
@@ -42,8 +42,8 @@ pub struct NotificationChannel {
 /// ジョブ通知設定
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobNotification {
-    pub job_id: Uuid,
-    pub channel_id: Uuid,
+    pub job_id: i64,
+    pub channel_id: i64,
     pub on_events: Vec<String>,
 }
 

@@ -7,13 +7,12 @@ use axum::{
 use mrs_harris_common::models::job::{Job, NewJob, JobUpdate, JobFilter};
 use mrs_harris_common::models::user::Claims;
 use crate::app::AppState;
-use uuid::Uuid;
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/jobs", get(list_jobs).post(create_job))
-        .route("/jobs/{id}", get(get_job).put(update_job).delete(delete_job))
-        .route("/jobs/{id}/trigger", axum::routing::post(trigger_job))
+        .route("/jobs/{name}", get(get_job).put(update_job).delete(delete_job))
+        .route("/jobs/{name}/trigger", axum::routing::post(trigger_job))
 }
 
 async fn list_jobs(
@@ -59,9 +58,9 @@ async fn create_job(
 async fn get_job(
     State(state): State<AppState>,
     _claims: Claims,
-    Path(id): Path<Uuid>,
+    Path(name): Path<String>,
 ) -> Result<Json<Job>, (StatusCode, Json<serde_json::Value>)> {
-    let job_opt = crate::db::jobs::get_job(&state.db, &id)
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name)
         .await
         .map_err(|e| {
             (
@@ -82,28 +81,29 @@ async fn get_job(
 async fn update_job(
     State(state): State<AppState>,
     _claims: Claims,
-    Path(id): Path<Uuid>,
+    Path(name): Path<String>,
     Json(payload): Json<JobUpdate>,
 ) -> Result<Json<Job>, (StatusCode, Json<serde_json::Value>)> {
     // 存在チェック
-    let exists = crate::db::jobs::get_job(&state.db, &id)
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name)
         .await
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({ "error": format!("Database error: {}", e) })),
             )
-        })?
-        .is_some();
+        })?;
+    let job = match job_opt {
+        Some(j) => j,
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": "Job not found" })),
+            ));
+        }
+    };
 
-    if !exists {
-        return Err((
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": "Job not found" })),
-        ));
-    }
-
-    let job = crate::db::jobs::update_job(&state.db, &id, &payload)
+    let updated_job = crate::db::jobs::update_job(&state.db, &job.id, &payload)
         .await
         .map_err(|e| {
             (
@@ -111,33 +111,34 @@ async fn update_job(
                 Json(serde_json::json!({ "error": format!("Failed to update job: {}", e) })),
             )
         })?;
-    Ok(Json(job))
+    Ok(Json(updated_job))
 }
 
 async fn delete_job(
     State(state): State<AppState>,
     _claims: Claims,
-    Path(id): Path<Uuid>,
+    Path(name): Path<String>,
 ) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
     // 存在チェック
-    let exists = crate::db::jobs::get_job(&state.db, &id)
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name)
         .await
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({ "error": format!("Database error: {}", e) })),
             )
-        })?
-        .is_some();
+        })?;
+    let job = match job_opt {
+        Some(j) => j,
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": "Job not found" })),
+            ));
+        }
+    };
 
-    if !exists {
-        return Err((
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": "Job not found" })),
-        ));
-    }
-
-    crate::db::jobs::delete_job(&state.db, &id)
+    crate::db::jobs::delete_job(&state.db, &job.id)
         .await
         .map_err(|e| {
             (
@@ -152,10 +153,10 @@ async fn delete_job(
 async fn trigger_job(
     State(state): State<AppState>,
     _claims: Claims,
-    Path(id): Path<Uuid>,
+    Path(name): Path<String>,
 ) -> Result<Json<mrs_harris_common::models::run::JobRun>, (StatusCode, Json<serde_json::Value>)> {
     // 1. ジョブ定義を取得
-    let job_opt = crate::db::jobs::get_job(&state.db, &id)
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name)
         .await
         .map_err(|e| {
             (

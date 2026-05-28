@@ -2,7 +2,7 @@
 
 -- ユーザー管理
 CREATE TABLE IF NOT EXISTS users (
-    id            CHAR(36) PRIMARY KEY,
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
     username      VARCHAR(255) NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     role          VARCHAR(50) NOT NULL DEFAULT 'admin',
@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- ジョブ定義
 CREATE TABLE IF NOT EXISTS jobs (
-    id            CHAR(36) PRIMARY KEY,
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
     name          VARCHAR(255) NOT NULL UNIQUE,
     description   TEXT,
     job_type      ENUM('cron', 'dag', 'one_shot') NOT NULL,
@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 -- DAG タスク定義
 CREATE TABLE IF NOT EXISTS dag_tasks (
-    id            CHAR(36) PRIMARY KEY,
-    dag_id        CHAR(36) NOT NULL,
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+    dag_id        BIGINT NOT NULL,
     task_name     VARCHAR(255) NOT NULL,
     payload       JSON NOT NULL,
     worker_type   ENUM('fargate', 'lambda') NOT NULL DEFAULT 'fargate',
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS dag_tasks (
 
 -- DAG エッジ定義
 CREATE TABLE IF NOT EXISTS dag_edges (
-    id            CHAR(36) PRIMARY KEY,
-    dag_id        CHAR(36) NOT NULL,
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+    dag_id        BIGINT NOT NULL,
     from_task     VARCHAR(255) NOT NULL,
     to_task       VARCHAR(255) NOT NULL,
     UNIQUE KEY uk_dag_edge (dag_id, from_task, to_task),
@@ -54,8 +54,8 @@ CREATE TABLE IF NOT EXISTS dag_edges (
 
 -- ジョブ実行履歴
 CREATE TABLE IF NOT EXISTS job_runs (
-    id              CHAR(36) PRIMARY KEY,
-    job_id          CHAR(36) NOT NULL,
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    job_id          BIGINT NOT NULL,
     status          ENUM('pending','scheduled','queued','running',
                          'succeeded','failed','retrying','cancelled',
                          'dead_letter') NOT NULL DEFAULT 'pending',
@@ -81,8 +81,8 @@ CREATE TABLE IF NOT EXISTS job_runs (
 
 -- DAG タスク実行履歴
 CREATE TABLE IF NOT EXISTS task_runs (
-    id            CHAR(36) PRIMARY KEY,
-    run_id        CHAR(36) NOT NULL,
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+    run_id        BIGINT NOT NULL,
     task_name     VARCHAR(255) NOT NULL,
     status        ENUM('pending','queued','running','succeeded',
                        'failed','retrying','skipped') NOT NULL DEFAULT 'pending',
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS task_runs (
 -- 実行ログ
 CREATE TABLE IF NOT EXISTS job_logs (
     id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    run_id      CHAR(36) NOT NULL,
+    run_id      BIGINT NOT NULL,
     task_name   VARCHAR(255),
     stream      ENUM('stdout', 'stderr', 'system') NOT NULL,
     line        TEXT NOT NULL,
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS job_logs (
 
 -- 通知チャネル
 CREATE TABLE IF NOT EXISTS notification_channels (
-    id            CHAR(36) PRIMARY KEY,
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
     name          VARCHAR(255) NOT NULL UNIQUE,
     channel_type  ENUM('slack', 'email') NOT NULL,
     config        JSON NOT NULL,
@@ -123,8 +123,8 @@ CREATE TABLE IF NOT EXISTS notification_channels (
 
 -- ジョブ通知紐付け
 CREATE TABLE IF NOT EXISTS job_notifications (
-    job_id      CHAR(36) NOT NULL,
-    channel_id  CHAR(36) NOT NULL,
+    job_id      BIGINT NOT NULL,
+    channel_id  BIGINT NOT NULL,
     on_events   JSON NOT NULL DEFAULT ('["failed","dead_letter"]'),
     PRIMARY KEY (job_id, channel_id),
     FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
@@ -133,11 +133,11 @@ CREATE TABLE IF NOT EXISTS job_notifications (
 
 -- ワーカー実行トラッキング
 CREATE TABLE IF NOT EXISTS worker_tracking (
-    id              CHAR(36) PRIMARY KEY,
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     worker_type     ENUM('fargate', 'lambda') NOT NULL,
     external_id     VARCHAR(512) NOT NULL,
     status          ENUM('running', 'completed', 'failed', 'timed_out') NOT NULL DEFAULT 'running',
-    run_id          CHAR(36) NOT NULL,
+    run_id          BIGINT NOT NULL,
     started_at      TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     last_heartbeat  TIMESTAMP(3),
     metadata        JSON DEFAULT ('{}'),

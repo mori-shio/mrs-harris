@@ -5,7 +5,7 @@ use axum::{
     Router,
 };
 use askama::Template;
-use uuid::Uuid;
+
 use chrono::{DateTime, Utc};
 use sqlx::{MySqlPool, Row};
 use std::str::FromStr;
@@ -71,13 +71,13 @@ pub fn router() -> Router<AppState> {
         .route("/runs/{id}", get(run_detail_page))
         .route("/runs/{id}/live", get(run_detail_live))
         .route("/runs/{id}/logs/ws", get(run_logs_ws_upgrade))
-        .route("/jobs/{job_id}/runs/{run_number}", get(run_detail_by_number))
-        .route("/jobs/{job_id}/runs/{run_number}/live", get(run_detail_by_number_live))
+        .route("/jobs/{job_name}/runs/{run_number}", get(run_detail_by_number))
+        .route("/jobs/{job_name}/runs/{run_number}/live", get(run_detail_by_number_live))
 }
 
 async fn fetch_run_detail_data(
     pool: &MySqlPool,
-    id: Uuid,
+    id: i64,
 ) -> anyhow::Result<(
     JobRun,
     String, // job_name
@@ -98,14 +98,7 @@ async fn fetch_run_detail_data(
         .await?
         .ok_or_else(|| anyhow::anyhow!("Run not found"))?;
 
-    let run_number: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM job_runs WHERE job_id = ? AND created_at <= ?"
-    )
-    .bind(run.job_id.to_string())
-    .bind(run.created_at)
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0);
+    let run_number: i64 = run.run_number;
 
     let job = crate::db::jobs::get_job(pool, &run.job_id)
         .await?
@@ -262,15 +255,16 @@ async fn fetch_run_detail_data(
         None => "-".to_string(),
     };
 
-    let run_config_version = run.config_version.unwrap_or(1);
-    let config_payload_json: String = sqlx::query_scalar(
-        "SELECT payload FROM job_history WHERE job_id = ? AND version = ?"
-    )
-    .bind(run.job_id.to_string())
-    .bind(run_config_version)
-    .fetch_one(pool)
-    .await
-    .unwrap_or_else(|_| "{}".to_string());
+    let config_payload_json: String = match run.job_history_id {
+        Some(h_id) => {
+            sqlx::query_scalar("SELECT payload FROM job_history WHERE id = ?")
+                .bind(h_id)
+                .fetch_one(pool)
+                .await
+                .unwrap_or_else(|_| "{}".to_string())
+        }
+        None => "{}".to_string(),
+    };
 
     Ok((
         run,
@@ -293,7 +287,7 @@ async fn fetch_run_detail_data(
 async fn run_detail_page(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> impl IntoResponse {
     match fetch_run_detail_data(&state.db, id).await {
         Ok(data) => {
@@ -325,7 +319,7 @@ async fn run_detail_page(
 async fn run_detail_live(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> impl IntoResponse {
     match fetch_run_detail_data(&state.db, id).await {
         Ok(data) => {
@@ -356,7 +350,7 @@ async fn run_detail_live(
 
 async fn fetch_run_detail_data_by_number(
     pool: &MySqlPool,
-    job_id: Uuid,
+    job_id: i64,
     run_number: i64,
 ) -> anyhow::Result<(
     JobRun,
@@ -384,8 +378,14 @@ async fn fetch_run_detail_data_by_number(
 async fn run_detail_by_number(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path((job_id, run_number)): Path<(Uuid, i64)>,
+    Path((job_name, run_number)): Path<(String, i64)>,
 ) -> impl IntoResponse {
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &job_name).await.unwrap_or(None);
+    let job_id = match job_opt {
+        Some(j) => j.id,
+        None => return Redirect::to("/jobs").into_response(),
+    };
+
     match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
         Ok(data) => {
             RunDetailTemplate {
@@ -416,8 +416,14 @@ async fn run_detail_by_number(
 async fn run_detail_by_number_live(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path((job_id, run_number)): Path<(Uuid, i64)>,
+    Path((job_name, run_number)): Path<(String, i64)>,
 ) -> impl IntoResponse {
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &job_name).await.unwrap_or(None);
+    let job_id = match job_opt {
+        Some(j) => j.id,
+        None => return Redirect::to("/jobs").into_response(),
+    };
+
     match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
         Ok(data) => {
             RunDetailLiveTemplate {
@@ -449,15 +455,16 @@ async fn run_detail_by_number_live(
 async fn run_logs_ws_upgrade(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, state, id))
 }
 
 fn map_row_to_log(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<LogLine> {
-    let id: i64 = row.try_get("id")?;
-    let run_id_str: String = row.try_get("run_id")?;
-    let run_id = Uuid::parse_str(&run_id_str)?;
+    let id_u64: u64 = row.try_get("id")?;
+    let id = id_u64 as i64;
+    let run_id: i64 = row.try_get("job_run_id")?;
+    
     let task_name: Option<String> = row.try_get("task_name")?;
     let stream_str: String = row.try_get("stream")?;
     let stream = LogStream::from_str(&stream_str)
@@ -475,7 +482,7 @@ fn map_row_to_log(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<LogLine> {
     })
 }
 
-async fn handle_socket(mut socket: WebSocket, state: AppState, run_id: Uuid) {
+async fn handle_socket(mut socket: WebSocket, state: AppState, run_id: i64) {
     let mut last_log_id: u64 = 0;
 
     // 1. Fetch initial logs
@@ -523,9 +530,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, run_id: Uuid) {
             None => true, // If run is deleted or not found, treat as terminal to exit
         };
 
-        // Query new logs since last_log_id
         let new_logs_rows_res = sqlx::query(
-            "SELECT * FROM job_logs WHERE run_id = ? AND id > ? ORDER BY logged_at ASC, id ASC"
+            "SELECT * FROM job_logs WHERE job_run_id = ? AND id > ? ORDER BY logged_at ASC, id ASC"
         )
         .bind(run_id.to_string())
         .bind(last_log_id)
@@ -561,6 +567,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, run_id: Uuid) {
 
         // If the job run is in terminal status, we can exit the loop
         if is_terminal {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            let _ = socket.send(Message::Close(None)).await;
             break;
         }
     }

@@ -1,7 +1,7 @@
 -- ジョブ設定変更履歴
 CREATE TABLE IF NOT EXISTS job_history (
-    id          CHAR(36) PRIMARY KEY,
-    job_id      CHAR(36) NOT NULL,
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    job_id      BIGINT NOT NULL,
     version     INT UNSIGNED NOT NULL,
     payload     JSON NOT NULL,
     changed_by  VARCHAR(255) NOT NULL,

@@ -22,7 +22,7 @@ use crate::app::AppState;
 
 #[derive(Clone)]
 pub struct JobRenderItem {
-    pub id: Uuid,
+    pub id: i64,
     pub name: String,
     pub description: Option<String>,
     pub job_type_ja: &'static str,
@@ -35,7 +35,7 @@ pub struct JobRenderItem {
 
 #[derive(Clone)]
 pub struct JobRunRenderItem {
-    pub id: Uuid,
+    pub id: i64,
     pub status_str: String,
     pub status_ja: &'static str,
     pub run_number: i64,
@@ -90,16 +90,17 @@ struct RunsQuery {
 #[derive(Template)]
 #[template(path = "jobs/runs_table.html")]
 struct JobRunsTableTemplate {
-    job_id: Uuid,
+    job_name: String,
     recent_runs: Vec<JobRunRenderItem>,
     total_runs: i64,
     current_page: u32,
     total_pages: u32,
     start_index: usize,
     end_index: usize,
-    pages: Vec<u32>,
+    page_items: Vec<Option<u32>>,
     current_sort: String,
     empty_runs: Vec<()>,
+    is_polling: bool,
 }
 crate::impl_into_response!(JobRunsTableTemplate);
 
@@ -107,7 +108,9 @@ crate::impl_into_response!(JobRunsTableTemplate);
 #[template(path = "jobs/detail.html")]
 struct JobDetailTemplate {
     job: Job,
-    job_id: Uuid,
+    job_name: String,
+    initial_tab: String,
+    is_polling: bool,
     job_type_str: &'static str,
     worker_type_str: &'static str,
     worker_definition_name: String,
@@ -119,7 +122,7 @@ struct JobDetailTemplate {
     total_pages: u32,
     start_index: usize,
     end_index: usize,
-    pages: Vec<u32>,
+    page_items: Vec<Option<u32>>,
     current_sort: String,
     empty_runs: Vec<()>,
     is_dag: bool,
@@ -138,6 +141,16 @@ struct JobDetailTemplate {
     dag_tasks_json: String,
     dag_edges_json: String,
     history: Vec<JobHistoryRenderItem>,
+    
+    // History pagination
+    latest_version: u32,
+    history_current_page: u32,
+    history_total_pages: u32,
+    total_history: i64,
+    history_start_index: usize,
+    history_end_index: usize,
+    history_page_items: Vec<Option<u32>>,
+    empty_history: Vec<()>,
 }
 crate::impl_into_response!(JobDetailTemplate);
 
@@ -145,14 +158,16 @@ crate::impl_into_response!(JobDetailTemplate);
 #[template(path = "jobs/form.html")]
 struct JobFormTemplate {
     is_edit: bool,
-    job_id: Option<Uuid>,
+    job_id: Option<i64>,
+    original_name: Option<String>,
     name: String,
     description: String,
+    tags_str: String,
     job_type: String,
     worker_definition_id: String,
     worker_defs: Vec<mrs_harris_common::models::worker::WorkerDefinition>,
     spaces: Vec<mrs_harris_common::models::space::Space>,
-    space_id: Option<Uuid>,
+    space_id: Option<i64>,
     schedule_expr: String,
     script: String,
     env: String,
@@ -165,11 +180,11 @@ struct JobFormTemplate {
     max_retries: u32,
     backoff: String,
     base_delay_sec: u64,
-    tags_str: String,
     is_active: bool,
     slack_on_running: bool,
     slack_on_succeeded: bool,
     slack_on_failed: bool,
+    error_message: Option<String>,
 }
 crate::impl_into_response!(JobFormTemplate);
 
@@ -212,12 +227,13 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/jobs", get(jobs_page))
         .route("/jobs/new", get(new_job_page).post(create_job_submit))
+        .route("/api/jobs/validate-name", post(api_validate_job_name))
         .route("/jobs/{id}", get(job_detail_page))
         .route("/jobs/{id}/runs", get(job_runs_list))
         .route("/jobs/{id}/edit", get(edit_job_page).post(edit_job_submit))
 }
 
-pub fn map_job_to_render(job: &Job, worker_name_map: &std::collections::HashMap<Uuid, String>) -> JobRenderItem {
+pub fn map_job_to_render(job: &Job, worker_name_map: &std::collections::HashMap<i64, String>) -> JobRenderItem {
     let job_type_ja = match job.job_type {
         JobType::Cron => "Cron (定期)",
         JobType::Dag => "DAG (連結)",
@@ -266,11 +282,11 @@ async fn jobs_page(
         if sp == "unclassified" || sp == "未分類" {
             space_id = Some("unclassified".to_string());
             current_space_name = "unclassified".to_string();
-        } else if Uuid::parse_str(&sp).is_ok() {
+        } else if let Ok(parsed_id) = sp.parse::<i64>() {
             space_id = Some(sp.clone());
             // Look up space name by ID for current_space_name
             let resolved_name: Option<String> = sqlx::query("SELECT name FROM spaces WHERE id = ?")
-                .bind(&sp)
+                .bind(parsed_id)
                 .fetch_optional(&state.db)
                 .await
                 .ok()
@@ -281,7 +297,7 @@ async fn jobs_page(
             }
         } else {
             // It's a space name. Query the DB for the space ID.
-            let resolved_id: Option<String> = sqlx::query("SELECT id FROM spaces WHERE name = ?")
+            let resolved_id: Option<i64> = sqlx::query("SELECT id FROM spaces WHERE name = ?")
                 .bind(&sp)
                 .fetch_optional(&state.db)
                 .await
@@ -289,11 +305,11 @@ async fn jobs_page(
                 .flatten()
                 .map(|row| row.try_get("id").unwrap_or_default());
             if let Some(rid) = resolved_id {
-                space_id = Some(rid);
+                space_id = Some(rid.to_string());
                 current_space_name = sp;
             } else {
                 // If space name is not found, default to showing no space matches
-                space_id = Some(Uuid::nil().to_string());
+                space_id = Some("-1".to_string());
                 current_space_name = sp;
             }
         }
@@ -315,10 +331,10 @@ async fn jobs_page(
         .fetch_all(&state.db)
         .await
         .unwrap_or_default();
-    let mut worker_name_map = std::collections::HashMap::new();
+    let mut worker_name_map: std::collections::HashMap<i64, String> = std::collections::HashMap::new();
     for row in worker_rows {
-        let id_str: String = row.try_get("id").unwrap_or_default();
-        if let Ok(uid) = Uuid::parse_str(&id_str) {
+        let uid: i64 = row.try_get("id").unwrap_or_default();
+        if true {
             let name: String = row.try_get("name").unwrap_or_default();
             worker_name_map.insert(uid, name);
         }
@@ -351,11 +367,12 @@ async fn jobs_page(
 
         // 2. Dynamic space tabs
         for row in spaces_rows {
-            let sid: String = row.try_get("id").unwrap_or_default();
+            let sid: i64 = row.try_get("id").unwrap_or_default();
+            let sid_str = sid.to_string();
             let name: String = row.try_get("name").unwrap_or_default();
-            let active = current_sid == sid;
+            let active = current_sid == sid_str;
             spaces.push(JobSpaceTab {
-                id: sid,
+                id: sid_str,
                 name,
                 is_active: active,
             });
@@ -398,8 +415,7 @@ async fn new_job_page(
 
     let mut spaces = Vec::new();
     for row in spaces_rows {
-        let id_str: String = row.try_get("id").unwrap_or_default();
-        let id = Uuid::parse_str(&id_str).unwrap_or_default();
+        let id: i64 = row.try_get("id").unwrap_or_default();
         let name: String = row.try_get("name").unwrap_or_default();
         let description: Option<String> = row.try_get("description").ok();
         let created_at = row.try_get("created_at").unwrap_or_else(|_| Utc::now());
@@ -415,6 +431,8 @@ async fn new_job_page(
     }
 
     JobFormTemplate {
+        error_message: None,
+        original_name: None,
         is_edit: false,
         job_id: None,
         name: String::new(),
@@ -425,7 +443,7 @@ async fn new_job_page(
         spaces,
         space_id: None,
         schedule_expr: String::new(),
-        script: String::new(),
+        script: "set -eux\n\n".to_string(),
         env: String::new(),
         ssm_region: String::new(),
         ssm_path: String::new(),
@@ -452,7 +470,7 @@ async fn create_job_submit(
     let job_type = JobType::from_str(&form.job_type).unwrap_or(JobType::OneShot);
     
     // ロードされた自作ワーカーノード定義から worker_type を決定
-    let worker_def_id = Uuid::parse_str(&form.worker_definition_id).unwrap();
+    let worker_def_id = form.worker_definition_id.parse::<i64>().unwrap();
     let def = crate::db::workers::get_worker_definition(&state.db, &worker_def_id).await.unwrap().unwrap();
     let worker_type = def.worker_type;
 
@@ -470,7 +488,7 @@ async fn create_job_submit(
     };
 
     // Build Tags
-    let tags = form.tags_str
+    let tags = form.tags_str.clone()
         .unwrap_or_default()
         .split(',')
         .map(|t| t.trim().to_string())
@@ -494,8 +512,8 @@ async fn create_job_submit(
             }
         }
 
-        let ssm_region = form.ssm_region.filter(|r| !r.trim().is_empty());
-        let ssm_path = form.ssm_path.filter(|p| !p.trim().is_empty());
+        let ssm_region = form.ssm_region.clone().filter(|r| !r.trim().is_empty());
+        let ssm_path = form.ssm_path.clone().filter(|p| !p.trim().is_empty());
         let ssm_recursive = if ssm_path.is_some() {
             Some(form.ssm_recursive.as_deref() == Some("on"))
         } else {
@@ -519,8 +537,8 @@ async fn create_job_submit(
             }
         }
 
-        let ssm_region = form.ssm_region.filter(|r| !r.trim().is_empty());
-        let ssm_path = form.ssm_path.filter(|p| !p.trim().is_empty());
+        let ssm_region = form.ssm_region.clone().filter(|r| !r.trim().is_empty());
+        let ssm_path = form.ssm_path.clone().filter(|p| !p.trim().is_empty());
         let ssm_recursive = if ssm_path.is_some() {
             Some(form.ssm_recursive.as_deref() == Some("on"))
         } else {
@@ -529,7 +547,7 @@ async fn create_job_submit(
 
         let shell = ShellPayload {
             command: "sh".to_string(),
-            args: vec!["-c".to_string(), form.script.unwrap_or_default()],
+            args: vec!["-c".to_string(), form.script.clone().unwrap_or_default().replace("\r\n", "\n")],
             working_dir: None,
             env,
             ssm_region,
@@ -541,14 +559,14 @@ async fn create_job_submit(
 
     let space_id = form.space_id
         .filter(|s| !s.trim().is_empty())
-        .and_then(|s| Uuid::parse_str(&s).ok());
+        .and_then(|s| s.parse::<i64>().ok());
 
     let new_job = NewJob {
-        name: form.name,
-        description: form.description.filter(|d| !d.trim().is_empty()),
+        name: form.name.clone(),
+        description: form.description.clone().filter(|d| !d.trim().is_empty()),
         job_type,
         payload,
-        schedule_expr: form.schedule_expr.filter(|s| !s.trim().is_empty()),
+        schedule_expr: form.schedule_expr.clone().filter(|s| !s.trim().is_empty()),
         worker_type,
         retry_policy,
         timeout_sec: form.timeout_sec,
@@ -569,28 +587,79 @@ async fn create_job_submit(
     let tags_json = serde_json::to_value(&new_job.tags).unwrap();
     let is_active_val: i8 = if new_job.is_active { 1 } else { 0 };
 
-    sqlx::query(
-        r#"INSERT INTO jobs (id, name, description, job_type, payload, schedule_expr, worker_type, retry_policy, timeout_sec, is_active, tags, worker_definition_id, space_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+    let res = sqlx::query(
+        r#"INSERT INTO jobs (name, description, job_type, payload, schedule_expr, retry_policy, timeout_sec, is_active, tags, worker_definition_id, space_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
     )
-    .bind(job_id.to_string())
     .bind(&new_job.name)
     .bind(&new_job.description)
     .bind(job_type_str)
     .bind(&new_job.payload)
     .bind(&new_job.schedule_expr)
-    .bind(worker_type_str)
     .bind(retry_policy_json)
     .bind(new_job.timeout_sec)
     .bind(is_active_val)
     .bind(tags_json)
-    .bind(worker_def_id.to_string())
-    .bind(new_job.space_id.map(|uid| uid.to_string()))
+    .bind(worker_def_id)
+    .bind(new_job.space_id)
     .bind(Utc::now())
     .bind(Utc::now())
     .execute(&mut *tx)
-    .await
-    .unwrap();
+    .await;
+
+    let res = match res {
+        Ok(res) => res,
+        Err(e) => {
+            if let sqlx::Error::Database(db_err) = &e {
+                if db_err.code().as_deref() == Some("23000") || db_err.message().contains("Duplicate") {
+                    let space_rows = sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces").fetch_all(&state.db).await.unwrap_or_default();
+                    let mut spaces = Vec::new();
+                    for row in space_rows {
+                        let id: i64 = row.try_get("id").unwrap_or_default();
+                        let name: String = row.try_get("name").unwrap_or_default();
+                        let description: Option<String> = row.try_get("description").ok();
+                        let created_at = row.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now());
+                        let updated_at = row.try_get("updated_at").unwrap_or_else(|_| chrono::Utc::now());
+                        spaces.push(mrs_harris_common::models::space::Space { id, name, description, created_at, updated_at });
+                    }
+                    let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db).await.unwrap_or_default();
+                    return JobFormTemplate {
+                        error_message: Some("指定されたジョブ名は既に使用されています。別の名前を指定してください。".to_string()),
+                        is_edit: false,
+                        job_id: None,
+                        original_name: None,
+                        name: form.name.clone(),
+                        description: form.description.clone().unwrap_or_default(),
+                        tags_str: form.tags_str.clone().unwrap_or_default(),
+                        job_type: form.job_type.clone(),
+                        worker_definition_id: form.worker_definition_id.clone(),
+                        worker_defs,
+                        spaces,
+                        space_id: new_job.space_id,
+                        schedule_expr: form.schedule_expr.clone().unwrap_or_default(),
+                        script: form.script.clone().unwrap_or_default(),
+                        env: form.env.clone().unwrap_or_default(),
+                        ssm_region: form.ssm_region.clone().unwrap_or_default(),
+                        ssm_path: form.ssm_path.clone().unwrap_or_default(),
+                        ssm_recursive: form.ssm_recursive.as_deref() == Some("on"),
+                        dag_tasks_json: form.dag_tasks_json.clone().unwrap_or_default(),
+                        timeout_sec: form.timeout_sec,
+                        has_retry: form.has_retry.as_deref() == Some("on"),
+                        max_retries: form.max_retries,
+                        backoff: form.backoff.clone(),
+                        base_delay_sec: form.base_delay_sec,
+                        is_active: form.is_active.as_deref() == Some("on"),
+                        slack_on_running: form.slack_on_running.as_deref() == Some("on"),
+                        slack_on_succeeded: form.slack_on_succeeded.as_deref() == Some("on"),
+                        slack_on_failed: form.slack_on_failed.as_deref() == Some("on"),
+                    }.into_response();
+                }
+            }
+            return Redirect::to("/jobs/new").into_response();
+        }
+    };
+
+    let job_id = res.last_insert_id() as i64;
 
     if new_job.job_type == JobType::Dag {
         let task_defs: Vec<DagTaskDefinition> = serde_json::from_str(
@@ -598,13 +667,11 @@ async fn create_job_submit(
         ).unwrap_or_default();
 
         for task in task_defs {
-            let task_id = Uuid::new_v4();
             sqlx::query(
-                r#"INSERT INTO dag_tasks (id, dag_id, task_name, payload, worker_type, retry_policy, timeout_sec)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)"#
+                r#"INSERT INTO dag_tasks (dag_id, task_name, payload, worker_type, retry_policy, timeout_sec)
+                   VALUES (?, ?, ?, ?, ?, ?)"#
             )
-            .bind(task_id.to_string())
-            .bind(job_id.to_string())
+            .bind(job_id)
             .bind(&task.name)
             .bind(&task.payload)
             .bind(task.worker_type.to_string())
@@ -615,13 +682,11 @@ async fn create_job_submit(
             .unwrap();
 
             for dep in task.depends_on {
-                let edge_id = Uuid::new_v4();
                 sqlx::query(
-                    r#"INSERT INTO dag_edges (id, dag_id, from_task, to_task)
-                       VALUES (?, ?, ?, ?)"#
+                    r#"INSERT INTO dag_edges (dag_id, from_task, to_task)
+                       VALUES (?, ?, ?)"#
                 )
-                .bind(edge_id.to_string())
-                .bind(job_id.to_string())
+                .bind(job_id)
                 .bind(&dep)
                 .bind(&task.name)
                 .execute(&mut *tx)
@@ -653,7 +718,7 @@ async fn create_job_submit(
         // デフォルトSlackチャネルの存在確認と作成
         sqlx::query(
             r#"INSERT INTO notification_channels (id, name, channel_type, config, is_active)
-               VALUES ('c1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'default-slack', 'slack', '{"webhook_url":""}', 1)
+               VALUES (1, 'default-slack', 'slack', '{"webhook_url":""}', 1)
                ON DUPLICATE KEY UPDATE is_active=is_active"#
         )
         .execute(&mut *tx)
@@ -662,7 +727,7 @@ async fn create_job_submit(
 
         sqlx::query(
             r#"INSERT INTO job_notifications (job_id, channel_id, on_events)
-               VALUES (?, 'c1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', ?)"#
+               VALUES (?, 1, ?)"#
         )
         .bind(job_id.to_string())
         .bind(events_json)
@@ -681,10 +746,15 @@ async fn create_job_submit(
 async fn job_detail_page(
     claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(name_in_path): Path<String>,
     Query(query): Query<RunsQuery>,
 ) -> impl IntoResponse {
-    let job = crate::db::jobs::get_job(&state.db, &id).await.unwrap().unwrap();
+        let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path).await.unwrap_or(None);
+    let job = match job_opt {
+        Some(j) => j,
+        None => return (axum::http::StatusCode::NOT_FOUND, "Job not found").into_response(),
+    };
+    let id = job.id;
     
     let job_type_str = match job.job_type {
         JobType::Cron => "Cron (定期)",
@@ -695,6 +765,7 @@ async fn job_detail_page(
     let worker_type_str = match job.worker_type {
         WorkerType::Fargate => "fargate",
         WorkerType::Lambda => "lambda",
+        WorkerType::Controller => "controller",
     };
 
     let retry_backoff_str = match job.retry_policy.backoff {
@@ -711,7 +782,7 @@ async fn job_detail_page(
     let desc = current_sort != "asc";
 
     let total_runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM job_runs WHERE job_id = ?")
-        .bind(id.to_string())
+        .bind(id)
         .fetch_one(&state.db)
         .await
         .unwrap_or(0);
@@ -812,7 +883,7 @@ async fn job_detail_page(
 
     // 2. Slack通知設定の取得
     let noti_row = sqlx::query(
-        "SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 'c1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d'"
+        "SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 1"
     )
     .bind(job.id.to_string())
     .fetch_optional(&state.db)
@@ -839,7 +910,7 @@ async fn job_detail_page(
         let tasks_rows = sqlx::query(
             "SELECT task_name, worker_type, payload FROM dag_tasks WHERE dag_id = ?"
         )
-        .bind(id.to_string())
+        .bind(id)
         .fetch_all(&state.db)
         .await
         .unwrap_or_default();
@@ -861,7 +932,7 @@ async fn job_detail_page(
         let edges_rows = sqlx::query(
             "SELECT from_task, to_task FROM dag_edges WHERE dag_id = ?"
         )
-        .bind(id.to_string())
+        .bind(id)
         .fetch_all(&state.db)
         .await
         .unwrap_or_default();
@@ -889,10 +960,16 @@ async fn job_detail_page(
     } else {
         // Parse payload as shell command
         if let Ok(shell) = serde_json::from_value::<ShellPayload>(job.payload.clone()) {
-            let mut cmd = shell.command;
-            if !shell.args.is_empty() {
-                cmd.push(' ');
-                cmd.push_str(&shell.args.join(" "));
+            let mut cmd = String::new();
+            if shell.command == "sh" && shell.args.len() >= 2 && shell.args[0] == "-c" {
+                // Unwrap "sh -c"
+                cmd.push_str(&shell.args[1..].join(" "));
+            } else {
+                cmd = shell.command;
+                if !shell.args.is_empty() {
+                    cmd.push(' ');
+                    cmd.push_str(&shell.args.join(" "));
+                }
             }
             command_preview = cmd;
 
@@ -925,7 +1002,7 @@ async fn job_detail_page(
     let mut history_rows = sqlx::query(
         "SELECT version, changed_by, payload, changed_at FROM job_history WHERE job_id = ? ORDER BY version DESC"
     )
-    .bind(id.to_string())
+    .bind(id)
     .fetch_all(&state.db)
     .await
     .unwrap_or_default();
@@ -935,7 +1012,7 @@ async fn job_detail_page(
         history_rows = sqlx::query(
             "SELECT version, changed_by, payload, changed_at FROM job_history WHERE job_id = ? ORDER BY version DESC"
         )
-        .bind(id.to_string())
+        .bind(id)
         .fetch_all(&state.db)
         .await
         .unwrap_or_default();
@@ -965,9 +1042,18 @@ async fn job_detail_page(
         Vec::new()
     };
 
+    let active_runs_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM job_runs WHERE job_id = ? AND status IN ('pending', 'scheduled', 'queued', 'running', 'retrying')"
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(0);
+    let is_polling = active_runs_count > 0;
+
     JobDetailTemplate {
+        job_name: job.name.clone(),
         job,
-        job_id: id,
         job_type_str,
         worker_type_str,
         worker_definition_name,
@@ -979,9 +1065,10 @@ async fn job_detail_page(
         total_pages,
         start_index,
         end_index,
-        pages,
+        page_items: pages.into_iter().map(Some).collect(),
         current_sort,
         empty_runs,
+        is_polling,
         is_dag,
         command_preview,
         env_vars,
@@ -997,16 +1084,33 @@ async fn job_detail_page(
         updated_at_str,
         dag_tasks_json,
         dag_edges_json,
+        latest_version: history.first().map(|h| h.version).unwrap_or(0),
         history,
-    }
+        history_current_page: 1,
+        history_total_pages: 1,
+        total_history: 0,
+        history_start_index: 0,
+        history_end_index: 0,
+        history_page_items: Vec::new(),
+        empty_history: Vec::new(),
+        initial_tab: "runs".to_string(),
+
+    }.into_response()
 }
 
 async fn job_runs_list(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(name_in_path): Path<String>,
     Query(query): Query<RunsQuery>,
 ) -> impl IntoResponse {
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path).await.unwrap_or(None);
+    let job = match job_opt {
+        Some(j) => j,
+        None => return axum::response::Redirect::to("/jobs").into_response(),
+    };
+    let id = job.id;
+
     let current_page = query.page.unwrap_or(1).max(1);
     let limit = 10u32;
     let offset = (current_page - 1) * limit;
@@ -1014,7 +1118,7 @@ async fn job_runs_list(
     let desc = current_sort != "asc";
 
     let total_runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM job_runs WHERE job_id = ?")
-        .bind(id.to_string())
+        .bind(id)
         .fetch_one(&state.db)
         .await
         .unwrap_or(0);
@@ -1101,26 +1205,41 @@ async fn job_runs_list(
         Vec::new()
     };
 
+    let active_runs_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM job_runs WHERE job_id = ? AND status IN ('pending', 'scheduled', 'queued', 'running', 'retrying')"
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(0);
+    let is_polling = active_runs_count > 0;
+
     JobRunsTableTemplate {
-        job_id: id,
+        job_name: job.name.clone(),
         recent_runs,
         total_runs,
         current_page,
         total_pages,
         start_index,
         end_index,
-        pages,
+        page_items: pages.into_iter().map(Some).collect(),
         current_sort,
         empty_runs,
-    }
+        is_polling,
+    }.into_response()
 }
 
 async fn edit_job_page(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(name_in_path): Path<String>,
 ) -> impl IntoResponse {
-    let job = crate::db::jobs::get_job(&state.db, &id).await.unwrap().unwrap();
+        let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path).await.unwrap_or(None);
+    let job = match job_opt {
+        Some(j) => j,
+        None => return (axum::http::StatusCode::NOT_FOUND, "Job not found").into_response(),
+    };
+    let id = job.id;
 
     let mut script = String::new();
     let mut env = String::new();
@@ -1134,7 +1253,7 @@ async fn edit_job_page(
         let tasks_rows = sqlx::query(
             "SELECT task_name, worker_type, payload, retry_policy, timeout_sec FROM dag_tasks WHERE dag_id = ?"
         )
-        .bind(id.to_string())
+        .bind(id)
         .fetch_all(&state.db)
         .await
         .unwrap_or_default();
@@ -1151,7 +1270,7 @@ async fn edit_job_page(
             let dep_rows = sqlx::query(
                 "SELECT from_task FROM dag_edges WHERE dag_id = ? AND to_task = ?"
             )
-            .bind(id.to_string())
+            .bind(id)
             .bind(&name)
             .fetch_all(&state.db)
             .await
@@ -1213,7 +1332,7 @@ async fn edit_job_page(
 
     // Slack通知設定の復元取得
     let noti_row = sqlx::query(
-        "SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 'c1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d'"
+        "SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 1"
     )
     .bind(job.id.to_string())
     .fetch_optional(&state.db)
@@ -1242,8 +1361,7 @@ async fn edit_job_page(
 
     let mut spaces = Vec::new();
     for row in spaces_rows {
-        let id_str: String = row.try_get("id").unwrap_or_default();
-        let id = Uuid::parse_str(&id_str).unwrap_or_default();
+        let id: i64 = row.try_get("id").unwrap_or_default();
         let name: String = row.try_get("name").unwrap_or_default();
         let description: Option<String> = row.try_get("description").ok();
         let created_at = row.try_get("created_at").unwrap_or_else(|_| Utc::now());
@@ -1259,12 +1377,14 @@ async fn edit_job_page(
     }
 
     JobFormTemplate {
+        error_message: None,
+        original_name: Some(job.name.clone()),
         is_edit: true,
         job_id: Some(job.id),
         name: job.name,
         description: job.description.unwrap_or_default(),
         job_type: job.job_type.to_string(),
-        worker_definition_id: job.worker_definition_id.map(|uid| uid.to_string()).unwrap_or_default(),
+        worker_definition_id: job.worker_definition_id.map(|id| id.to_string()).unwrap_or_default(),
         worker_defs,
         spaces,
         space_id: job.space_id,
@@ -1285,19 +1405,26 @@ async fn edit_job_page(
         slack_on_running,
         slack_on_succeeded,
         slack_on_failed,
-    }
+    }.into_response()
 }
 
 async fn edit_job_submit(
     claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(name_in_path): Path<String>,
     Form(form): Form<JobFormData>,
 ) -> impl IntoResponse {
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path).await.unwrap_or(None);
+    let existing_job = match job_opt {
+        Some(j) => j,
+        None => return Redirect::to("/jobs").into_response(),
+    };
+    let id = existing_job.id;
+
     let job_type = JobType::from_str(&form.job_type).unwrap_or(JobType::OneShot);
     
     // ロードされた自作ワーカーノード定義から worker_type を決定
-    let worker_def_id = Uuid::parse_str(&form.worker_definition_id).unwrap();
+    let worker_def_id = form.worker_definition_id.parse::<i64>().unwrap();
     let def = crate::db::workers::get_worker_definition(&state.db, &worker_def_id).await.unwrap().unwrap();
     let worker_type = def.worker_type;
 
@@ -1314,6 +1441,7 @@ async fn edit_job_submit(
     };
 
     let tags = form.tags_str
+        .clone()
         .unwrap_or_default()
         .split(',')
         .map(|t| t.trim().to_string())
@@ -1336,8 +1464,8 @@ async fn edit_job_submit(
             }
         }
 
-        let ssm_region = form.ssm_region.filter(|r| !r.trim().is_empty());
-        let ssm_path = form.ssm_path.filter(|p| !p.trim().is_empty());
+        let ssm_region = form.ssm_region.clone().filter(|r| !r.trim().is_empty());
+        let ssm_path = form.ssm_path.clone().filter(|p| !p.trim().is_empty());
         let ssm_recursive = if ssm_path.is_some() {
             Some(form.ssm_recursive.as_deref() == Some("on"))
         } else {
@@ -1361,8 +1489,8 @@ async fn edit_job_submit(
             }
         }
 
-        let ssm_region = form.ssm_region.filter(|r| !r.trim().is_empty());
-        let ssm_path = form.ssm_path.filter(|p| !p.trim().is_empty());
+        let ssm_region = form.ssm_region.clone().filter(|r| !r.trim().is_empty());
+        let ssm_path = form.ssm_path.clone().filter(|p| !p.trim().is_empty());
         let ssm_recursive = if ssm_path.is_some() {
             Some(form.ssm_recursive.as_deref() == Some("on"))
         } else {
@@ -1371,7 +1499,7 @@ async fn edit_job_submit(
 
         let shell = ShellPayload {
             command: "sh".to_string(),
-            args: vec!["-c".to_string(), form.script.unwrap_or_default()],
+            args: vec!["-c".to_string(), form.script.clone().unwrap_or_default().replace("\r\n", "\n")],
             working_dir: None,
             env,
             ssm_region,
@@ -1382,10 +1510,10 @@ async fn edit_job_submit(
     };
 
     let space_id = form.space_id
+        .clone()
         .filter(|s| !s.trim().is_empty())
-        .and_then(|s| Uuid::parse_str(&s).ok());
+        .and_then(|s| s.parse::<i64>().ok());
 
-    // Save changes in a transaction to handle DAG updates cleanly
     let pool = &state.db;
     let mut tx = pool.begin().await.unwrap();
 
@@ -1393,46 +1521,95 @@ async fn edit_job_submit(
     let tags_json = serde_json::to_value(&tags).unwrap();
     let is_active_val: i8 = if is_active { 1 } else { 0 };
 
-    sqlx::query(
+    let update_result = sqlx::query(
         r#"UPDATE jobs 
-           SET name = ?, description = ?, job_type = ?, payload = ?, schedule_expr = ?, worker_type = ?, retry_policy = ?, timeout_sec = ?, is_active = ?, tags = ?, worker_definition_id = ?, space_id = ?, updated_at = ?
+           SET name = ?, description = ?, job_type = ?, payload = ?, schedule_expr = ?, retry_policy = ?, timeout_sec = ?, is_active = ?, tags = ?, worker_definition_id = ?, space_id = ?, updated_at = ?
            WHERE id = ?"#
     )
     .bind(&form.name)
-    .bind(&form.description.filter(|d| !d.trim().is_empty()))
+    .bind(&form.description.clone().filter(|d| !d.trim().is_empty()))
     .bind(job_type.to_string())
     .bind(&payload)
-    .bind(&form.schedule_expr.filter(|s| !s.trim().is_empty()))
-    .bind(worker_type.to_string())
+    .bind(&form.schedule_expr.clone().filter(|s| !s.trim().is_empty()))
     .bind(retry_policy_json)
     .bind(form.timeout_sec)
     .bind(is_active_val)
     .bind(tags_json)
-    .bind(worker_def_id.to_string())
-    .bind(space_id.map(|uid| uid.to_string()))
+    .bind(worker_def_id)
+    .bind(space_id)
     .bind(Utc::now())
-    .bind(id.to_string())
+    .bind(id)
     .execute(&mut *tx)
-    .await
-    .unwrap();
+    .await;
+
+    match update_result {
+        Ok(_) => {},
+        Err(e) => {
+            if let sqlx::Error::Database(db_err) = &e {
+                if db_err.code().as_deref() == Some("23000") || db_err.message().contains("Duplicate") {
+                    let space_rows = sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces").fetch_all(&state.db).await.unwrap_or_default();
+                    let mut spaces = Vec::new();
+                    for row in space_rows {
+                        let id: i64 = row.try_get("id").unwrap_or_default();
+                        let name: String = row.try_get("name").unwrap_or_default();
+                        let description: Option<String> = row.try_get("description").ok();
+                        let created_at = row.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now());
+                        let updated_at = row.try_get("updated_at").unwrap_or_else(|_| chrono::Utc::now());
+                        spaces.push(mrs_harris_common::models::space::Space { id, name, description, created_at, updated_at });
+                    }
+                    let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db).await.unwrap_or_default();
+                    return JobFormTemplate {
+                        error_message: Some("指定されたジョブ名は既に使用されています。別の名前を指定してください。".to_string()),
+                        is_edit: true,
+                        job_id: Some(existing_job.id),
+                        original_name: Some(existing_job.name.clone()),
+                        name: form.name.clone(),
+                        description: form.description.clone().unwrap_or_default(),
+                        tags_str: form.tags_str.clone().unwrap_or_default(),
+                        job_type: form.job_type.clone(),
+                        worker_definition_id: form.worker_definition_id.clone(),
+                        worker_defs,
+                        spaces,
+                        space_id: space_id.or(existing_job.space_id),
+                        schedule_expr: form.schedule_expr.clone().unwrap_or_default(),
+                        script: form.script.clone().unwrap_or_default(),
+                        env: form.env.clone().unwrap_or_default(),
+                        ssm_region: form.ssm_region.clone().unwrap_or_default(),
+                        ssm_path: form.ssm_path.clone().unwrap_or_default(),
+                        ssm_recursive: form.ssm_recursive.as_deref() == Some("on"),
+                        dag_tasks_json: form.dag_tasks_json.clone().unwrap_or_default(),
+                        timeout_sec: form.timeout_sec,
+                        has_retry: form.has_retry.as_deref() == Some("on"),
+                        max_retries: form.max_retries,
+                        backoff: form.backoff.clone(),
+                        base_delay_sec: form.base_delay_sec,
+                        is_active: form.is_active.as_deref() == Some("on"),
+                        slack_on_running: form.slack_on_running.as_deref() == Some("on"),
+                        slack_on_succeeded: form.slack_on_succeeded.as_deref() == Some("on"),
+                        slack_on_failed: form.slack_on_failed.as_deref() == Some("on"),
+                    }.into_response();
+                }
+            }
+            // Other DB errors
+            return Redirect::to(&format!("/jobs/{}", name_in_path)).into_response();
+        }
+    }
 
     if job_type == JobType::Dag {
         // Clear old tasks/edges and write new ones
-        sqlx::query("DELETE FROM dag_tasks WHERE dag_id = ?").bind(id.to_string()).execute(&mut *tx).await.unwrap();
-        sqlx::query("DELETE FROM dag_edges WHERE dag_id = ?").bind(id.to_string()).execute(&mut *tx).await.unwrap();
+        sqlx::query("DELETE FROM dag_tasks WHERE dag_id = ?").bind(id).execute(&mut *tx).await.unwrap();
+        sqlx::query("DELETE FROM dag_edges WHERE dag_id = ?").bind(id).execute(&mut *tx).await.unwrap();
 
         let task_defs: Vec<DagTaskDefinition> = serde_json::from_str(
             form.dag_tasks_json.as_deref().unwrap_or("[]")
         ).unwrap_or_default();
 
         for task in task_defs {
-            let task_id = Uuid::new_v4();
             sqlx::query(
-                r#"INSERT INTO dag_tasks (id, dag_id, task_name, payload, worker_type, retry_policy, timeout_sec)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)"#
+                r#"INSERT INTO dag_tasks (dag_id, task_name, payload, worker_type, retry_policy, timeout_sec)
+                   VALUES (?, ?, ?, ?, ?, ?)"#
             )
-            .bind(task_id.to_string())
-            .bind(id.to_string())
+            .bind(id)
             .bind(&task.name)
             .bind(&task.payload)
             .bind(task.worker_type.to_string())
@@ -1443,13 +1620,11 @@ async fn edit_job_submit(
             .unwrap();
 
             for dep in task.depends_on {
-                let edge_id = Uuid::new_v4();
                 sqlx::query(
-                    r#"INSERT INTO dag_edges (id, dag_id, from_task, to_task)
-                       VALUES (?, ?, ?, ?)"#
+                    r#"INSERT INTO dag_edges (dag_id, from_task, to_task)
+                       VALUES (?, ?, ?)"#
                 )
-                .bind(edge_id.to_string())
-                .bind(id.to_string())
+                .bind(id)
                 .bind(&dep)
                 .bind(&task.name)
                 .execute(&mut *tx)
@@ -1464,9 +1639,8 @@ async fn edit_job_submit(
     let slack_succeeded = form.slack_on_succeeded.as_deref() == Some("on");
     let slack_failed = form.slack_on_failed.as_deref() == Some("on");
 
-    // First delete any existing notifications link for default-slack
-    sqlx::query("DELETE FROM job_notifications WHERE job_id = ? AND channel_id = 'c1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d'")
-        .bind(id.to_string())
+    sqlx::query("DELETE FROM job_notifications WHERE job_id = ? AND channel_id = 1")
+        .bind(id)
         .execute(&mut *tx)
         .await
         .unwrap();
@@ -1485,10 +1659,9 @@ async fn edit_job_submit(
         }
         let events_json = serde_json::to_value(&events).unwrap();
 
-        // デフォルトSlackチャネルの存在確認と作成
         sqlx::query(
             r#"INSERT INTO notification_channels (id, name, channel_type, config, is_active)
-               VALUES ('c1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'default-slack', 'slack', '{"webhook_url":""}', 1)
+               VALUES (1, 'default-slack', 'slack', '{"webhook_url":""}', 1)
                ON DUPLICATE KEY UPDATE is_active=is_active"#
         )
         .execute(&mut *tx)
@@ -1497,9 +1670,9 @@ async fn edit_job_submit(
 
         sqlx::query(
             r#"INSERT INTO job_notifications (job_id, channel_id, on_events)
-               VALUES (?, 'c1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', ?)"#
+               VALUES (?, 1, ?)"#
         )
-        .bind(id.to_string())
+        .bind(id)
         .bind(events_json)
         .execute(&mut *tx)
         .await
@@ -1510,9 +1683,8 @@ async fn edit_job_submit(
 
     let _ = record_job_history(&state.db, &id, &claims.0.username).await;
 
-    Redirect::to(&format!("/jobs/{}", id)).into_response()
+    Redirect::to(&format!("/jobs/{}", form.name)).into_response()
 }
-
 
 
 async fn build_job_snapshot(
@@ -1546,7 +1718,7 @@ async fn build_job_snapshot(
         let tasks_rows = sqlx::query(
             "SELECT task_name, worker_type, payload FROM dag_tasks WHERE dag_id = ?"
         )
-        .bind(job.id.to_string())
+        .bind(job.id)
         .fetch_all(pool)
         .await
         .unwrap_or_default();
@@ -1598,7 +1770,7 @@ async fn build_job_snapshot(
 
     // Slack settings
     let noti_row = sqlx::query(
-        "SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 'c1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d'"
+        "SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 1"
     )
     .bind(job.id.to_string())
     .fetch_optional(pool)
@@ -1648,7 +1820,7 @@ async fn build_job_snapshot(
 
 async fn record_job_history(
     pool: &MySqlPool,
-    job_id: &Uuid,
+    job_id: &i64,
     changed_by: &str,
 ) -> anyhow::Result<()> {
     // 1. 最新のジョブ情報を取得
@@ -1664,7 +1836,7 @@ async fn record_job_history(
     let version_row = sqlx::query(
         "SELECT MAX(version) as max_v FROM job_history WHERE job_id = ?"
     )
-    .bind(job_id.to_string())
+    .bind(job_id)
     .fetch_one(pool)
     .await?;
     
@@ -1678,7 +1850,7 @@ async fn record_job_history(
            VALUES (?, ?, ?, ?, ?, ?)"#
     )
     .bind(history_id.to_string())
-    .bind(job_id.to_string())
+    .bind(job_id)
     .bind(next_version)
     .bind(snapshot)
     .bind(changed_by)
@@ -1687,4 +1859,36 @@ async fn record_job_history(
     .await?;
 
     Ok(())
+}
+
+#[derive(serde::Deserialize)]
+pub struct ValidateNameForm {
+    pub name: String,
+    pub current_job_id: Option<i64>,
+}
+
+pub async fn api_validate_job_name(
+    _claims: WebClaims,
+    State(state): State<AppState>,
+    Form(form): Form<ValidateNameForm>,
+) -> impl IntoResponse {
+    let name_trimmed = form.name.trim();
+    if name_trimmed.is_empty() {
+        return axum::response::Html("").into_response();
+    }
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, name_trimmed).await.unwrap_or(None);
+    let mut exists = job_opt.is_some();
+    if let Some(job) = job_opt {
+        if let Some(ignore_id) = form.current_job_id {
+            if job.id == ignore_id {
+                exists = false;
+            }
+        }
+    }
+    
+    if exists {
+        axum::response::Html(r#"<span style="color: #ef4444; font-size: 0.85rem; display: block; margin-top: 4px;">このジョブ名は既に使用されています。</span>"#).into_response()
+    } else {
+        axum::response::Html("").into_response()
+    }
 }

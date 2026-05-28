@@ -256,17 +256,17 @@
 
     <div style="display: flex; gap: 10px;" hx-boost="false">
         <button class="btn btn-secondary" style="background: rgba(14,165,233,0.08); color: var(--color-primary); border-color: rgba(14,165,233,0.25);"
-                hx-post="/api/jobs/{{ job.id }}/trigger" hx-swap="none"
-                onclick="alert('ジョブ実行をトリガーしました！')">
+                hx-post="/api/jobs/{{ job.name }}/trigger" hx-swap="none"
+                hx-on::after-request="startRunPolling()">
             <i data-lucide="play" style="width: 14px; height: 14px;"></i>
             実行
         </button>
-        <a href="/jobs/{{ job.id }}/edit" class="btn btn-secondary">
+        <a href="/jobs/{{ job.name }}/edit" class="btn btn-secondary">
             <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
             編集
         </a>
         <button class="btn btn-danger"
-                hx-delete="/api/jobs/{{ job.id }}"
+                hx-delete="/api/jobs/{{ job.name }}"
                 hx-confirm="本当にこのジョブ定義を削除しますか？"
                 hx-headers='{"Authorization": ""}'
                 hx-on::after-request="if (event.detail.successful) window.location.href='/jobs'">
@@ -294,13 +294,7 @@
     <!-- Divider 2 -->
     <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 14px; padding-top: 14px;">
         <div class="summary-grid">
-            <!-- Job ID -->
-            <div class="summary-item">
-                <span class="summary-label">ジョブ ID</span>
-                <div class="summary-value">
-                    <span id="job-id-text" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;">{{ job.id }}</span>
-                </div>
-            </div>
+
             
             <!-- Status -->
             <div class="summary-item">
@@ -316,21 +310,21 @@
                 </div>
             </div>
             
-            <!-- Job Type -->
-            <div class="summary-item">
-                <span class="summary-label">ジョブタイプ</span>
-                <div class="summary-value" style="font-family: 'Outfit', sans-serif; font-weight: 600;">
-                    <i data-lucide="git-commit" style="width: 14px; height: 14px; color: var(--color-primary-light);"></i>
-                    {{ job_type_str }}
-                </div>
-            </div>
-            
             <!-- Worker definition -->
             <div class="summary-item">
                 <span class="summary-label">実行ワーカー</span>
                 <div class="summary-value">
                     <i data-lucide="server" style="width: 14px; height: 14px; color: var(--color-primary-light);"></i>
                     {{ worker_definition_name }}
+                </div>
+            </div>
+            
+            <!-- Job Type -->
+            <div class="summary-item">
+                <span class="summary-label">ジョブタイプ</span>
+                <div class="summary-value" style="font-family: 'Outfit', sans-serif; font-weight: 600;">
+                    <i data-lucide="git-commit" style="width: 14px; height: 14px; color: var(--color-primary-light);"></i>
+                    {{ job_type_str }}
                 </div>
             </div>
             
@@ -358,6 +352,14 @@
                     {{ updated_at_str }}
                 </div>
             </div>
+
+            <!-- Latest Version -->
+            <div class="summary-item">
+                <span class="summary-label">最新バージョン</span>
+                <div class="summary-value" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 600;">
+                    v{{ latest_version }}
+                </div>
+            </div>
         </div>
     </div>
     
@@ -376,7 +378,7 @@
 
 <!-- ========== TABS ========== -->
 <div class="ec2-tabs-nav" hx-boost="false">
-    <button class="ec2-tab-btn active" data-tab="tab-runs">
+    <button class="ec2-tab-btn" data-tab="tab-runs">
         <i data-lucide="history" style="width:14px;height:14px;"></i> 実行履歴
     </button>
     <button class="ec2-tab-btn" data-tab="tab-env">
@@ -397,7 +399,7 @@
 </div>
 
 <!-- ========== TAB: 実行履歴 ========== -->
-<div id="tab-runs" class="ec2-tab-pane active">
+<div id="tab-runs" class="ec2-tab-pane">
     <div class="card" style="padding: 20px 24px;">
         <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
             <i data-lucide="history" style="width:15px;height:15px;color:var(--color-primary);"></i>
@@ -620,43 +622,8 @@
             </button>
         </div>
 
-        <div class="table-container">
-            <table class="data-table" style="font-size:0.85rem;">
-                <thead>
-                    <tr>
-                        <th style="width:10%;">バージョン</th>
-                        <th style="width:35%;" class="no-sort">変更日時</th>
-                        <th style="width:25%;" class="no-sort">変更ユーザ</th>
-                        <th style="width:15%;text-align:center;" class="no-sort">比較 A</th>
-                        <th style="width:15%;text-align:center;" class="no-sort">比較 B</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if history.is_empty() %}
-                    <tr>
-                        <td colspan="5" style="text-align:center;color:var(--text-muted);padding:48px 0;">
-                            履歴がありません
-                        </td>
-                    </tr>
-                    {% else %}
-                    {% for item in history %}
-                    <tr class="history-row">
-                        <td>
-                            <a href="javascript:void(0)" class="vd-link" onclick="showVersionDetail('{{ item.version }}', '{{ item.payload_json|urlencode }}')" style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--color-primary);">v{{ item.version }}</a>
-                        </td>
-                        <td style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;">{{ item.changed_at_str }}</td>
-                        <td>{{ item.changed_by }}</td>
-                        <td style="text-align:center;">
-                            <input type="radio" name="compare-a" value="{{ item.version }}" data-payload="{{ item.payload_json|urlencode }}" class="compare-radio" {% if loop.index == 2 %}checked{% endif %}>
-                        </td>
-                        <td style="text-align:center;">
-                            <input type="radio" name="compare-b" value="{{ item.version }}" data-payload="{{ item.payload_json|urlencode }}" class="compare-radio" {% if loop.first %}checked{% endif %}>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    {% endif %}
-                </tbody>
-            </table>
+        <div id="history-table-container">
+            {% include "jobs/history_table.html" %}
         </div>
     </div>
 </div>
@@ -715,7 +682,7 @@
             `;
             lucide.createIcons();
             
-            fetch(`/jobs/${jobId}/runs/${runNumber}/live`)
+            fetch(`/jobs/{{ job.name }}/runs/${runNumber}/live`)
                 .then(function(res) {
                     if (!res.ok) throw new Error("Failed to load run detail");
                     return res.text();
@@ -756,7 +723,7 @@
         var anchor = e.target.closest('a');
         if (anchor) {
             var href = anchor.getAttribute('href');
-            if (href === '/jobs/' + jobId || href === '/jobs/' + jobId + '/') {
+            if (href === '/jobs/{{ job.name }}' || href === '/jobs/{{ job.name }}/') {
                 e.preventDefault();
                 window.location.hash = '';
             }
@@ -776,9 +743,51 @@
 <!-- ========== Tab switching JS ========== -->
 <script>
 (function() {
-    function initTabs() {
+    var urlParams = new URLSearchParams(window.location.search);
+    var tabParam = urlParams.get('tab');
+    var initialTab = tabParam || '{{ initial_tab }}';
+
+    function activateTab(targetId) {
         var tabs = document.querySelectorAll('.ec2-tab-btn');
         var panels = document.querySelectorAll('.ec2-tab-pane');
+        tabs.forEach(function(t) { t.classList.remove('active'); });
+        panels.forEach(function(p) { p.classList.remove('active'); });
+        var btn = document.querySelector('[data-tab="' + targetId + '"]');
+        var panel = document.getElementById(targetId);
+        if (btn) btn.classList.add('active');
+        if (panel) panel.classList.add('active');
+        lucide.createIcons();
+    }
+
+    function tabParamToId(tab) {
+        var map = {
+            'runs': 'tab-runs',
+            'env': 'tab-env',
+            'opts': 'tab-opts',
+            'cmd': 'tab-cmd',
+            'slack': 'tab-slack',
+            'history': 'tab-history'
+        };
+        return map[tab] || 'tab-runs';
+    }
+
+    function tabIdToParam(tabId) {
+        var map = {
+            'tab-runs': 'runs',
+            'tab-env': 'env',
+            'tab-opts': 'opts',
+            'tab-cmd': 'cmd',
+            'tab-slack': 'slack',
+            'tab-history': 'history'
+        };
+        return map[tabId] || 'runs';
+    }
+
+    function initTabs() {
+        var tabs = document.querySelectorAll('.ec2-tab-btn');
+
+        // 初期タブをサーバー側から受け取った値で設定
+        activateTab(tabParamToId(initialTab));
 
         tabs.forEach(function(tab) {
             tab.addEventListener('click', function(e) {
@@ -786,15 +795,18 @@
                 e.stopPropagation();
 
                 var target = this.getAttribute('data-tab');
+                activateTab(target);
 
-                tabs.forEach(function(t) { t.classList.remove('active'); });
-                panels.forEach(function(p) { p.classList.remove('active'); });
-
-                this.classList.add('active');
-                var el = document.getElementById(target);
-                if (el) el.classList.add('active');
-
-                lucide.createIcons();
+                // URLを ?tab=xxx に更新（ブラウザ履歴を汚さないよう replaceState）
+                var tabParam = tabIdToParam(target);
+                var url = new URL(window.location.href);
+                url.searchParams.set('tab', tabParam);
+                // runs 以外のタブに切り替えたらページ番号・ソートをリセット
+                if (tabParam !== 'runs') {
+                    url.searchParams.delete('page');
+                    url.searchParams.delete('sort');
+                }
+                history.replaceState(null, '', url.toString());
             });
         });
     }
@@ -809,20 +821,88 @@
 
 <!-- ========== A/B Diff Logic JS ========== -->
 <script>
-function compareVersions() {
-    var radioA = document.querySelector('input[name="compare-a"]:checked');
-    var radioB = document.querySelector('input[name="compare-b"]:checked');
+window.compareState = {
+    a: { version: null, payload: null },
+    b: { version: null, payload: null },
+    initialized: false
+};
+
+function initCompareState() {
+    // 常にDOMの現在のchecked状態をcompareStateに同期する
+    var initA = document.querySelector('input[name="compare-a"]:checked');
+    if (initA) {
+        window.compareState.a = { version: initA.value, payload: initA.dataset.payload };
+        initA.dataset.wasChecked = "true";
+    }
+    var initB = document.querySelector('input[name="compare-b"]:checked');
+    if (initB) {
+        window.compareState.b = { version: initB.value, payload: initB.dataset.payload };
+        initB.dataset.wasChecked = "true";
+    }
+    window.compareState.initialized = true;
+}
+
+function restoreCompareState() {
+    document.querySelectorAll('input[name="compare-a"]').forEach(r => {
+        if (window.compareState.a.version === r.value) {
+            r.checked = true;
+            r.dataset.wasChecked = "true";
+        } else {
+            r.checked = false;
+            r.dataset.wasChecked = "false";
+        }
+    });
+    document.querySelectorAll('input[name="compare-b"]').forEach(r => {
+        if (window.compareState.b.version === r.value) {
+            r.checked = true;
+            r.dataset.wasChecked = "true";
+        } else {
+            r.checked = false;
+            r.dataset.wasChecked = "false";
+        }
+    });
+}
+
+function toggleCompareRadio(radio) {
+    var isA = radio.name === 'compare-a';
+    var stateKey = isA ? 'a' : 'b';
     
-    if (!radioA || !radioB) {
+    if (radio.dataset.wasChecked === "true") {
+        radio.checked = false;
+        radio.dataset.wasChecked = "false";
+        window.compareState[stateKey] = { version: null, payload: null };
+    } else {
+        document.querySelectorAll('input[name="' + radio.name + '"]').forEach(r => {
+            r.dataset.wasChecked = "false";
+        });
+        radio.checked = true;
+        radio.dataset.wasChecked = "true";
+        window.compareState[stateKey] = {
+            version: radio.value,
+            payload: radio.dataset.payload
+        };
+    }
+}
+
+document.addEventListener('DOMContentLoaded', initCompareState);
+document.addEventListener('htmx:afterSwap', function(e) {
+    if (e.target.id === 'history-table-container') {
+        // まずDOMにcompareStateを復元し、wasCheckedを正しくセットする
+        restoreCompareState();
+    }
+});
+
+function compareVersions() {
+    if (!window.compareState.a.version || !window.compareState.b.version) {
         alert('比較する2つのバージョン（AとB）を選択してください。');
         return;
     }
     
-    var verA = radioA.value;
-    var verB = radioB.value;
+    var verA = window.compareState.a.version;
+    var verB = window.compareState.b.version;
     
-    var payloadA = JSON.parse(decodeURIComponent(radioA.getAttribute('data-payload')));
-    var payloadB = JSON.parse(decodeURIComponent(radioB.getAttribute('data-payload')));
+    var payloadA = JSON.parse(decodeURIComponent(window.compareState.a.payload));
+    var payloadB = JSON.parse(decodeURIComponent(window.compareState.b.payload));
     
     var titleEl = document.getElementById('diff-title-versions');
     titleEl.textContent = 'バージョン ' + verA + ' (A) ➔ バージョン ' + verB + ' (B)';
@@ -901,11 +981,13 @@ function compareVersions() {
     }
     
     document.getElementById('diff-modal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
     lucide.createIcons();
 }
 
 function closeDiffModal() {
     document.getElementById('diff-modal').style.display = 'none';
+    document.body.style.overflow = '';
 }
 </script>
 
@@ -1200,6 +1282,7 @@ function showVersionDetail(version, encodedPayload) {
     }
     
     document.getElementById('version-detail-modal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
     if (window.lucide) {
         lucide.createIcons();
     }
@@ -1207,6 +1290,7 @@ function showVersionDetail(version, encodedPayload) {
 
 function closeVersionDetailModal() {
     document.getElementById('version-detail-modal').style.display = 'none';
+    document.body.style.overflow = '';
 }
 </script>
 
@@ -1303,4 +1387,58 @@ function closeVersionDetailModal() {
 })();
 </script>
 {% endif %}
+<script>
+function startRunPolling() {
+    // 実行履歴タブに切り替える
+    if (typeof activateTab === 'function') {
+        activateTab('tab-runs');
+    }
+    var urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('tab', 'runs');
+    window.history.pushState({}, '', '?' + urlParams.toString());
+
+    // 履歴テーブルの先頭にダミーレコードを追加
+    var tbody = document.querySelector('#runs-table-container tbody');
+    if (tbody) {
+        // 「履歴がありません」行を削除
+        var emptyRow = tbody.querySelector('td[colspan]');
+        if (emptyRow) {
+            emptyRow.parentElement.remove();
+        }
+
+        var tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><span style="color:var(--text-muted);font-family:'JetBrains Mono',monospace;font-size:0.88rem;font-weight:600;">--</span></td>
+            <td>
+                <span class="badge badge-info" style="display:inline-flex;align-items:center;gap:4px;">
+                    <i data-lucide="refresh-cw" class="spin" style="width:12px;height:12px;"></i>
+                    実行中
+                </span>
+            </td>
+            <td>手動実行</td>
+            <td style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;">--</td>
+            <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">今すぐ</td>
+            <td><i data-lucide="refresh-cw" class="spin" style="width:14px;height:14px;color:var(--text-muted);"></i></td>
+        `;
+        tbody.prepend(tr);
+        if (window.lucide) {
+            lucide.createIcons({ root: tr });
+        }
+    }
+
+    // テーブルコンテナにHTMXポーリング属性を付加して即座に発火
+    var container = document.getElementById('runs-table-container');
+    if (container) {
+        container.setAttribute('hx-get', '/jobs/{{ job.name }}/runs');
+        container.setAttribute('hx-trigger', 'every 5s');
+        container.setAttribute('hx-swap', 'outerHTML');
+        htmx.process(container);
+        
+        // 少し遅延させてポーリングリクエストを発火（APIのトリガー処理を待つため）
+        setTimeout(function() {
+            htmx.trigger(container, 'every 5s');
+        }, 1500);
+    }
+}
+</script>
 {% endblock %}

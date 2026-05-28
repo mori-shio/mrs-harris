@@ -1,6 +1,6 @@
 use mrs_harris_common::models::run::{LogLine, LogStream};
 use sqlx::{MySqlPool, Row};
-use uuid::Uuid;
+
 use chrono::{DateTime, Utc};
 use std::str::FromStr;
 
@@ -9,8 +9,8 @@ fn map_row_to_log(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<LogLine> {
     let id = id_u64 as i64;
 
     
-    let run_id_str: String = row.try_get("run_id")?;
-    let run_id = Uuid::parse_str(&run_id_str)?;
+    let run_id: i64 = row.try_get("job_run_id")?;
+    
 
     let task_name: Option<String> = row.try_get("task_name")?;
 
@@ -35,10 +35,10 @@ fn map_row_to_log(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<LogLine> {
 pub async fn append_log_line(pool: &MySqlPool, log: &LogLine) -> anyhow::Result<()> {
     let stream_str = log.stream.to_string();
     sqlx::query(
-        r#"INSERT INTO job_logs (run_id, task_name, stream, line, logged_at)
+        r#"INSERT INTO job_logs (job_run_id, task_name, stream, line, logged_at)
            VALUES (?, ?, ?, ?, ?)"#
     )
-    .bind(log.run_id.to_string())
+    .bind(log.run_id)
     .bind(&log.task_name)
     .bind(stream_str)
     .bind(&log.line)
@@ -65,10 +65,10 @@ pub async fn append_log_lines(pool: &MySqlPool, logs: &[LogLine]) -> anyhow::Res
     for log in logs {
         let stream_str = log.stream.to_string();
         sqlx::query(
-            r#"INSERT INTO job_logs (run_id, task_name, stream, line, logged_at)
+            r#"INSERT INTO job_logs (job_run_id, task_name, stream, line, logged_at)
                VALUES (?, ?, ?, ?, ?)"#
         )
-        .bind(log.run_id.to_string())
+        .bind(log.run_id)
         .bind(&log.task_name)
         .bind(&stream_str)
         .bind(&log.line)
@@ -82,9 +82,9 @@ pub async fn append_log_lines(pool: &MySqlPool, logs: &[LogLine]) -> anyhow::Res
 }
 
 /// 実行ログを取得
-pub async fn get_logs(pool: &MySqlPool, run_id: &Uuid) -> anyhow::Result<Vec<LogLine>> {
-    let rows = sqlx::query("SELECT * FROM job_logs WHERE run_id = ? ORDER BY logged_at ASC, id ASC")
-        .bind(run_id.to_string())
+pub async fn get_logs(pool: &MySqlPool, run_id: &i64) -> anyhow::Result<Vec<LogLine>> {
+    let rows = sqlx::query("SELECT * FROM job_logs WHERE job_run_id = ? ORDER BY logged_at ASC, id ASC")
+        .bind(run_id)
         .fetch_all(pool)
         .await?;
 

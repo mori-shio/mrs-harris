@@ -1,13 +1,12 @@
 use mrs_harris_common::models::job::{Job, JobType, WorkerType, RetryPolicy, NewJob, JobUpdate, JobFilter};
 use sqlx::{MySqlPool, Row};
-use uuid::Uuid;
+
 use chrono::{DateTime, Utc};
 use std::str::FromStr;
 
 /// 行データから Job 構造体へマッピングするヘルパー
 fn map_row_to_job(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<Job> {
-    let id_str: String = row.try_get("id")?;
-    let id = Uuid::parse_str(&id_str)?;
+    let id: i64 = row.try_get("id")?;
     
     let name: String = row.try_get("name")?;
     let description: Option<String> = row.try_get("description")?;
@@ -34,13 +33,8 @@ fn map_row_to_job(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<Job> {
     let tags_val: serde_json::Value = row.try_get("tags")?;
     let tags: Vec<String> = serde_json::from_value(tags_val)?;
 
-    let worker_definition_id_str: Option<String> = row.try_get("worker_definition_id")?;
-    let worker_definition_id = worker_definition_id_str
-        .and_then(|s| Uuid::parse_str(&s).ok());
-    
-    let space_id_str: Option<String> = row.try_get("space_id")?;
-    let space_id = space_id_str
-        .and_then(|s| Uuid::parse_str(&s).ok());
+    let worker_definition_id: Option<i64> = row.try_get("worker_definition_id")?;
+    let space_id: Option<i64> = row.try_get("space_id")?;
     
     let created_at: DateTime<Utc> = row.try_get("created_at")?;
     let updated_at: DateTime<Utc> = row.try_get("updated_at")?;
@@ -66,42 +60,58 @@ fn map_row_to_job(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<Job> {
 
 /// ジョブを新規作成
 pub async fn create_job(pool: &MySqlPool, new_job: &NewJob) -> anyhow::Result<Job> {
-    let id = Uuid::new_v4();
     let job_type_str = new_job.job_type.to_string();
-    let worker_type_str = new_job.worker_type.to_string();
     let retry_policy_json = serde_json::to_value(&new_job.retry_policy)?;
     let tags_json = serde_json::to_value(&new_job.tags)?;
     let is_active_val: i8 = if new_job.is_active { 1 } else { 0 };
-    let worker_def_id_str = new_job.worker_definition_id.map(|uid| uid.to_string());
-    let space_id_str = new_job.space_id.map(|uid| uid.to_string());
 
-    sqlx::query(
-        r#"INSERT INTO jobs (id, name, description, job_type, payload, schedule_expr, worker_type, retry_policy, timeout_sec, is_active, tags, worker_definition_id, space_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+    let result = sqlx::query(
+        r#"INSERT INTO jobs (name, description, job_type, payload, schedule_expr, retry_policy, timeout_sec, is_active, tags, worker_definition_id, space_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
     )
-    .bind(id.to_string())
     .bind(&new_job.name)
     .bind(&new_job.description)
     .bind(job_type_str)
     .bind(&new_job.payload)
     .bind(&new_job.schedule_expr)
-    .bind(worker_type_str)
     .bind(retry_policy_json)
     .bind(new_job.timeout_sec)
     .bind(is_active_val)
     .bind(tags_json)
-    .bind(worker_def_id_str)
-    .bind(space_id_str)
+    .bind(new_job.worker_definition_id)
+    .bind(new_job.space_id)
     .execute(pool)
     .await?;
 
-    get_job(pool, &id).await?.ok_or_else(|| anyhow::anyhow!("Created job not found"))
+    let new_id = result.last_insert_id() as i64;
+    get_job(pool, &new_id).await?.ok_or_else(|| anyhow::anyhow!("Created job not found"))
 }
 
 /// ジョブを取得
-pub async fn get_job(pool: &MySqlPool, id: &Uuid) -> anyhow::Result<Option<Job>> {
-    let row = sqlx::query("SELECT * FROM jobs WHERE id = ?")
-        .bind(id.to_string())
+pub async fn get_job(pool: &MySqlPool, id: &i64) -> anyhow::Result<Option<Job>> {
+    let row = sqlx::query(
+        "SELECT j.*, wd.worker_type FROM jobs j \
+         LEFT JOIN worker_definitions wd ON j.worker_definition_id = wd.id \
+         WHERE j.id = ?"
+    )
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+
+    match row {
+        Some(r) => Ok(Some(map_row_to_job(&r)?)),
+        None => Ok(None),
+    }
+}
+
+/// ジョブを名前で取得
+pub async fn get_job_by_name(pool: &MySqlPool, name: &str) -> anyhow::Result<Option<Job>> {
+    let row = sqlx::query(
+        "SELECT j.*, wd.worker_type FROM jobs j \
+         LEFT JOIN worker_definitions wd ON j.worker_definition_id = wd.id \
+         WHERE j.name = ?"
+    )
+        .bind(name)
         .fetch_optional(pool)
         .await?;
 
@@ -113,26 +123,28 @@ pub async fn get_job(pool: &MySqlPool, id: &Uuid) -> anyhow::Result<Option<Job>>
 
 /// ジョブ一覧を取得（フィルタ対応）
 pub async fn list_jobs(pool: &MySqlPool, filter: &JobFilter) -> anyhow::Result<Vec<Job>> {
-    let mut query_str = "SELECT * FROM jobs WHERE 1=1".to_string();
+    let mut query_str = "SELECT j.*, wd.worker_type FROM jobs j \
+                         LEFT JOIN worker_definitions wd ON j.worker_definition_id = wd.id \
+                         WHERE 1=1".to_string();
     
     if filter.job_type.is_some() {
-        query_str.push_str(" AND job_type = ?");
+        query_str.push_str(" AND j.job_type = ?");
     }
     if filter.is_active.is_some() {
-        query_str.push_str(" AND is_active = ?");
+        query_str.push_str(" AND j.is_active = ?");
     }
     if filter.search.is_some() {
-        query_str.push_str(" AND (name LIKE ? OR description LIKE ?)");
+        query_str.push_str(" AND (j.name LIKE ? OR j.description LIKE ?)");
     }
     if let Some(ref space_id) = filter.space_id {
         if space_id == "unclassified" {
-            query_str.push_str(" AND space_id IS NULL");
+            query_str.push_str(" AND j.space_id IS NULL");
         } else if !space_id.trim().is_empty() {
-            query_str.push_str(" AND space_id = ?");
+            query_str.push_str(" AND j.space_id = ?");
         }
     }
     
-    query_str.push_str(" ORDER BY created_at DESC");
+    query_str.push_str(" ORDER BY j.created_at DESC");
 
     if let Some(limit) = filter.limit {
         query_str.push_str(&format!(" LIMIT {}", limit));
@@ -174,7 +186,7 @@ pub async fn list_jobs(pool: &MySqlPool, filter: &JobFilter) -> anyhow::Result<V
 }
 
 /// ジョブを更新
-pub async fn update_job(pool: &MySqlPool, id: &Uuid, update: &JobUpdate) -> anyhow::Result<Job> {
+pub async fn update_job(pool: &MySqlPool, id: &i64, update: &JobUpdate) -> anyhow::Result<Job> {
     let mut query_str = "UPDATE jobs SET ".to_string();
     let mut sets = Vec::new();
 
@@ -186,9 +198,6 @@ pub async fn update_job(pool: &MySqlPool, id: &Uuid, update: &JobUpdate) -> anyh
     }
     if update.schedule_expr.is_some() {
         sets.push("schedule_expr = ?");
-    }
-    if update.worker_type.is_some() {
-        sets.push("worker_type = ?");
     }
     if update.retry_policy.is_some() {
         sets.push("retry_policy = ?");
@@ -227,9 +236,6 @@ pub async fn update_job(pool: &MySqlPool, id: &Uuid, update: &JobUpdate) -> anyh
     if let Some(ref schedule_expr) = update.schedule_expr {
         query = query.bind(schedule_expr);
     }
-    if let Some(ref worker_type) = update.worker_type {
-        query = query.bind(worker_type.to_string());
-    }
     if let Some(ref retry_policy) = update.retry_policy {
         query = query.bind(serde_json::to_value(retry_policy)?);
     }
@@ -243,21 +249,21 @@ pub async fn update_job(pool: &MySqlPool, id: &Uuid, update: &JobUpdate) -> anyh
         query = query.bind(serde_json::to_value(tags)?);
     }
     if let Some(ref worker_definition_id) = update.worker_definition_id {
-        query = query.bind(worker_definition_id.map(|uid| uid.to_string()));
+        query = query.bind(worker_definition_id);
     }
     if let Some(ref space_id) = update.space_id {
-        query = query.bind(space_id.map(|uid| uid.to_string()));
+        query = query.bind(space_id);
     }
 
-    query.bind(id.to_string()).execute(pool).await?;
+    query.bind(id).execute(pool).await?;
 
     get_job(pool, id).await?.ok_or_else(|| anyhow::anyhow!("Updated job not found"))
 }
 
 /// ジョブを削除
-pub async fn delete_job(pool: &MySqlPool, id: &Uuid) -> anyhow::Result<()> {
+pub async fn delete_job(pool: &MySqlPool, id: &i64) -> anyhow::Result<()> {
     sqlx::query("DELETE FROM jobs WHERE id = ?")
-        .bind(id.to_string())
+        .bind(id)
         .execute(pool)
         .await?;
     Ok(())

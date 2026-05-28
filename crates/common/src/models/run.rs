@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
 
 use super::job::WorkerType;
 
@@ -43,11 +43,12 @@ pub enum TriggerType {
 /// ジョブ実行履歴
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JobRun {
-    pub id: Uuid,
-    pub job_id: Uuid,
+    pub id: i64,
+    pub job_id: i64,
+    pub run_number: i64,
     pub status: RunStatus,
     pub worker_type: WorkerType,
-    pub worker_id: Option<String>,
+    pub worker_id: Option<i64>,
     pub trigger_type: TriggerType,
     pub attempt: u32,
     pub scheduled_at: Option<DateTime<Utc>>,
@@ -57,9 +58,9 @@ pub struct JobRun {
     pub duration_ms: Option<i64>,
     pub output: Option<serde_json::Value>,
     pub error: Option<String>,
-    pub version: u32,
-    pub worker_definition_id: Option<Uuid>,
-    pub config_version: Option<u32>,
+    pub job_history_id: Option<i64>,
+    pub worker_definition_id: Option<i64>,
+    pub config_version: Option<u32>, // Populated via JOIN with job_history
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -67,11 +68,11 @@ pub struct JobRun {
 /// 新規実行作成
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NewRun {
-    pub job_id: Uuid,
+    pub job_id: i64,
     pub worker_type: WorkerType,
     pub trigger_type: TriggerType,
     pub scheduled_at: Option<DateTime<Utc>>,
-    pub worker_definition_id: Option<Uuid>,
+    pub worker_definition_id: Option<i64>,
 }
 
 /// ログストリーム種別
@@ -88,7 +89,7 @@ pub enum LogStream {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogLine {
     pub id: Option<i64>,
-    pub run_id: Uuid,
+    pub run_id: i64,
     pub task_name: Option<String>,
     pub stream: LogStream,
     pub line: String,
@@ -98,7 +99,7 @@ pub struct LogLine {
 /// Worker からのコールバックペイロード
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerCallback {
-    pub task_id: Uuid,
+    pub task_id: i64,
     pub status: RunStatus,
     pub output: Option<serde_json::Value>,
     pub error: Option<String>,

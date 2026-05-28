@@ -5,7 +5,7 @@ use axum::{
     Form, Router,
 };
 use askama::Template;
-use uuid::Uuid;
+
 use chrono::Utc;
 use sqlx::{MySqlPool, Row};
 
@@ -34,7 +34,7 @@ crate::impl_into_response!(SpaceListTemplate);
 #[template(path = "spaces/form.html")]
 struct SpaceFormTemplate {
     is_edit: bool,
-    space_id: Option<Uuid>,
+    space_id: Option<i64>,
     name: String,
     description: String,
 }
@@ -76,14 +76,14 @@ async fn list_spaces(
 
     let mut spaces = Vec::new();
     for row in rows {
-        let id: String = row.try_get("id").unwrap_or_default();
+        let id: i64 = row.try_get("id").unwrap_or_default();
         let name: String = row.try_get("name").unwrap_or_default();
         let description: Option<String> = row.try_get("description").ok();
         let created_at: chrono::DateTime<chrono::Utc> = row.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now());
         let job_count: i64 = row.try_get("job_count").unwrap_or(0);
 
         spaces.push(SpaceRenderItem {
-            id,
+            id: id.to_string(),
             name,
             description: description.unwrap_or_default(),
             job_count,
@@ -119,14 +119,11 @@ async fn create_space_submit(
     Form(form): Form<SpaceFormData>,
 ) -> impl IntoResponse {
     let pool = &state.db;
-    let id = Uuid::new_v4();
-    let now = Utc::now();
-
+    let now = chrono::Utc::now();
     sqlx::query(
-        r#"INSERT INTO spaces (id, name, description, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?)"#
+        r#"INSERT INTO spaces (name, description, created_at, updated_at)
+           VALUES (?, ?, ?, ?)"#
     )
-    .bind(id.to_string())
     .bind(form.name.trim())
     .bind(form.description.as_ref().map(|d| d.trim()).filter(|d| !d.is_empty()))
     .bind(now)
@@ -142,11 +139,11 @@ async fn create_space_submit(
 async fn edit_space_page(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> impl IntoResponse {
     let pool = &state.db;
     let row = sqlx::query("SELECT id, name, description FROM spaces WHERE id = ?")
-        .bind(id.to_string())
+        .bind(id)
         .fetch_one(pool)
         .await
         .unwrap();
@@ -165,7 +162,7 @@ async fn edit_space_page(
 async fn edit_space_submit(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
     Form(form): Form<SpaceFormData>,
 ) -> impl IntoResponse {
     let pool = &state.db;
@@ -179,7 +176,7 @@ async fn edit_space_submit(
     .bind(&form.name.trim())
     .bind(&form.description.filter(|d| !d.trim().is_empty()))
     .bind(now)
-    .bind(id.to_string())
+    .bind(id)
     .execute(pool)
     .await
     .unwrap();
@@ -190,12 +187,12 @@ async fn edit_space_submit(
 async fn delete_space(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> impl IntoResponse {
     let pool = &state.db;
 
     sqlx::query("DELETE FROM spaces WHERE id = ?")
-        .bind(id.to_string())
+        .bind(id)
         .execute(pool)
         .await
         .unwrap();
@@ -215,21 +212,20 @@ crate::impl_into_response!(SpaceDetailTemplate);
 async fn space_detail_page(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> impl IntoResponse {
     let pool = &state.db;
     
     // 1. Get Space info
     let space_row = sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces WHERE id = ?")
-        .bind(id.to_string())
+        .bind(id)
         .fetch_optional(pool)
         .await
         .unwrap();
         
     let space = match space_row {
         Some(row) => {
-            let id_str: String = row.try_get("id").unwrap_or_default();
-            let id = Uuid::parse_str(&id_str).unwrap_or_default();
+            let id: i64 = row.try_get("id").unwrap_or_default();
             let name: String = row.try_get("name").unwrap_or_default();
             let description: Option<String> = row.try_get("description").ok();
             let created_at = row.try_get("created_at").unwrap_or_else(|_| Utc::now());
@@ -266,11 +262,9 @@ async fn space_detail_page(
         .unwrap_or_default();
     let mut worker_name_map = std::collections::HashMap::new();
     for row in worker_rows {
-        let id_str: String = row.try_get("id").unwrap_or_default();
-        if let Ok(uid) = Uuid::parse_str(&id_str) {
-            let name: String = row.try_get("name").unwrap_or_default();
-            worker_name_map.insert(uid, name);
-        }
+        let uid: i64 = row.try_get("id").unwrap_or_default();
+        let name: String = row.try_get("name").unwrap_or_default();
+        worker_name_map.insert(uid, name);
     }
 
     let jobs = jobs_db.iter().map(|j| crate::web::jobs::map_job_to_render(j, &worker_name_map)).collect::<Vec<_>>();

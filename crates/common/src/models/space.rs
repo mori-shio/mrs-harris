@@ -1,11 +1,11 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
 
 /// スペース定義（DB行に対応）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Space {
-    pub id: Uuid,
+    pub id: i64,
     pub name: String,
     pub description: Option<String>,
     pub created_at: DateTime<Utc>,

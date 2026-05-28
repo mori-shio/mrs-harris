@@ -5,7 +5,7 @@ use axum::{
     Form, Router,
 };
 use askama::Template;
-use uuid::Uuid;
+
 use std::str::FromStr;
 
 use mrs_harris_common::models::worker::{WorkerDefinition, NewWorkerDefinition, WorkerDefinitionUpdate};
@@ -24,7 +24,7 @@ crate::impl_into_response!(WorkerDefListTemplate);
 #[template(path = "worker_definitions/form.html")]
 struct WorkerDefFormTemplate {
     is_edit: bool,
-    def_id: Option<Uuid>,
+    def_id: Option<i64>,
     name: String,
     description: String,
     worker_type: String,
@@ -100,10 +100,12 @@ async fn create_def_submit(
                 "security_groups": [],
                 "container_name": "mrs-harris-worker"
             })
-        } else {
+        } else if worker_type == WorkerType::Lambda {
             serde_json::json!({
                 "function_name": ""
             })
+        } else {
+            serde_json::json!({})
         }
     });
 
@@ -122,7 +124,7 @@ async fn create_def_submit(
 async fn def_detail_page(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> impl IntoResponse {
     let def = crate::db::workers::get_worker_definition(&state.db, &id).await.unwrap().unwrap();
     WorkerDefDetailTemplate { def }
@@ -131,7 +133,7 @@ async fn def_detail_page(
 async fn edit_def_page(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> impl IntoResponse {
     let def = crate::db::workers::get_worker_definition(&state.db, &id).await.unwrap().unwrap();
     let config_json = serde_json::to_string_pretty(&def.config).unwrap_or_default();
@@ -150,7 +152,7 @@ async fn edit_def_page(
 async fn edit_def_submit(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
     Form(form): Form<WorkerDefFormData>,
 ) -> impl IntoResponse {
     let worker_type = WorkerType::from_str(&form.worker_type).unwrap_or(WorkerType::Fargate);
@@ -170,7 +172,7 @@ async fn edit_def_submit(
 async fn delete_def(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> impl IntoResponse {
     let _ = crate::db::workers::delete_worker_definition(&state.db, &id).await.unwrap();
     Redirect::to("/worker-definitions").into_response()

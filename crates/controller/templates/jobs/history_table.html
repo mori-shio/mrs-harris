@@ -1,0 +1,114 @@
+<div id="history-table-container">
+    <div class="table-container">
+        <table class="data-table" style="font-size:0.85rem;" data-no-sort>
+            <thead>
+                <tr>
+                    <th style="width:10%;">バージョン</th>
+                    <th style="width:35%;" class="no-sort">変更日時</th>
+                    <th style="width:25%;" class="no-sort">変更ユーザ</th>
+                    <th style="width:15%;text-align:center;" class="no-sort">比較 A</th>
+                    <th style="width:15%;text-align:center;" class="no-sort">比較 B</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if history.is_empty() %}
+                <tr>
+                    <td colspan="5" style="text-align:center;color:var(--text-muted);padding:48px 0;">
+                        履歴がありません
+                    </td>
+                </tr>
+                {% else %}
+                {% for item in history %}
+                <tr class="history-row">
+                    <td>
+                        <a href="javascript:void(0)" class="vd-link" onclick="showVersionDetail('{{ item.version }}', '{{ item.payload_json|urlencode }}')" style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--color-primary);">v{{ item.version }}</a>
+                    </td>
+                    <td style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;">{{ item.changed_at_str }}</td>
+                    <td>{{ item.changed_by }}</td>
+                    <td style="text-align:center;">
+                        <input type="radio" name="compare-a" value="{{ item.version }}" data-payload="{{ item.payload_json|urlencode }}" class="compare-radio" onclick="toggleCompareRadio(this)" {% if history_current_page == 1 && loop.index == 2 %}checked{% endif %}>
+                    </td>
+                    <td style="text-align:center;">
+                        <input type="radio" name="compare-b" value="{{ item.version }}" data-payload="{{ item.payload_json|urlencode }}" class="compare-radio" onclick="toggleCompareRadio(this)" {% if history_current_page == 1 && loop.first %}checked{% endif %}>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% for _ in empty_history %}
+                <tr class="dummy-row" aria-hidden="true">
+                    <td>&nbsp;</td>
+                    <td style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;">&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    {% if history_total_pages > 1 %}
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
+        <div style="font-size:0.8rem; color:var(--text-muted);">
+            全 {{ total_history }} 件中 {{ history_start_index }} - {{ history_end_index }} 件を表示
+        </div>
+        <div style="display:flex; gap:6px; align-items:center;">
+            <!-- 前へ -->
+            {% if history_current_page > 1 %}
+            <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; cursor:pointer;"
+                    hx-get="/jobs/{{ job_name }}?tab=history&page={{ history_current_page - 1 }}"
+                    hx-target="#history-table-container" hx-swap="outerHTML" hx-push-url="true">
+                <i data-lucide="chevron-left" style="width:14px; height:14px;"></i>
+                前へ
+            </button>
+            {% else %}
+            <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; opacity:0.4; cursor:not-allowed;" disabled>
+                <i data-lucide="chevron-left" style="width:14px; height:14px;"></i>
+                前へ
+            </button>
+            {% endif %}
+
+            <!-- ページ番号（省略あり） -->
+            {% for item in history_page_items %}
+            {% if item.is_none() %}
+            <span style="padding:6px 4px; font-size:0.8rem; color:var(--text-muted); user-select:none;">…</span>
+            {% else %}
+            {% let p = item.unwrap() %}
+            {% if p == history_current_page %}
+            <button class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem; min-width:34px; text-align:center; cursor:default;">{{ p }}</button>
+            {% else %}
+            <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; min-width:34px; text-align:center; cursor:pointer;"
+                    hx-get="/jobs/{{ job_name }}?tab=history&page={{ p }}"
+                    hx-target="#history-table-container" hx-swap="outerHTML" hx-push-url="true">
+                {{ p }}
+            </button>
+            {% endif %}
+            {% endif %}
+            {% endfor %}
+
+            <!-- 次へ -->
+            {% if history_current_page < history_total_pages %}
+            <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; cursor:pointer;"
+                    hx-get="/jobs/{{ job_name }}?tab=history&page={{ history_current_page + 1 }}"
+                    hx-target="#history-table-container" hx-swap="outerHTML" hx-push-url="true">
+                次へ
+                <i data-lucide="chevron-right" style="width:14px; height:14px;"></i>
+            </button>
+            {% else %}
+            <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; opacity:0.4; cursor:not-allowed;" disabled>
+                次へ
+                <i data-lucide="chevron-right" style="width:14px; height:14px;"></i>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <script>
+        // Re-initialize icons after HTMX swap
+        if (window.lucide) {
+            lucide.createIcons();
+        }
+    </script>
+</div>

@@ -33,7 +33,7 @@
                 {% for job in jobs %}
                 <tr>
                     <td style="font-weight: 600;">
-                        <a href="/jobs/{{ job.id }}" class="job-link" style="color: var(--text-primary); text-decoration: none; display: flex; flex-direction: column; gap: 4px;">
+                        <a href="/jobs/{{ job.name }}" class="job-link" style="color: var(--text-primary); text-decoration: none; display: flex; flex-direction: column; gap: 4px;">
                             <span>{{ job.name }}</span>
                         </a>
                     </td>
@@ -79,16 +79,16 @@
                         <div style="display: inline-flex; gap: 8px;">
                             <!-- Manual run trigger via HTMX -->
                             <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; background-color: var(--color-primary-glow); color: var(--color-primary); border-color: rgba(14, 165, 233, 0.2);"
-                                    hx-post="/api/jobs/{{ job.id }}/trigger" hx-swap="none"
+                                    hx-post="/api/jobs/{{ job.name }}/trigger" hx-swap="none"
                                     onclick="event.stopPropagation(); alert('ジョブ実行をトリガーしました！ダッシュボードで確認してください。')">
                                 <i data-lucide="play" style="width: 12px; height: 12px;"></i>
                                 実行
                             </button>
-                            <a href="/jobs/{{ job.id }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
+                            <a href="/jobs/{{ job.name }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
                                 <i data-lucide="eye" style="width: 12px; height: 12px;"></i>
                                 詳細
                             </a>
-                            <a href="/jobs/{{ job.id }}/edit" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
+                            <a href="/jobs/{{ job.name }}/edit" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
                                 <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i>
                                 編集
                             </a>

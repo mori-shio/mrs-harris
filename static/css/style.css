@@ -685,3 +685,43 @@ tr.dummy-row td {
 tr.dummy-row td * {
     visibility: hidden !important;
 }
+
+
+table.data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* -----------------------------
+ * Table Sorting UI (Centralized)
+ * ----------------------------- */
+.th-sort-container {
+    display: inline-flex;
+    align-items: center;
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.th-sort-label {
+    white-space: nowrap;
+}
+
+.th-sort-icon {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    opacity: 0.35;
+    transition: opacity 0.2s;
+    color: var(--color-primary);
+}
+
+.th-sort-icon.active {
+    opacity: 1.0;
+}
+
+/* Hover effects for sort headers */
+th[data-sort-init="true"]:hover .th-sort-icon:not(.active),
+th.server-sort-th:hover .th-sort-icon:not(.active) {
+    opacity: 0.8;
+}
+

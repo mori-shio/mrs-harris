@@ -4,7 +4,7 @@
     <span style="margin: 0 8px; opacity: 0.4;">/</span>
     <a href="/jobs" style="color: var(--text-muted); text-decoration: none;" hx-boost="true">ジョブ</a>
     <span style="margin: 0 8px; opacity: 0.4;">/</span>
-    <a href="/jobs/{{ run.job_id }}" style="color: var(--text-muted); text-decoration: none;" hx-boost="true">{{ job_name }}</a>
+    <a href="/jobs/{{ job_name }}" style="color: var(--text-muted); text-decoration: none;" hx-boost="true">{{ job_name }}</a>
     <span style="margin: 0 8px; opacity: 0.4;">/</span>
     <span style="color: var(--text-primary); font-weight: 600;">実行履歴&nbsp;&nbsp;<span style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted); font-weight: normal;">#{{ run_number }}</span></span>
 </nav>
@@ -12,7 +12,7 @@
 <div class="page-header" style="margin-top: 0; margin-bottom: 24px;">
     <div class="page-title">
         <div style="display: flex; align-items: center; gap: 12px;">
-            <a href="/jobs/{{ run.job_id }}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
+            <a href="/jobs/{{ job_name }}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
                 <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
             </a>
             <h2>実行履歴&nbsp;&nbsp;<span style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">#{{ run_number }}</span></h2>
@@ -188,29 +188,6 @@
             {% endif %}
         </div>
 
-        <!-- Live Logs Terminal Viewer (Does NOT reload with HTMX, using persist or websocket) -->
-        <div class="card" hx-preserve id="log-card" style="padding: 24px;">
-            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; margin-top: 0;">
-                <i data-lucide="terminal" style="width: 18px; height: 18px; color: var(--color-primary);"></i>
-                実行ログ
-            </h3>
-            
-            <div class="log-viewer-container">
-                <div class="log-viewer-header">
-                    <span style="font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                        <i data-lucide="terminal" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
-                        ログ出力
-                    </span>
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <span id="log-status" style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
-                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--text-muted);" id="log-indicator"></span>
-                            準備中
-                        </span>
-                    </div>
-                </div>
-                <div class="log-viewer-body" id="log-body" style="height: 400px; max-height: 400px; scroll-behavior: smooth;"></div>
-            </div>
-        </div>
     </div>
 
     <!-- Hidden DAG data helper for layout script -->
@@ -224,3 +201,80 @@
     </script>
     {% endif %}
 </div>
+
+<!-- Live Logs Terminal Viewer (Outside HTMX polling div) -->
+<div class="card" id="log-card" style="padding: 24px; margin-top: 24px;">
+    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; margin-top: 0;">
+        <i data-lucide="terminal" style="width: 18px; height: 18px; color: var(--color-primary);"></i>
+        実行ログ
+    </h3>
+    
+    <div class="log-viewer-container">
+        <div class="log-viewer-header">
+            <span style="font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="terminal" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+                ログ出力
+            </span>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span id="log-status" style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                    <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--text-muted);" id="log-indicator"></span>
+                    準備中
+                </span>
+            </div>
+        </div>
+        <div class="log-viewer-body" id="log-body" style="height: 400px; max-height: 400px; scroll-behavior: smooth;"></div>
+    </div>
+</div>
+
+<script>
+// WebSocket Log Streamer (self-contained, works both in detail.html include and standalone fetch)
+(function() {
+    var runId = "{{ run.id }}";
+    var logBody = document.getElementById('log-body');
+    var logStatus = document.getElementById('log-status');
+    if (!logBody) return;
+
+    var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var wsUrl = protocol + '//' + window.location.host + '/runs/' + runId + '/logs/ws';
+
+    var ws = new WebSocket(wsUrl);
+
+    ws.onopen = function() {
+        logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--color-success); box-shadow: 0 0 6px var(--color-success);" id="log-indicator"></span> リアルタイム接続中';
+        logBody.innerHTML = '';
+    };
+
+    ws.onmessage = function(event) {
+        try {
+            var logs = JSON.parse(event.data);
+            logs.forEach(function(log) {
+                var lineDiv = document.createElement('div');
+                lineDiv.className = 'log-line log-line-' + log.stream;
+                var timeStr = '';
+                if (log.logged_at) {
+                    var date = new Date(log.logged_at);
+                    timeStr = date.toLocaleTimeString() + ' ';
+                }
+                var prefix = '';
+                if (log.task_name) {
+                    prefix = '[' + log.task_name + '] ';
+                }
+                lineDiv.textContent = timeStr + prefix + log.line;
+                logBody.appendChild(lineDiv);
+            });
+            logBody.scrollTop = logBody.scrollHeight;
+        } catch (e) {
+            console.error('Error parsing WS message:', e);
+        }
+    };
+
+    ws.onclose = function() {
+        logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--text-muted);" id="log-indicator"></span> 接続切断 (完了)';
+    };
+
+    ws.onerror = function(err) {
+        console.error('WS Error:', err);
+        logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--color-danger);" id="log-indicator"></span> 接続エラー';
+    };
+})();
+</script>

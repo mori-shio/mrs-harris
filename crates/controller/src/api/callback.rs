@@ -7,7 +7,7 @@ use axum::{
 use mrs_harris_common::models::run::{WorkerCallback, RunStatus};
 use mrs_harris_common::models::worker::WorkerStatus;
 use crate::app::AppState;
-use uuid::Uuid;
+
 use sqlx::Row;
 
 pub fn router() -> Router<AppState> {
@@ -18,7 +18,7 @@ pub fn router() -> Router<AppState> {
 
 async fn get_internal_task(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     // 1. まず job_runs から探す
     let run_opt = crate::db::runs::get_run(&state.db, &id)
@@ -63,7 +63,7 @@ async fn get_internal_task(
            JOIN dag_tasks dt ON jr.job_id = dt.dag_id AND tr.task_name = dt.task_name
            WHERE tr.id = ?"#
     )
-    .bind(id.to_string())
+    .bind(id)
     .fetch_optional(&state.db)
     .await
     .map_err(|e| {
@@ -74,16 +74,16 @@ async fn get_internal_task(
     })?;
 
     if let Some(row) = task_run_row {
-        let task_run_id_str: String = row.try_get("task_run_id").unwrap();
-        let run_id_str: String = row.try_get("run_id").unwrap();
-        let job_id_str: String = row.try_get("job_id").unwrap();
+        let task_run_id: i64 = row.try_get("task_run_id").unwrap();
+        let run_id: i64 = row.try_get("run_id").unwrap();
+        let job_id: i64 = row.try_get("job_id").unwrap();
         let payload_str: String = row.try_get("payload").unwrap();
         let payload: serde_json::Value = serde_json::from_str(&payload_str).unwrap_or(serde_json::json!({}));
         let timeout_sec: Option<i32> = row.try_get("timeout_sec").unwrap_or(None);
 
         return Ok(Json(serde_json::json!({
-            "run_id": Uuid::parse_str(&task_run_id_str).unwrap(),
-            "job_id": Uuid::parse_str(&job_id_str).unwrap(),
+            "run_id": task_run_id,
+            "job_id": job_id,
             "payload": payload,
             "timeout_sec": timeout_sec.unwrap_or(3600),
         })));
@@ -154,7 +154,7 @@ async fn worker_callback(
                         next_retry_at,
                         next_attempt,
                         payload.error.as_deref(),
-                        run.version,
+                        
                     )
                     .await
                     .map_err(|e| {
@@ -170,7 +170,7 @@ async fn worker_callback(
                         &state.db,
                         &payload.task_id,
                         payload.error.as_deref(),
-                        run.version,
+                        
                     )
                     .await
                     .map_err(|e| {
@@ -192,7 +192,7 @@ async fn worker_callback(
                     payload.error.as_deref(),
                     payload.output.as_ref(),
                     payload.duration_ms,
-                    run.version,
+                    
                 )
                 .await
                 .map_err(|e| {
@@ -214,7 +214,7 @@ async fn worker_callback(
                 payload.error.as_deref(),
                 payload.output.as_ref(),
                 payload.duration_ms,
-                run.version,
+                
             )
             .await
             .map_err(|e| {
@@ -228,15 +228,13 @@ async fn worker_callback(
         }
 
         // 4. ワーカー情報のステータスを更新
-        if let Some(ref w_id_str) = run.worker_id {
-            if let Ok(worker_id) = Uuid::parse_str(w_id_str) {
-                let worker_status = if payload.status == RunStatus::Succeeded {
-                    WorkerStatus::Completed
-                } else {
-                    WorkerStatus::Failed
-                };
-                let _ = crate::db::workers::update_worker_status(&state.db, &worker_id, worker_status).await;
-            }
+        if let Some(worker_id) = run.worker_id {
+            let worker_status = if payload.status == RunStatus::Succeeded {
+                WorkerStatus::Completed
+            } else {
+                WorkerStatus::Failed
+            };
+            let _ = crate::db::workers::update_worker_status(&state.db, &worker_id, worker_status).await;
         }
 
         // 5. ジョブタイプが DAG の場合、DAG実行エンジンを起動して後続タスクを評価・実行する
@@ -262,27 +260,26 @@ async fn worker_callback(
 
 async fn handle_dag_task_callback(state: &AppState, payload: &WorkerCallback) -> anyhow::Result<()> {
     let now = chrono::Utc::now();
-    let task_run_id = payload.task_id.to_string();
+    let task_run_id = payload.task_id;
 
     // 1. 現在の task_run を取得
     let task_run_opt = sqlx::query("SELECT run_id, task_name, attempt, status FROM task_runs WHERE id = ?")
-        .bind(&task_run_id)
+        .bind(task_run_id)
         .fetch_optional(&state.db)
         .await?;
 
-    let (run_id_str, task_name, attempt, current_status_str) = match task_run_opt {
+    let (run_id, task_name, attempt, current_status_str) = match task_run_opt {
         Some(row) => {
-            let r_id: String = row.try_get("run_id")?;
+            let run_id: i64 = row.try_get("run_id")?;
             let t_name: String = row.try_get("task_name")?;
             let att: u32 = row.try_get("attempt")?;
             let stat: String = row.try_get("status")?;
-            (r_id, t_name, att, stat)
+            (run_id, t_name, att, stat)
         }
         None => return Err(anyhow::anyhow!("Task run not found")),
     };
 
-    let run_id = Uuid::parse_str(&run_id_str)?;
-
+    
     if current_status_str == "succeeded" || current_status_str == "failed" {
         return Ok(());
     }
@@ -306,7 +303,7 @@ async fn handle_dag_task_callback(state: &AppState, payload: &WorkerCallback) ->
     .bind(payload.duration_ms)
     .bind(output_str)
     .bind(&payload.error)
-    .bind(&task_run_id)
+    .bind(task_run_id)
     .execute(&state.db)
     .await?;
 
@@ -315,7 +312,7 @@ async fn handle_dag_task_callback(state: &AppState, payload: &WorkerCallback) ->
     if payload.status == RunStatus::Failed {
         // dag_tasks からリトライポリシーを取得
         let task_def_opt = sqlx::query("SELECT retry_policy FROM dag_tasks WHERE dag_id = (SELECT job_id FROM job_runs WHERE id = ?) AND task_name = ?")
-            .bind(run_id.to_string())
+            .bind(run_id)
             .bind(&task_name)
             .fetch_optional(&state.db)
             .await?;
@@ -336,7 +333,7 @@ async fn handle_dag_task_callback(state: &AppState, payload: &WorkerCallback) ->
             // 'queued' に戻して、再度ディスパッチできるようにする（dag_engine::resolve_and_dispatch で拾われる）
             sqlx::query("UPDATE task_runs SET status = 'queued', attempt = ?, finished_at = NULL, duration_ms = NULL, error = NULL WHERE id = ?")
                 .bind(next_attempt)
-                .bind(&task_run_id)
+                .bind(task_run_id)
                 .execute(&state.db)
                 .await?;
         } else {

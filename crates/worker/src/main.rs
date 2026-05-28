@@ -1,6 +1,6 @@
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
-use uuid::Uuid;
+
 
 /// Mrs. Harris Worker — ジョブ実行プロセス
 #[derive(Parser)]
@@ -8,7 +8,7 @@ use uuid::Uuid;
 struct Cli {
     /// 実行するタスクの ID
     #[arg(long)]
-    task_id: Uuid,
+    task_id: i64,
 
     /// Controller のコールバック URL
     #[arg(long)]

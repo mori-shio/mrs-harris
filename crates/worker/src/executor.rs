@@ -3,7 +3,7 @@ use mrs_harris_common::models::run::{LogLine, LogStream, RunStatus};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
-use uuid::Uuid;
+
 
 /// ジョブ実行結果
 #[derive(Debug)]
@@ -127,15 +127,47 @@ pub async fn execute_shell_command(task_info: &super::reporter::TaskInfo) -> Exe
             } else {
                 RunStatus::Failed
             };
+            
+            let error_msg = if !status.success() {
+                let last_stderr: Vec<String> = logs.iter()
+                    .filter(|l| matches!(l.stream, LogStream::Stderr))
+                    .rev()
+                    .take(5)
+                    .map(|l| l.line.clone())
+                    .collect();
+                
+                let mut msg = format!("終了コード: {:?}", exit_code);
+                if !last_stderr.is_empty() {
+                    msg.push_str("\n\n[エラー詳細 (Stderr)]\n");
+                    for line in last_stderr.into_iter().rev() {
+                        msg.push_str(&line);
+                        msg.push('\n');
+                    }
+                } else {
+                    let last_stdout: Vec<String> = logs.iter()
+                        .filter(|l| matches!(l.stream, LogStream::Stdout))
+                        .rev()
+                        .take(5)
+                        .map(|l| l.line.clone())
+                        .collect();
+                    if !last_stdout.is_empty() {
+                        msg.push_str("\n\n[直前の出力 (Stdout)]\n");
+                        for line in last_stdout.into_iter().rev() {
+                            msg.push_str(&line);
+                            msg.push('\n');
+                        }
+                    }
+                }
+                Some(msg.trim_end().to_string())
+            } else {
+                None
+            };
+            
             ExecutionResult {
                 status: run_status,
                 exit_code,
                 logs,
-                error: if !status.success() {
-                    Some(format!("終了コード: {:?}", exit_code))
-                } else {
-                    None
-                },
+                error: error_msg,
                 duration_ms,
             }
         }

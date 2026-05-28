@@ -1,11 +1,11 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
 
 /// ユーザー
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
-    pub id: Uuid,
+    pub id: i64,
     pub username: String,
     #[serde(skip_serializing)]
     pub password_hash: String,
@@ -33,7 +33,7 @@ pub struct LoginRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
     /// ユーザーID
-    pub sub: Uuid,
+    pub sub: i64,
     pub username: String,
     pub role: UserRole,
     /// 有効期限タイムスタンプ

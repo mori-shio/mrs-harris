@@ -5,7 +5,7 @@ use axum::{
     Router,
 };
 use askama::Template;
-use uuid::Uuid;
+
 use chrono::{DateTime, Utc};
 use sqlx::{MySqlPool, Row};
 use std::str::FromStr;
@@ -18,13 +18,13 @@ use crate::app::AppState;
 
 #[derive(Clone)]
 pub struct WorkerRenderItem {
-    pub id: Uuid,
+    pub id: i64,
     pub id_short: String,
     pub worker_type_str: String,
     pub external_id: String,
     pub external_id_short: String,
     pub status_str: String,
-    pub run_id: Uuid,
+    pub run_id: i64,
     pub run_id_short: String,
     pub started_at_str: String,
     pub last_heartbeat_str: String,
@@ -99,8 +99,7 @@ async fn workers_live(
 }
 
 fn map_row_to_render_item(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<WorkerRenderItem> {
-    let id_str: String = row.try_get("id")?;
-    let id = Uuid::parse_str(&id_str)?;
+    let id: i64 = row.try_get("id")?;
     let id_short = id.to_string()[..8].to_string();
 
     let worker_type_str: String = row.try_get("worker_type")?;
@@ -117,8 +116,8 @@ fn map_row_to_render_item(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<WorkerR
 
     let status_str: String = row.try_get("status")?;
     
-    let run_id_str: String = row.try_get("run_id")?;
-    let run_id = Uuid::parse_str(&run_id_str)?;
+    let run_id: i64 = row.try_get("run_id")?;
+    
     let run_id_short = run_id.to_string()[..8].to_string();
 
     let started_at: DateTime<Utc> = row.try_get("started_at")?;

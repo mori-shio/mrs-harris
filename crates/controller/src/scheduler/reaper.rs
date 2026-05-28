@@ -1,6 +1,6 @@
 use crate::app::AppState;
 use mrs_harris_common::models::run::{RunStatus, LogLine, LogStream};
-use uuid::Uuid;
+
 use chrono::Utc;
 
 /// タイムアウトしたジョブを検出し、失敗としてマーク
@@ -9,7 +9,7 @@ pub async fn check_timeouts(state: &AppState) -> anyhow::Result<()> {
     
     // 実行中のジョブ一覧をJOINして取得
     let rows = sqlx::query(
-        r#"SELECT r.id as run_id, r.version, j.name as job_name, j.timeout_sec, r.status, r.started_at, r.created_at
+        r#"SELECT r.id as run_id, j.name as job_name, j.timeout_sec, r.status, r.started_at, r.created_at
            FROM job_runs r
            JOIN jobs j ON r.job_id = j.id
            WHERE r.status = 'running' OR r.status = 'queued'"#
@@ -18,9 +18,8 @@ pub async fn check_timeouts(state: &AppState) -> anyhow::Result<()> {
     .await?;
 
     for r in rows {
-        let run_id_str: String = sqlx::Row::try_get(&r, "run_id")?;
-        let run_id = Uuid::parse_str(&run_id_str)?;
-        let version: u32 = sqlx::Row::try_get(&r, "version")?;
+        let run_id: i64 = sqlx::Row::try_get(&r, "run_id")?;
+        
         let job_name: String = sqlx::Row::try_get(&r, "job_name")?;
         let timeout_sec: u32 = sqlx::Row::try_get(&r, "timeout_sec")?;
         let status: String = sqlx::Row::try_get(&r, "status")?;
@@ -64,7 +63,6 @@ pub async fn check_timeouts(state: &AppState) -> anyhow::Result<()> {
                 Some("Execution timed out"),
                 None,
                 duration_ms,
-                version,
             )
             .await;
 

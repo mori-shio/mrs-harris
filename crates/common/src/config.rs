@@ -157,7 +157,7 @@ impl Default for AuthConfig {
 /// Worker 設定（環境変数またはコマンドライン引数から取得）
 #[derive(Debug, Clone)]
 pub struct WorkerConfig {
-    pub task_id: uuid::Uuid,
+    pub task_id: i64,
     pub callback_url: String,
     pub controller_api_key: Option<String>,
 }

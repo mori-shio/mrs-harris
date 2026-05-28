@@ -1,37 +1,24 @@
-<style>
-    .runs-sort-th-inactive:hover .sort-icon-wrapper {
-        opacity: 0.8 !important;
-    }
-</style>
-<div id="runs-table-container">
-    <div class="table-container" style="margin-top: 0;">
+<div id="runs-table-container"
+    {% if is_polling %}
+    hx-get="/jobs/{{ job_name }}/runs"
+    hx-trigger="every 5s"
+    hx-swap="outerHTML"
+    {% endif %}
+>
+    {% if is_polling %}
+    <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+        <span class="badge badge-info" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem;">
+            <i data-lucide="refresh-cw" class="spin" style="width: 12px; height: 12px;"></i>
+            5秒で更新
+        </span>
+    </div>
+    {% endif %}
+    <div class="table-container" style="margin-top: 0; border-bottom: none;">
         <table class="data-table" data-no-sort style="font-size:0.85rem;">
             <thead>
                 <tr>
-                    <th class="no-sort runs-sort-th {% if current_sort == "default" %}runs-sort-th-inactive{% endif %}" style="cursor: pointer; user-select: none;"
-                        {% if current_sort == "asc" %}
-                        hx-get="/jobs/{{ job_id }}/runs?page=1&sort=desc"
-                        {% else %}
-                        hx-get="/jobs/{{ job_id }}/runs?page=1&sort=asc"
-                        {% endif %}
-                        hx-target="#runs-table-container" hx-swap="outerHTML">
-                        <div style="display: inline-flex; align-items: center; width: 100%; justify-content: space-between; gap: 8px;">
-                            <span style="white-space: nowrap;">実行</span>
-                            {% if current_sort == "default" %}
-                            <span class="sort-icon-wrapper" style="margin-left: auto; display: inline-flex; align-items: center; opacity: 0.35; transition: opacity 0.2s; color: var(--color-primary);">
-                                <i data-lucide="chevrons-up-down" style="width: 13px; height: 13px;"></i>
-                            </span>
-                            {% elif current_sort == "desc" %}
-                            <span class="sort-icon-wrapper" style="margin-left: auto; display: inline-flex; align-items: center; opacity: 1; transition: opacity 0.2s; color: var(--color-primary);">
-                                <i data-lucide="arrow-down" style="width: 13px; height: 13px;"></i>
-                            </span>
-                            {% else %}
-                            <span class="sort-icon-wrapper" style="margin-left: auto; display: inline-flex; align-items: center; opacity: 1; transition: opacity 0.2s; color: var(--color-primary);">
-                                <i data-lucide="arrow-up" style="width: 13px; height: 13px;"></i>
-                            </span>
-                            {% endif %}
-                        </div>
-                    </th>
+{% import "components/table.html" as table %}
+                    {% call table::sortable_th("実行", current_sort, job_name, "#runs-table-container") %}
                     <th class="no-sort">ステータス</th>
                     <th class="no-sort">トリガー</th>
                     <th class="no-sort">バージョン</th>
@@ -50,7 +37,7 @@
                 {% else %}
                 {% for run in recent_runs %}
                 <tr>
-                    <td><a href="#{{ run.run_number }}" class="vd-link" style="font-family:'JetBrains Mono',monospace;font-size:0.88rem;font-weight:600;color:var(--color-primary);text-decoration:none;">#{{ run.run_number }}</a></td>
+                    <td><a href="/jobs/{{ job_name }}/runs/{{ run.run_number }}" class="vd-link" style="font-family:'JetBrains Mono',monospace;font-size:0.88rem;font-weight:600;color:var(--color-primary);text-decoration:none;">#{{ run.run_number }}</a></td>
                     <td><span class="badge badge-{{ run.status_str }}">{{ run.status_ja }}</span></td>
                     <td>{{ run.trigger_ja }}</td>
                     <td style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;">{{ run.config_version_str }}</td>
@@ -74,15 +61,22 @@
     </div>
 
     <!-- Pagination Controls -->
+    <div style="border-top: 1px solid var(--border-color); margin-top: -1px;"></div>
     {% if total_pages > 1 %}
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.06);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
         <div style="font-size:0.8rem; color:var(--text-muted);">
             全 {{ total_runs }} 件中 {{ start_index }} - {{ end_index }} 件を表示
         </div>
-        <div style="display:flex; gap:6px;">
+        <div style="display:flex; gap:6px; align-items:center;">
+            <!-- 前へ -->
             {% if current_page > 1 %}
-            <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; cursor:pointer;"
-                    hx-get="/jobs/{{ job_id }}/runs?page={{ current_page - 1 }}&sort={{ current_sort }}" hx-target="#runs-table-container" hx-swap="outerHTML">
+            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;"
+                    {% if current_sort == "default" %}
+                    hx-get="/jobs/{{ job_name }}?tab=runs&page={{ current_page - 1 }}"
+                    {% else %}
+                    hx-get="/jobs/{{ job_name }}?tab=runs&page={{ current_page - 1 }}&sort={{ current_sort }}"
+                    {% endif %}
+                    hx-target="#runs-table-container" hx-swap="outerHTML" hx-push-url="true">
                 <i data-lucide="chevron-left" style="width:14px; height:14px;"></i>
                 前へ
             </button>
@@ -93,22 +87,39 @@
             </button>
             {% endif %}
 
-            <!-- Page numbers -->
-            {% for p in pages %}
-            {% if *p == current_page %}
-            <button class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem; min-width:32px; text-align:center; cursor:default;">{{ p }}</button>
+            <!-- ページ番号（省略あり） -->
+            {% for item in page_items %}
+            {% if item.is_none() %}
+            <span style="padding:6px 4px; font-size:0.8rem; color:var(--text-muted); user-select:none;">…</span>
             {% else %}
-            <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; min-width:32px; text-align:center; cursor:pointer;"
-                    hx-get="/jobs/{{ job_id }}/runs?page={{ p }}&sort={{ current_sort }}" hx-target="#runs-table-container" hx-swap="outerHTML">
+            {% let p = item.unwrap() %}
+            {% if p == current_page %}
+            <button class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem; min-width:34px; text-align:center; cursor:default;">{{ p }}</button>
+            {% else %}
+            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; min-width: 34px; text-align: center; cursor: pointer;"
+                    {% if current_sort == "default" %}
+                    hx-get="/jobs/{{ job_name }}?tab=runs&page={{ p }}"
+                    {% else %}
+                    hx-get="/jobs/{{ job_name }}?tab=runs&page={{ p }}&sort={{ current_sort }}"
+                    {% endif %}
+                    hx-target="#runs-table-container" hx-swap="outerHTML" hx-push-url="true">
                 {{ p }}
             </button>
             {% endif %}
+            {% endif %}
             {% endfor %}
 
+            <!-- 次へ -->
             {% if current_page < total_pages %}
             <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; cursor:pointer;"
-                    hx-get="/jobs/{{ job_id }}/runs?page={{ current_page + 1 }}&sort={{ current_sort }}" hx-target="#runs-table-container" hx-swap="outerHTML">
+                    {% if current_sort == "default" %}
+                    hx-get="/jobs/{{ job_name }}?tab=runs&page={{ current_page + 1 }}"
+                    {% else %}
+                    hx-get="/jobs/{{ job_name }}?tab=runs&page={{ current_page + 1 }}&sort={{ current_sort }}"
+                    {% endif %}
+                    hx-target="#runs-table-container" hx-swap="outerHTML" hx-push-url="true">
                 次へ
+
                 <i data-lucide="chevron-right" style="width:14px; height:14px;"></i>
             </button>
             {% else %}
@@ -120,7 +131,7 @@
         </div>
     </div>
     {% endif %}
-    
+
     <script>
         // Re-initialize icons after HTMX swap
         if (window.lucide) {

@@ -4,7 +4,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use mrs_harris_common::models::worker::WorkerInfo;
+use mrs_harris_common::models::worker::Worker;
 use mrs_harris_common::models::user::Claims;
 use crate::app::AppState;
 
@@ -16,7 +16,7 @@ pub fn router() -> Router<AppState> {
 async fn list_workers(
     State(state): State<AppState>,
     _claims: Claims,
-) -> Result<Json<Vec<WorkerInfo>>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<Vec<Worker>>, (StatusCode, Json<serde_json::Value>)> {
     let workers = crate::db::workers::list_active_workers(&state.db)
         .await
         .map_err(|e| {

@@ -7,7 +7,7 @@ use axum::{
 use mrs_harris_common::models::run::LogLine;
 use mrs_harris_common::models::user::Claims;
 use crate::app::AppState;
-use uuid::Uuid;
+
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -17,7 +17,7 @@ pub fn router() -> Router<AppState> {
 async fn get_run_logs(
     State(state): State<AppState>,
     _claims: Claims,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> Result<Json<Vec<LogLine>>, (StatusCode, Json<serde_json::Value>)> {
     let logs = crate::db::logs::get_logs(&state.db, &id)
         .await

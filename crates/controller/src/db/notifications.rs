@@ -1,12 +1,12 @@
 use mrs_harris_common::models::notification::{NotificationChannel, ChannelType};
 use sqlx::{MySqlPool, Row};
-use uuid::Uuid;
+
 use std::str::FromStr;
 
 /// 特定のジョブとイベントに対応する、アクティブな通知チャネルの一覧を取得する
 pub async fn get_notifications_for_job(
     pool: &MySqlPool,
-    job_id: &Uuid,
+    job_id: &i64,
     event: &str,
 ) -> anyhow::Result<Vec<NotificationChannel>> {
     let rows = sqlx::query(
@@ -15,7 +15,7 @@ pub async fn get_notifications_for_job(
            JOIN job_notifications jn ON c.id = jn.channel_id
            WHERE jn.job_id = ? AND c.is_active = 1"#
     )
-    .bind(job_id.to_string())
+    .bind(job_id)
     .fetch_all(pool)
     .await?;
 
@@ -25,8 +25,7 @@ pub async fn get_notifications_for_job(
         let on_events: Vec<String> = serde_json::from_value(on_events_val)?;
         
         if on_events.iter().any(|e| e == event) {
-            let id_str: String = row.try_get("id")?;
-            let id = Uuid::parse_str(&id_str)?;
+            let id: i64 = row.try_get("id")?;
             let name: String = row.try_get("name")?;
             let ct_str: String = row.try_get("channel_type")?;
             let channel_type = ChannelType::from_str(&ct_str)
@@ -57,8 +56,7 @@ pub async fn list_channels(pool: &MySqlPool) -> anyhow::Result<Vec<NotificationC
 
     let mut channels = Vec::new();
     for row in rows {
-        let id_str: String = row.try_get("id")?;
-        let id = Uuid::parse_str(&id_str)?;
+        let id: i64 = row.try_get("id")?;
         let name: String = row.try_get("name")?;
         let ct_str: String = row.try_get("channel_type")?;
         let channel_type = ChannelType::from_str(&ct_str)

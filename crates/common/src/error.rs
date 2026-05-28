@@ -16,10 +16,10 @@ pub enum AppError {
     TomlParse(#[from] toml::de::Error),
 
     #[error("ジョブが見つかりません: {0}")]
-    JobNotFound(uuid::Uuid),
+    JobNotFound(i64),
 
     #[error("実行が見つかりません: {0}")]
-    RunNotFound(uuid::Uuid),
+    RunNotFound(i64),
 
     #[error("不正な状態遷移: {from} -> {to}")]
     InvalidStateTransition { from: String, to: String },

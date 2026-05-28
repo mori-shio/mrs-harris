@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
 
 /// ジョブの種類
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString)]
@@ -19,6 +19,7 @@ pub enum JobType {
 pub enum WorkerType {
     Fargate,
     Lambda,
+    Controller,
 }
 
 /// シェルコマンドのペイロード
@@ -84,7 +85,7 @@ pub enum BackoffStrategy {
 /// ジョブ定義（DB行に対応）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Job {
-    pub id: Uuid,
+    pub id: i64,
     pub name: String,
     pub description: Option<String>,
     pub job_type: JobType,
@@ -95,8 +96,8 @@ pub struct Job {
     pub timeout_sec: u32,
     pub is_active: bool,
     pub tags: Vec<String>,
-    pub worker_definition_id: Option<Uuid>,
-    pub space_id: Option<Uuid>,
+    pub worker_definition_id: Option<i64>,
+    pub space_id: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -119,8 +120,8 @@ pub struct NewJob {
     pub is_active: bool,
     #[serde(default)]
     pub tags: Vec<String>,
-    pub worker_definition_id: Option<Uuid>,
-    pub space_id: Option<Uuid>,
+    pub worker_definition_id: Option<i64>,
+    pub space_id: Option<i64>,
 }
 
 fn default_timeout() -> u32 {
@@ -147,8 +148,8 @@ pub struct JobUpdate {
     pub timeout_sec: Option<u32>,
     pub is_active: Option<bool>,
     pub tags: Option<Vec<String>>,
-    pub worker_definition_id: Option<Option<Uuid>>,
-    pub space_id: Option<Option<Uuid>>,
+    pub worker_definition_id: Option<Option<i64>>,
+    pub space_id: Option<Option<i64>>,
 }
 
 /// ジョブフィルタ

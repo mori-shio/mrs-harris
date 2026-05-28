@@ -5,7 +5,7 @@ use axum::{
     Router,
 };
 use askama::Template;
-use uuid::Uuid;
+
 use chrono::{DateTime, Utc, Duration};
 use sqlx::{MySqlPool, Row};
 use std::str::FromStr;
@@ -19,7 +19,7 @@ use crate::app::AppState;
 
 #[derive(Clone)]
 pub struct DashboardRunItem {
-    pub id: Uuid,
+    pub id: i64,
     pub job_name: String,
     pub status: RunStatus,
     pub status_ja: String,
@@ -106,16 +106,18 @@ async fn fetch_dashboard_data(pool: &MySqlPool) -> anyhow::Result<DashboardLiveT
 
     // 7. アクティブワーカー数
     let active_workers_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM worker_tracking WHERE status = 'running'"
+        "SELECT COUNT(*) FROM workers WHERE status = 'running'"
     )
     .fetch_one(pool)
     .await?;
 
     // 8. 直近の実行履歴（10件）
     let rows = sqlx::query(
-        r#"SELECT r.id, r.status, r.worker_type, r.trigger_type, r.started_at, r.duration_ms, j.name as job_name
+        r#"SELECT r.id, r.status, wd.worker_type, r.trigger_type, r.started_at, r.duration_ms, j.name as job_name
            FROM job_runs r
            JOIN jobs j ON r.job_id = j.id
+           LEFT JOIN workers w ON r.worker_id = w.id
+           LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id
            ORDER BY r.created_at DESC
            LIMIT 10"#
     )
@@ -124,8 +126,7 @@ async fn fetch_dashboard_data(pool: &MySqlPool) -> anyhow::Result<DashboardLiveT
 
     let mut recent_runs = Vec::new();
     for r in rows {
-        let id_str: String = r.try_get("id")?;
-        let id = Uuid::parse_str(&id_str)?;
+        let id: i64 = r.try_get("id")?;
         let job_name: String = r.try_get("job_name")?;
         
         let status_str: String = r.try_get("status")?;

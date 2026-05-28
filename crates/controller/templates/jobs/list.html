@@ -105,11 +105,11 @@
                 {% elif tab.id == "unclassified" %}
                     hx-get="/jobs?space=unclassified"
                 {% else %}
-                    hx-get="/jobs?space={{ tab.name }}"
+                    hx-get="/jobs?space={{ tab.id }}"
                 {% endif %}
                 hx-target="#jobs-list-container"
                 hx-push-url="true"
-                onclick="selectSpaceTab(this, '{% if tab.id.is_empty() %}{% elif tab.id == "unclassified" %}unclassified{% else %}{{ tab.name }}{% endif %}')">
+                onclick="selectSpaceTab(this, '{% if tab.id.is_empty() %}{% elif tab.id == "unclassified" %}unclassified{% else %}{{ tab.id }}{% endif %}')">
             {% if tab.id.is_empty() %}
                 <i data-lucide="layers" style="width: 14px; height: 14px;"></i>
             {% elif tab.id == "unclassified" %}

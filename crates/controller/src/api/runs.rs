@@ -7,11 +7,11 @@ use axum::{
 use mrs_harris_common::models::run::{JobRun, RunStatus};
 use mrs_harris_common::models::user::Claims;
 use crate::app::AppState;
-use uuid::Uuid;
+
 
 #[derive(serde::Deserialize)]
 pub struct RunFilter {
-    pub job_id: Option<Uuid>,
+    pub job_id: Option<i64>,
     pub limit: Option<u32>,
     pub offset: Option<u32>,
 }
@@ -48,7 +48,7 @@ async fn list_runs(
 async fn get_run(
     State(state): State<AppState>,
     _claims: Claims,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> Result<Json<JobRun>, (StatusCode, Json<serde_json::Value>)> {
     let run_opt = crate::db::runs::get_run(&state.db, &id)
         .await
@@ -71,7 +71,7 @@ async fn get_run(
 async fn cancel_run(
     State(state): State<AppState>,
     _claims: Claims,
-    Path(id): Path<Uuid>,
+    Path(id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
     let run_opt = crate::db::runs::get_run(&state.db, &id)
         .await
@@ -107,7 +107,7 @@ async fn cancel_run(
         Some("Cancelled by user"),
         None,
         None,
-        run.version,
+        
     )
     .await
     .map_err(|e| {

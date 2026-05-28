@@ -7,6 +7,44 @@
 {% block content %}
 {% include "runs/detail_live.html" %}
 
+<style>
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+    }
+    @media (max-width: 900px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    @media (max-width: 600px) {
+        .summary-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    .summary-item {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .summary-label {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 500;
+    }
+    .summary-value {
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        line-height: 1.5;
+    }
+</style>
 
 <script>
     // Initialize DAG Visualizer
@@ -185,75 +223,4 @@
     document.addEventListener("htmx:afterSwap", renderLiveDag);
 </script>
 
-{% endblock %}
-
-{% block scripts %}
-<script>
-    // WebSocket Log Streamer Connection
-    (function() {
-        const runId = "{{ run.id }}";
-        const logBody = document.getElementById('log-body');
-        const logStatus = document.getElementById('log-status');
-        const logIndicator = document.getElementById('log-indicator');
-        
-        if (!logBody) return;
-
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/runs/${runId}/logs/ws`;
-        
-        let ws;
-        
-        function connect() {
-            logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--color-warning);" id="log-indicator"></span> 接続中...';
-            ws = new WebSocket(wsUrl);
-            
-            ws.onopen = function() {
-                logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--color-success); box-shadow: 0 0 6px var(--color-success);" id="log-indicator"></span> リアルタイム接続中';
-                logBody.innerHTML = ''; // Clear preparation notice
-            };
-            
-            ws.onmessage = function(event) {
-                try {
-                    const logs = JSON.parse(event.data);
-                    logs.forEach(log => {
-                        const lineDiv = document.createElement('div');
-                        lineDiv.className = `log-line log-line-${log.stream}`;
-                        
-                        // Parse timestamp
-                        let timeStr = '';
-                        if (log.logged_at) {
-                            const date = new Date(log.logged_at);
-                            timeStr = date.toLocaleTimeString() + ' ';
-                        }
-
-                        // Parse prefix
-                        let prefix = '';
-                        if (log.task_name) {
-                            prefix = `[${log.task_name}] `;
-                        }
-
-                        lineDiv.textContent = `${timeStr}${prefix}${log.line}`;
-                        logBody.appendChild(lineDiv);
-                    });
-                    
-                    // Auto-scroll to bottom
-                    logBody.scrollTop = logBody.scrollHeight;
-                } catch (e) {
-                    console.error('Error parsing WS message:', e);
-                }
-            };
-            
-            ws.onclose = function(e) {
-                logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--text-muted);" id="log-indicator"></span> 接続切断 (完了)';
-            };
-            
-            ws.onerror = function(err) {
-                console.error('WS Error:', err);
-                logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--color-danger);" id="log-indicator"></span> 接続エラー';
-            };
-        }
-        
-        connect();
-    })();
-</script>
 {% endblock %}

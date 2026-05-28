@@ -1,15 +1,15 @@
 use mrs_harris_common::models::run::{LogLine, LogStream};
-use uuid::Uuid;
+
 
 /// ログバッファ — stdout/stderr をキャプチャして LogLine に変換
 pub struct LogCapture {
-    pub run_id: Uuid,
+    pub run_id: i64,
     pub task_name: Option<String>,
     pub lines: Vec<LogLine>,
 }
 
 impl LogCapture {
-    pub fn new(run_id: Uuid, task_name: Option<String>) -> Self {
+    pub fn new(run_id: i64, task_name: Option<String>) -> Self {
         Self {
             run_id,
             task_name,

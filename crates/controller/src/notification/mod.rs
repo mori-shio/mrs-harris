@@ -3,13 +3,13 @@ pub mod slack;
 
 use crate::app::AppState;
 use mrs_harris_common::models::notification::{ChannelType, SlackConfig, EmailConfig};
-use uuid::Uuid;
+
 use chrono::Utc;
 
 /// ジョブのステータス変更イベントが発生した際、登録されたチャネルへ通知を送信する
 pub async fn trigger_notifications(
     state: &AppState,
-    run_id: &Uuid,
+    run_id: &i64,
     event: &str, // e.g. "succeeded", "failed", "dead_letter"
 ) -> anyhow::Result<()> {
     // 1. 実行履歴を取得

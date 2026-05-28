@@ -1,17 +1,17 @@
 use mrs_harris_common::models::run::WorkerCallback;
-use uuid::Uuid;
+
 
 /// Controller から取得するタスク情報
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct TaskInfo {
-    pub run_id: Uuid,
-    pub job_id: Uuid,
+    pub run_id: i64,
+    pub job_id: i64,
     pub payload: serde_json::Value,
     pub timeout_sec: u32,
 }
 
 /// Controller からタスク情報を取得
-pub async fn fetch_task_info(callback_url: &str, task_id: &Uuid) -> anyhow::Result<TaskInfo> {
+pub async fn fetch_task_info(callback_url: &str, task_id: &i64) -> anyhow::Result<TaskInfo> {
     let client = reqwest::Client::new();
     let base_url = callback_url
         .strip_suffix("/api/internal/callback")
@@ -33,7 +33,7 @@ pub async fn fetch_task_info(callback_url: &str, task_id: &Uuid) -> anyhow::Resu
 /// 実行結果を Controller に報告
 pub async fn report_result(
     callback_url: &str,
-    task_id: &Uuid,
+    task_id: &i64,
     result: super::executor::ExecutionResult,
     api_key: Option<&str>,
 ) -> anyhow::Result<()> {

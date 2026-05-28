@@ -1,16 +1,17 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
-/// ワーカー実行のトラッキング情報
+
+/// 起動されたワーカー実体情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkerInfo {
-    pub id: Uuid,
+pub struct Worker {
+    pub id: i64,
+    pub worker_definition_id: i64,
     pub worker_type: super::job::WorkerType,
     /// Fargate Task ARN または Lambda Request ID
-    pub external_id: String,
+    pub external_id: Option<String>,
     pub status: WorkerStatus,
-    pub run_id: Uuid,
+    pub job_run_id: i64,
     pub started_at: DateTime<Utc>,
     pub last_heartbeat: Option<DateTime<Utc>>,
     pub metadata: serde_json::Value,
@@ -30,7 +31,7 @@ pub enum WorkerStatus {
 /// ワーカー定義（ノード/スレーブ設定）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerDefinition {
-    pub id: Uuid,
+    pub id: i64,
     pub name: String,
     pub description: Option<String>,
     pub worker_type: super::job::WorkerType,

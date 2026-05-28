@@ -2,7 +2,7 @@ use crate::app::AppState;
 use crate::worker_manager;
 use mrs_harris_common::models::run::{JobRun, RunStatus, TriggerType};
 use mrs_harris_common::models::job::WorkerType;
-use uuid::Uuid;
+
 use sqlx::{Row, MySqlPool};
 use std::collections::{HashMap, VecDeque};
 use chrono::Utc;
@@ -11,7 +11,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 /// DAG の依存関係を解決し、実行可能なタスクをディスパッチ
-pub fn resolve_and_dispatch(state: AppState, run_id: Uuid) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> {
+pub fn resolve_and_dispatch(state: AppState, run_id: i64) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> {
     Box::pin(async move {
         let pool = &state.db;
 
@@ -37,7 +37,7 @@ pub fn resolve_and_dispatch(state: AppState, run_id: Uuid) -> Pin<Box<dyn Future
         let tasks_rows = sqlx::query(
             "SELECT task_name, worker_type FROM dag_tasks WHERE dag_id = ?"
         )
-        .bind(dag_id.to_string())
+        .bind(dag_id)
         .fetch_all(pool)
         .await?;
 
@@ -65,7 +65,7 @@ pub fn resolve_and_dispatch(state: AppState, run_id: Uuid) -> Pin<Box<dyn Future
         let edges_rows = sqlx::query(
             "SELECT from_task, to_task FROM dag_edges WHERE dag_id = ?"
         )
-        .bind(dag_id.to_string())
+        .bind(dag_id)
         .fetch_all(pool)
         .await?;
 
@@ -88,14 +88,13 @@ pub fn resolve_and_dispatch(state: AppState, run_id: Uuid) -> Pin<Box<dyn Future
         let runs_rows = sqlx::query(
             "SELECT id, task_name, status FROM task_runs WHERE run_id = ?"
         )
-        .bind(run_id.to_string())
+        .bind(run_id)
         .fetch_all(pool)
         .await?;
 
         let mut task_runs_map = HashMap::new(); // task_name -> (task_run_id, status_str)
         for row in &runs_rows {
-            let id_str: String = row.try_get("id")?;
-            let id = Uuid::parse_str(&id_str)?;
+            let id: i64 = row.try_get("id")?;
             let name: String = row.try_get("task_name")?;
             let status: String = row.try_get("status")?;
             task_runs_map.insert(name, (id, status));
@@ -126,13 +125,11 @@ pub fn resolve_and_dispatch(state: AppState, run_id: Uuid) -> Pin<Box<dyn Future
     // 新たに skipped と判定されたタスクを DB に登録し、task_runs_map も更新する
     let now = Utc::now();
     for task_name in newly_skipped {
-        let tr_id = Uuid::new_v4();
-        sqlx::query(
-            r#"INSERT INTO task_runs (id, run_id, task_name, status, attempt, started_at, finished_at, created_at)
-               VALUES (?, ?, ?, 'skipped', 1, ?, ?, ?)"#
+        let result = sqlx::query(
+            r#"INSERT INTO task_runs (run_id, task_name, status, attempt, started_at, finished_at, created_at)
+               VALUES (?, ?, 'skipped', 1, ?, ?, ?)"#
         )
-        .bind(tr_id.to_string())
-        .bind(run_id.to_string())
+        .bind(run_id)
         .bind(&task_name)
         .bind(now)
         .bind(now)
@@ -140,6 +137,7 @@ pub fn resolve_and_dispatch(state: AppState, run_id: Uuid) -> Pin<Box<dyn Future
         .execute(pool)
         .await?;
 
+        let tr_id = result.last_insert_id() as i64;
         task_runs_map.insert(task_name.clone(), (tr_id, "skipped".to_string()));
     }
 
@@ -177,18 +175,16 @@ pub fn resolve_and_dispatch(state: AppState, run_id: Uuid) -> Pin<Box<dyn Future
         let tr_id = match run_id_opt {
             Some(id) => id,
             None => {
-                let new_id = Uuid::new_v4();
-                sqlx::query(
-                    r#"INSERT INTO task_runs (id, run_id, task_name, status, attempt, created_at)
-                       VALUES (?, ?, ?, 'queued', 1, ?)"#
+                let result = sqlx::query(
+                    r#"INSERT INTO task_runs (run_id, task_name, status, attempt, created_at)
+                       VALUES (?, ?, 'queued', 1, ?)"#
                 )
-                .bind(new_id.to_string())
-                .bind(run_id.to_string())
+                .bind(run_id)
                 .bind(&task_name)
                 .bind(now)
                 .execute(pool)
                 .await?;
-                new_id
+                result.last_insert_id() as i64
             }
         };
         tasks_to_launch.push((task_name, tr_id, worker_type));
@@ -212,7 +208,7 @@ pub fn resolve_and_dispatch(state: AppState, run_id: Uuid) -> Pin<Box<dyn Future
                 )
                 .bind(error_msg)
                 .bind(now)
-                .bind(tr_id.to_string())
+                .bind(tr_id)
                 .execute(&state_clone.db)
                 .await;
 
@@ -231,7 +227,7 @@ pub fn resolve_and_dispatch(state: AppState, run_id: Uuid) -> Pin<Box<dyn Future
         let final_runs = sqlx::query(
             "SELECT status FROM task_runs WHERE run_id = ?"
         )
-        .bind(run_id.to_string())
+        .bind(run_id)
         .fetch_all(pool)
         .await?;
 
@@ -298,8 +294,8 @@ fn mark_downstream_skipped(
 
 async fn launch_task_worker(
     state: AppState,
-    dag_run_id: Uuid,
-    task_run_id: Uuid,
+    dag_run_id: i64,
+    task_run_id: i64,
     task_name: &str,
     worker_type: WorkerType,
 ) -> anyhow::Result<()> {
@@ -307,6 +303,7 @@ async fn launch_task_worker(
 
     let parent_run = crate::db::runs::get_run(&state.db, &dag_run_id).await.ok().flatten();
     let worker_definition_id = parent_run.as_ref().and_then(|r| r.worker_definition_id);
+    let job_history_id = parent_run.as_ref().and_then(|r| r.job_history_id);
     let config_version = parent_run.as_ref().and_then(|r| r.config_version);
 
     // ダミーの JobRun を作成して launch_worker に渡す
@@ -314,6 +311,7 @@ async fn launch_task_worker(
     let dummy_run = JobRun {
         id: task_run_id,
         job_id: dag_run_id, // 親の job_runs の ID を渡す（ワーカーが親ジョブ定義にアクセスできるように）
+        run_number: parent_run.as_ref().map(|r| r.run_number).unwrap_or(0),
         status: RunStatus::Queued,
         worker_type,
         worker_id: None,
@@ -326,9 +324,9 @@ async fn launch_task_worker(
         duration_ms: None,
         output: None,
         error: None,
-        version: 1,
-        config_version,
+        job_history_id,
         worker_definition_id,
+        config_version,
         created_at: now,
         updated_at: now,
     };
@@ -375,7 +373,6 @@ async fn complete_dag_run(
             error,
             None,
             duration_ms,
-            latest.version,
         )
         .await?;
     }

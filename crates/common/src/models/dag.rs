@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
 
 use super::job::{RetryPolicy, WorkerType};
 
 /// DAGタスク定義
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DagTask {
-    pub id: Uuid,
-    pub dag_id: Uuid,
+    pub id: i64,
+    pub dag_id: i64,
     pub task_name: String,
     pub payload: serde_json::Value,
     pub worker_type: WorkerType,
@@ -18,8 +18,8 @@ pub struct DagTask {
 /// DAGエッジ定義
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DagEdge {
-    pub id: Uuid,
-    pub dag_id: Uuid,
+    pub id: i64,
+    pub dag_id: i64,
     pub from_task: String,
     pub to_task: String,
 }
@@ -27,8 +27,8 @@ pub struct DagEdge {
 /// DAGタスク実行履歴
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskRun {
-    pub id: Uuid,
-    pub run_id: Uuid,
+    pub id: i64,
+    pub run_id: i64,
     pub task_name: String,
     pub status: super::run::RunStatus,
     pub worker_id: Option<String>,

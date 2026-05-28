@@ -6,7 +6,7 @@ pub async fn check_retries(state: &AppState) -> anyhow::Result<()> {
     let now = Utc::now();
     let result = sqlx::query(
         r#"UPDATE job_runs 
-           SET status = 'pending', next_retry_at = NULL, version = version + 1
+           SET status = 'pending', next_retry_at = NULL
            WHERE status = 'retrying' AND next_retry_at <= ?"#
     )
     .bind(now)

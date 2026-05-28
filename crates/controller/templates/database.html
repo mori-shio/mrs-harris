@@ -21,7 +21,7 @@
             テーブル一覧
         </h3>
         
-        <div style="display: flex; flex-direction: column; gap: 4px; max-height: 550px; overflow-y: auto; padding-right: 4px;">
+        <div style="display: flex; flex-direction: column; gap: 4px; padding-right: 4px;">
             {% for t in tables %}
             <a href="/database?table={{ t.name }}" class="table-link-item {% if t.is_active %}active{% endif %}" style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 6px; text-decoration: none; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; transition: all 0.2s ease;">
                 <i data-lucide="database-backup" style="width: 14px; height: 14px; color: var(--text-muted);"></i>
@@ -32,7 +32,7 @@
     </div>
 
     <!-- Right Area: Table Schema & Records -->
-    <div class="tab-content-container">
+    <div class="tab-content-container" style="min-width: 0;">
         {% if let Some(table_name) = selected_table.as_ref() %}
         
         <!-- Table Header with Reload Button -->
@@ -59,8 +59,8 @@
                 カラム構造 (Schema)
             </h4>
             
-            <div class="table-responsive">
-                <table class="table" style="font-size: 0.85rem;">
+            <div class="table-container" style="overflow-x: auto; width: 100%;">
+                <table class="table" style="font-size: 0.85rem; width: 100%; min-width: 600px;">
                     <thead>
                         <tr>
                             <th>カラム名 (Field)</th>
@@ -122,8 +122,8 @@
                 <span>このテーブルにはレコードデータが登録されていません。</span>
             </div>
             {% else %}
-            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
-                <table class="table" style="font-size: 0.8rem; white-space: nowrap;">
+            <div class="table-container" style="max-height: 600px; overflow-y: auto; overflow-x: auto; width: 100%;">
+                <table class="table" style="font-size: 0.8rem; white-space: nowrap; width: 100%;">
                     <thead>
                         <tr>
                             {% for head in headers %}

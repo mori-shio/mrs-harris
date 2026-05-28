@@ -2,16 +2,15 @@ use mrs_harris_common::models::run::{JobRun, RunStatus, TriggerType, NewRun};
 use mrs_harris_common::models::job::WorkerType;
 use mrs_harris_common::models::calendar::CalendarEntry;
 use sqlx::{MySqlPool, Row};
-use uuid::Uuid;
+
 use chrono::{DateTime, Utc};
 use std::str::FromStr;
 
 fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
-    let id_str: String = row.try_get("id")?;
-    let id = Uuid::parse_str(&id_str)?;
+    let id: i64 = row.try_get("id")?;
 
-    let job_id_str: String = row.try_get("job_id")?;
-    let job_id = Uuid::parse_str(&job_id_str)?;
+    let job_id: i64 = row.try_get("job_id")?;
+    let run_number: i64 = row.try_get("run_number")?;
 
     let status_str: String = row.try_get("status")?;
     let status = RunStatus::from_str(&status_str)
@@ -21,7 +20,7 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
     let worker_type = WorkerType::from_str(&worker_type_str)
         .map_err(|e| anyhow::anyhow!("Invalid WorkerType: {}", e))?;
 
-    let worker_id: Option<String> = row.try_get("worker_id")?;
+    let worker_id: Option<i64> = row.try_get("worker_id")?;
 
     let trigger_type_str: String = row.try_get("trigger_type")?;
     let trigger_type = TriggerType::from_str(&trigger_type_str)
@@ -38,20 +37,16 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
     
     let output: Option<serde_json::Value> = row.try_get("output")?;
     let error: Option<String> = row.try_get("error")?;
-    let version: u32 = row.try_get("version")?;
-
-    let worker_definition_id_str: Option<String> = row.try_get("worker_definition_id")?;
-    let worker_definition_id = worker_definition_id_str
-        .and_then(|s| Uuid::parse_str(&s).ok());
-
+    let job_history_id: Option<i64> = row.try_get("job_history_id")?;
+    let worker_definition_id: Option<i64> = row.try_get("worker_definition_id")?;
     let config_version: Option<u32> = row.try_get("config_version").ok().flatten();
-
     let created_at: DateTime<Utc> = row.try_get("created_at")?;
     let updated_at: DateTime<Utc> = row.try_get("updated_at")?;
 
     Ok(JobRun {
         id,
         job_id,
+        run_number,
         status,
         worker_type,
         worker_id,
@@ -64,7 +59,7 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
         duration_ms,
         output,
         error,
-        version,
+        job_history_id,
         worker_definition_id,
         config_version,
         created_at,
@@ -74,45 +69,66 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
 
 /// ジョブ実行を新規作成
 pub async fn create_run(pool: &MySqlPool, new_run: &NewRun) -> anyhow::Result<JobRun> {
-    let id = Uuid::new_v4();
-    let status_str = RunStatus::Pending.to_string();
-    let worker_type_str = new_run.worker_type.to_string();
-    let trigger_type_str = new_run.trigger_type.to_string();
-    let worker_def_id_str = new_run.worker_definition_id.map(|uid| uid.to_string());
+    let mut tx = pool.begin().await?;
 
-    // クエリで現在のジョブ設定バージョン履歴のMAX(version)を取得する。履歴がなければ 1 とする。
-    let version_row = sqlx::query("SELECT MAX(version) as max_v FROM job_history WHERE job_id = ?")
-        .bind(new_run.job_id.to_string())
-        .fetch_optional(pool)
+    let status_str = RunStatus::Pending.to_string();
+    let trigger_type_str = new_run.trigger_type.to_string();
+
+    // クエリで現在のジョブ設定バージョン履歴の最新の id を取得する
+    let history_row = sqlx::query("SELECT MAX(id) as max_h_id FROM job_history WHERE job_id = ?")
+        .bind(new_run.job_id)
+        .fetch_optional(&mut *tx)
         .await?;
     
-    let config_version = match version_row {
-        Some(row) => row.try_get::<Option<u32>, &str>("max_v").unwrap_or(None).unwrap_or(1),
-        None => 1,
+    let job_history_id = match history_row {
+        Some(row) => row.try_get::<Option<i64>, &str>("max_h_id").unwrap_or(None),
+        None => None,
     };
 
-    sqlx::query(
-        r#"INSERT INTO job_runs (id, job_id, status, worker_type, trigger_type, attempt, scheduled_at, version, worker_definition_id, config_version)
-           VALUES (?, ?, ?, ?, ?, 1, ?, 1, ?, ?)"#
+    // 最新の run_number を FOR UPDATE で取得
+    let max_run_number: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(MAX(run_number), 0) FROM job_runs WHERE job_id = ? FOR UPDATE"
     )
-    .bind(id.to_string())
-    .bind(new_run.job_id.to_string())
-    .bind(status_str)
-    .bind(worker_type_str)
-    .bind(trigger_type_str)
-    .bind(new_run.scheduled_at)
-    .bind(worker_def_id_str)
-    .bind(config_version)
-    .execute(pool)
+    .bind(new_run.job_id)
+    .fetch_one(&mut *tx)
     .await?;
 
-    get_run(pool, &id).await?.ok_or_else(|| anyhow::anyhow!("Created run not found"))
+    let new_run_number = max_run_number + 1;
+
+    let result = sqlx::query(
+        r#"INSERT INTO job_runs (job_id, status, trigger_type, attempt, scheduled_at, job_history_id, run_number)
+           VALUES (?, ?, ?, 1, ?, ?, ?)"#
+    )
+    .bind(new_run.job_id)
+    .bind(status_str)
+    .bind(trigger_type_str)
+    .bind(new_run.scheduled_at)
+    .bind(job_history_id)
+    .bind(new_run_number)
+    .execute(&mut *tx)
+    .await?;
+
+    let new_id = result.last_insert_id() as i64;
+    tx.commit().await?;
+
+    get_run(pool, &new_id).await?.ok_or_else(|| anyhow::anyhow!("Created run not found"))
 }
 
 /// 実行履歴を取得
-pub async fn get_run(pool: &MySqlPool, id: &Uuid) -> anyhow::Result<Option<JobRun>> {
-    let row = sqlx::query("SELECT * FROM job_runs WHERE id = ?")
-        .bind(id.to_string())
+pub async fn get_run(pool: &MySqlPool, id: &i64) -> anyhow::Result<Option<JobRun>> {
+    let row = sqlx::query(
+        "SELECT r.*, h.version as config_version, \
+                COALESCE(w.worker_definition_id, j.worker_definition_id) as worker_definition_id, \
+                COALESCE(wd.worker_type, jd.worker_type) as worker_type \
+         FROM job_runs r \
+         LEFT JOIN job_history h ON r.job_history_id = h.id \
+         LEFT JOIN jobs j ON r.job_id = j.id \
+         LEFT JOIN workers w ON r.worker_id = w.id \
+         LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id \
+         LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id \
+         WHERE r.id = ?"
+    )
+        .bind(id)
         .fetch_optional(pool)
         .await?;
 
@@ -125,14 +141,23 @@ pub async fn get_run(pool: &MySqlPool, id: &Uuid) -> anyhow::Result<Option<JobRu
 /// ジョブごとの実行番号（1-indexed）に対応する実行履歴を取得
 pub async fn get_run_by_number(
     pool: &MySqlPool,
-    job_id: &Uuid,
+    job_id: &i64,
     run_number: i64,
 ) -> anyhow::Result<Option<JobRun>> {
     let row = sqlx::query(
-        "SELECT * FROM job_runs WHERE job_id = ? ORDER BY created_at ASC LIMIT 1 OFFSET ?"
+        "SELECT r.*, h.version as config_version, \
+                COALESCE(w.worker_definition_id, j.worker_definition_id) as worker_definition_id, \
+                COALESCE(wd.worker_type, jd.worker_type) as worker_type \
+         FROM job_runs r \
+         LEFT JOIN job_history h ON r.job_history_id = h.id \
+         LEFT JOIN jobs j ON r.job_id = j.id \
+         LEFT JOIN workers w ON r.worker_id = w.id \
+         LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id \
+         LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id \
+         WHERE r.job_id = ? AND r.run_number = ?"
     )
-    .bind(job_id.to_string())
-    .bind(run_number - 1)
+    .bind(job_id)
+    .bind(run_number)
     .fetch_optional(pool)
     .await?;
 
@@ -145,19 +170,28 @@ pub async fn get_run_by_number(
 /// ジョブ実行一覧を取得（フィルタ対応）
 pub async fn list_runs(
     pool: &MySqlPool,
-    job_id: Option<&Uuid>,
+    job_id: Option<&i64>,
     limit: Option<u32>,
     offset: Option<u32>,
     desc: bool,
 ) -> anyhow::Result<Vec<JobRun>> {
-    let mut query_str = "SELECT * FROM job_runs WHERE 1=1".to_string();
+    let mut query_str = "SELECT r.*, h.version as config_version, \
+                                COALESCE(w.worker_definition_id, j.worker_definition_id) as worker_definition_id, \
+                                COALESCE(wd.worker_type, jd.worker_type) as worker_type \
+                         FROM job_runs r \
+                         LEFT JOIN job_history h ON r.job_history_id = h.id \
+                         LEFT JOIN jobs j ON r.job_id = j.id \
+                         LEFT JOIN workers w ON r.worker_id = w.id \
+                         LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id \
+                         LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id \
+                         WHERE 1=1".to_string();
     if job_id.is_some() {
-        query_str.push_str(" AND job_id = ?");
+        query_str.push_str(" AND r.job_id = ?");
     }
     if desc {
-        query_str.push_str(" ORDER BY created_at DESC");
+        query_str.push_str(" ORDER BY r.created_at DESC");
     } else {
-        query_str.push_str(" ORDER BY created_at ASC");
+        query_str.push_str(" ORDER BY r.created_at ASC");
     }
 
     if let Some(limit) = limit {
@@ -169,7 +203,7 @@ pub async fn list_runs(
 
     let mut query = sqlx::query(&query_str);
     if let Some(id) = job_id {
-        query = query.bind(id.to_string());
+        query = query.bind(id);
     }
 
     let rows = query.fetch_all(pool).await?;
@@ -183,18 +217,17 @@ pub async fn list_runs(
 /// 実行履歴のステータス更新（楽観ロックを考慮）
 pub async fn update_run_status(
     pool: &MySqlPool,
-    id: &Uuid,
+    id: &i64,
     status: RunStatus,
-    worker_id: Option<&str>,
+    worker_id: Option<i64>,
     error: Option<&str>,
     output: Option<&serde_json::Value>,
     duration_ms: Option<i64>,
-    expected_version: u32,
 ) -> anyhow::Result<()> {
     let status_str = status.to_string();
     let now = Utc::now();
 
-    let mut query_str = "UPDATE job_runs SET status = ?, version = version + 1".to_string();
+    let mut query_str = "UPDATE job_runs SET status = ?".to_string();
     if status == RunStatus::Running {
         query_str.push_str(", started_at = ?");
     } else if status.is_terminal() {
@@ -211,7 +244,7 @@ pub async fn update_run_status(
         query_str.push_str(", output = ?");
     }
 
-    query_str.push_str(" WHERE id = ? AND version = ?");
+    query_str.push_str(" WHERE id = ?");
 
     let mut query = sqlx::query(&query_str).bind(status_str);
 
@@ -232,13 +265,12 @@ pub async fn update_run_status(
     }
 
     let result = query
-        .bind(id.to_string())
-        .bind(expected_version)
+        .bind(id)
         .execute(pool)
         .await?;
 
     if result.rows_affected() == 0 {
-        return Err(anyhow::anyhow!("Optimistic locking failed or run not found"));
+        return Err(anyhow::anyhow!("Run not found or already in target status"));
     }
 
     Ok(())
@@ -266,11 +298,8 @@ pub async fn get_runs_for_calendar(
 
     let mut entries = Vec::new();
     for r in rows {
-        let run_id_str: String = r.try_get("run_id")?;
-        let run_id = Uuid::parse_str(&run_id_str)?;
-
-        let job_id_str: String = r.try_get("job_id")?;
-        let job_id = Uuid::parse_str(&job_id_str)?;
+        let run_id: i64 = r.try_get("run_id")?;
+        let job_id: i64 = r.try_get("job_id")?;
 
         let job_name: String = r.try_get("job_name")?;
         
@@ -304,8 +333,15 @@ pub async fn claim_pending_run(pool: &MySqlPool) -> anyhow::Result<Option<JobRun
 
     // 予定時刻を過ぎている or 定期実行予定の pending ジョブを1件取得して排他ロック
     let row = sqlx::query(
-        r#"SELECT * FROM job_runs 
-           WHERE status = 'pending' AND (scheduled_at IS NULL OR scheduled_at <= ?)
+        r#"SELECT r.*, 
+                  COALESCE(w.worker_definition_id, j.worker_definition_id) as worker_definition_id,
+                  COALESCE(wd.worker_type, jd.worker_type) as worker_type
+           FROM job_runs r
+           LEFT JOIN jobs j ON r.job_id = j.id
+           LEFT JOIN workers w ON r.worker_id = w.id
+           LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id
+           LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id
+           WHERE r.status = 'pending' AND (r.scheduled_at IS NULL OR r.scheduled_at <= ?)
            LIMIT 1 FOR UPDATE"#
     )
     .bind(Utc::now())
@@ -316,8 +352,8 @@ pub async fn claim_pending_run(pool: &MySqlPool) -> anyhow::Result<Option<JobRun
         let run = map_row_to_run(&r)?;
         
         // ステータスを queued に更新
-        sqlx::query("UPDATE job_runs SET status = 'queued', version = version + 1 WHERE id = ?")
-            .bind(run.id.to_string())
+        sqlx::query("UPDATE job_runs SET status = 'queued' WHERE id = ?")
+            .bind(run.id)
             .execute(&mut *tx)
             .await?;
 
@@ -335,27 +371,25 @@ pub async fn claim_pending_run(pool: &MySqlPool) -> anyhow::Result<Option<JobRun
 /// リトライ予定を設定する
 pub async fn schedule_retry(
     pool: &MySqlPool,
-    id: &Uuid,
+    id: &i64,
     next_retry_at: DateTime<Utc>,
     attempt: u32,
     error: Option<&str>,
-    expected_version: u32,
 ) -> anyhow::Result<()> {
     let result = sqlx::query(
         r#"UPDATE job_runs 
-           SET status = 'retrying', attempt = ?, next_retry_at = ?, error = ?, version = version + 1
-           WHERE id = ? AND version = ?"#
+           SET status = 'retrying', attempt = ?, next_retry_at = ?, error = ?
+           WHERE id = ?"#
     )
     .bind(attempt)
     .bind(next_retry_at)
     .bind(error)
-    .bind(id.to_string())
-    .bind(expected_version)
+    .bind(id)
     .execute(pool)
     .await?;
 
     if result.rows_affected() == 0 {
-        return Err(anyhow::anyhow!("Optimistic locking failed or run not found"));
+        return Err(anyhow::anyhow!("Run not found"));
     }
 
     Ok(())
@@ -364,23 +398,21 @@ pub async fn schedule_retry(
 /// デッドレター（リトライ上限超え）に移行する
 pub async fn move_to_dead_letter(
     pool: &MySqlPool,
-    id: &Uuid,
+    id: &i64,
     error: Option<&str>,
-    expected_version: u32,
 ) -> anyhow::Result<()> {
     let result = sqlx::query(
         r#"UPDATE job_runs 
-           SET status = 'dead_letter', error = ?, version = version + 1
-           WHERE id = ? AND version = ?"#
+           SET status = 'dead_letter', error = ?
+           WHERE id = ?"#
     )
     .bind(error)
-    .bind(id.to_string())
-    .bind(expected_version)
+    .bind(id)
     .execute(pool)
     .await?;
 
     if result.rows_affected() == 0 {
-        return Err(anyhow::anyhow!("Optimistic locking failed or run not found"));
+        return Err(anyhow::anyhow!("Run not found"));
     }
 
     Ok(())

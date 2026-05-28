@@ -48,7 +48,7 @@ enum Commands {
     Worker {
         /// 実行するタスクの ID
         #[arg(long)]
-        task_id: uuid::Uuid,
+        task_id: i64,
 
         /// Controller のコールバック URL
         #[arg(long)]

@@ -1,0 +1,248 @@
+warning: unused import: `fmt`
+ --> crates/controller/src/main.rs:3:26
+  |
+3 | use tracing_subscriber::{fmt, EnvFilter};
+  |                          ^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `chrono::Utc`
+ --> crates/controller/src/notification/mod.rs:7:5
+  |
+7 | use chrono::Utc;
+  |     ^^^^^^^^^^^
+
+warning: unused imports: `Response`, `StatusCode`, and `post`
+ --> crates/controller/src/web/auth.rs:3:28
+  |
+3 |     http::{request::Parts, StatusCode},
+  |                            ^^^^^^^^^^
+4 |     response::{IntoResponse, Redirect, Response},
+  |                                        ^^^^^^^^
+5 |     routing::{get, post},
+  |                    ^^^^
+
+warning: unused import: `Response`
+ --> crates/controller/src/web/jobs.rs:4:40
+  |
+4 |     response::{IntoResponse, Redirect, Response},
+  |                                        ^^^^^^^^
+
+warning: unused import: `DateTime`
+  --> crates/controller/src/web/jobs.rs:10:14
+   |
+10 | use chrono::{DateTime, Utc};
+   |              ^^^^^^^^
+
+warning: unused import: `toml`
+  --> crates/controller/src/web/jobs.rs:14:5
+   |
+14 | use toml;
+   |     ^^^^
+
+warning: unused import: `JobUpdate`
+  --> crates/controller/src/web/jobs.rs:16:72
+   |
+16 | use mrs_harris_common::models::job::{Job, JobType, WorkerType, NewJob, JobUpdate, JobFilter, ShellPayload, RetryPolicy, BackoffStrat...
+   |                                                                        ^^^^^^^^^
+
+warning: unused import: `JobRun`
+  --> crates/controller/src/web/jobs.rs:17:38
+   |
+17 | use mrs_harris_common::models::run::{JobRun, RunStatus, TriggerType};
+   |                                      ^^^^^^
+
+warning: unused imports: `Job`, `ShellPayload`, and `WorkerType`
+  --> crates/controller/src/web/runs.rs:14:38
+   |
+14 | use mrs_harris_common::models::job::{Job, JobType, WorkerType, ShellPayload};
+   |                                      ^^^           ^^^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused import: `MySqlPool`
+  --> crates/controller/src/web/workers.rs:10:12
+   |
+10 | use sqlx::{MySqlPool, Row};
+   |            ^^^^^^^^^
+
+warning: unused import: `std::str::FromStr`
+  --> crates/controller/src/web/workers.rs:11:5
+   |
+11 | use std::str::FromStr;
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `mrs_harris_common::models::worker::WorkerStatus`
+  --> crates/controller/src/web/workers.rs:13:5
+   |
+13 | use mrs_harris_common::models::worker::WorkerStatus;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `mrs_harris_common::models::job::WorkerType`
+  --> crates/controller/src/web/workers.rs:14:5
+   |
+14 | use mrs_harris_common::models::job::WorkerType;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `MySqlPool`
+  --> crates/controller/src/web/spaces.rs:10:12
+   |
+10 | use sqlx::{MySqlPool, Row};
+   |            ^^^^^^^^^
+
+warning: unused import: `mrs_harris_common::models::space::Space`
+  --> crates/controller/src/web/spaces.rs:12:5
+   |
+12 | use mrs_harris_common::models::space::Space;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated function `aws_config::load_from_env`: Use the `aws_config::load_defaults` function. If you don't care about future default behavior changes, you can continue to use this function by enabling the `behavior-version-latest` feature. Doing so will make this deprecation notice go away.
+  --> crates/controller/src/worker_manager/fargate.rs:33:34
+   |
+33 |     let sdk_config = aws_config::load_from_env().await;
+   |                                  ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated function `aws_config::load_from_env`: Use the `aws_config::load_defaults` function. If you don't care about future default behavior changes, you can continue to use this function by enabling the `behavior-version-latest` feature. Doing so will make this deprecation notice go away.
+  --> crates/controller/src/worker_manager/lambda.rs:35:34
+   |
+35 |     let sdk_config = aws_config::load_from_env().await;
+   |                                  ^^^^^^^^^^^^^
+
+warning: unused import: `Connection`
+  --> crates/controller/src/web/jobs.rs:11:28
+   |
+11 | use sqlx::{MySqlPool, Row, Connection};
+   |                            ^^^^^^^^^^
+
+warning: unused variable: `run_id`
+  --> crates/controller/src/api/callback.rs:78:13
+   |
+78 |         let run_id: i64 = row.try_get("run_id").unwrap();
+   |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_run_id`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `job_id`
+   --> crates/controller/src/web/jobs.rs:583:9
+    |
+583 |     let job_id = Uuid::new_v4();
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_job_id`
+
+warning: unused variable: `worker_type_str`
+   --> crates/controller/src/web/jobs.rs:585:9
+    |
+585 |     let worker_type_str = new_job.worker_type.to_string();
+    |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_worker_type_str`
+
+warning: unused variable: `worker_type`
+    --> crates/controller/src/web/jobs.rs:1429:9
+     |
+1429 |     let worker_type = def.worker_type;
+     |         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_worker_type`
+
+warning: function `list_channels` is never used
+  --> crates/controller/src/db/notifications.rs:52:14
+   |
+52 | pub async fn list_channels(pool: &MySqlPool) -> anyhow::Result<Vec<NotificationChannel>> {
+   |              ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `heartbeat` is never used
+   --> crates/controller/src/db/workers.rs:116:14
+    |
+116 | pub async fn heartbeat(pool: &MySqlPool, id: &i64) -> anyhow::Result<()> {
+    |              ^^^^^^^^^
+
+warning: fields `description` and `worker_type` are never read
+  --> crates/controller/src/web/jobs.rs:27:9
+   |
+24 | pub struct JobRenderItem {
+   |            ------------- fields in this struct
+...
+27 |     pub description: Option<String>,
+   |         ^^^^^^^^^^^
+28 |     pub job_type_ja: &'static str,
+29 |     pub worker_type: String,
+   |         ^^^^^^^^^^^
+   |
+   = note: `JobRenderItem` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: fields `id` and `attempt` are never read
+  --> crates/controller/src/web/jobs.rs:38:9
+   |
+37 | pub struct JobRunRenderItem {
+   |            ---------------- fields in this struct
+38 |     pub id: i64,
+   |         ^^
+...
+43 |     pub attempt: u32,
+   |         ^^^^^^^
+   |
+   = note: `JobRunRenderItem` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: field `current_space_id` is never read
+  --> crates/controller/src/web/jobs.rs:61:5
+   |
+58 | struct JobsListTemplate {
+   |        ---------------- field in this struct
+...
+61 |     current_space_id: String,
+   |     ^^^^^^^^^^^^^^^^
+
+warning: fields `worker_type_str` and `env_vars` are never read
+   --> crates/controller/src/web/jobs.rs:115:5
+    |
+109 | struct JobDetailTemplate {
+    |        ----------------- fields in this struct
+...
+115 |     worker_type_str: &'static str,
+    |     ^^^^^^^^^^^^^^^
+...
+130 |     env_vars: Option<String>,
+    |     ^^^^^^^^
+
+warning: field `trigger_ja` is never read
+  --> crates/controller/src/web/runs.rs:38:5
+   |
+31 | struct RunDetailTemplate {
+   |        ----------------- field in this struct
+...
+38 |     trigger_ja: String,
+   |     ^^^^^^^^^^
+
+warning: field `trigger_ja` is never read
+  --> crates/controller/src/web/runs.rs:58:5
+   |
+51 | struct RunDetailLiveTemplate {
+   |        --------------------- field in this struct
+...
+58 |     trigger_ja: String,
+   |     ^^^^^^^^^^
+
+warning: field `id` is never read
+  --> crates/controller/src/web/workers.rs:21:9
+   |
+20 | pub struct WorkerRenderItem {
+   |            ---------------- field in this struct
+21 |     pub id: i64,
+   |         ^^
+   |
+   = note: `WorkerRenderItem` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: `mrs-harris-controller` (bin "mrs-harris") generated 31 warnings (run `cargo fix --bin "mrs-harris" -p mrs-harris-controller` to apply 19 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.47s
+     Running `target/debug/mrs-harris controller`
+[2m2026-05-27T21:51:41.185212Z[0m [32m INFO[0m [2mmrs_harris[0m[2m:[0m Mrs. Harris Controller を起動します...
+[2m2026-05-27T21:51:41.223815Z[0m [32m INFO[0m [2mmrs_harris::db[0m[2m:[0m MySQL 接続プール作成完了
+[2m2026-05-27T21:51:41.231364Z[0m [32m INFO[0m [2mmrs_harris::db[0m[2m:[0m MySQL 接続プール作成完了
+[2m2026-05-27T21:51:41.268333Z[0m [32m INFO[0m [2mmrs_harris::db[0m[2m:[0m マイグレーション完了
+[2m2026-05-27T21:51:41.271043Z[0m [32m INFO[0m [2mmrs_harris::scheduler[0m[2m:[0m スケジューラを起動しました (間隔: 5s)
+[2m2026-05-27T21:51:41.273743Z[0m [32m INFO[0m [2mmrs_harris::app[0m[2m:[0m Mrs. Harris Controller listening on 0.0.0.0:8080
+[2m2026-05-27T22:16:40.273665Z[0m [32m INFO[0m [2mmrs_harris::scheduler::dispatcher[0m[2m:[0m Dispatching run 1010 for job_id 1001
+[2m2026-05-27T22:16:40.288248Z[0m [32m INFO[0m [2mmrs_harris::worker_manager::controller_worker[0m[2m:[0m Launching Controller-local worker as a background task [3mtask_id[0m[2m=[0m1010
+[2m2026-05-27T22:16:40.288337Z[0m [32m INFO[0m [2mmrs_harris::scheduler::dispatcher[0m[2m:[0m Successfully launched worker for run 1010. External ID: controller-local-1010
+[2m2026-05-27T22:16:40.288455Z[0m [32m INFO[0m [2mmrs_harris_worker[0m[2m:[0m Mrs. Harris Worker コアを起動します [3mtask_id[0m[2m=[0m1010 [3mcallback_url[0m[2m=[0mhttp://localhost:8080
+[2m2026-05-27T22:17:00.367298Z[0m [32m INFO[0m [2mmrs_harris::api::callback[0m[2m:[0m Run 1010 exceeded max retries. Moving to DeadLetter.
+[2m2026-05-27T22:17:00.385055Z[0m [32m INFO[0m [2mmrs_harris_worker::reporter[0m[2m:[0m 結果を Controller に報告しました [3mtask_id[0m[2m=[0m1010
+[2m2026-05-27T22:17:00.385113Z[0m [32m INFO[0m [2mmrs_harris_worker[0m[2m:[0m Worker 実行完了 [3mtask_id[0m[2m=[0m1010
