@@ -1034,13 +1034,13 @@ function compareVersions() {
     }
     
     document.getElementById('diff-modal').style.display = 'flex';
-    document.body.style.overflow = 'hidden';
+    window.lockBodyScroll();
     lucide.createIcons();
 }
 
 function closeDiffModal() {
     document.getElementById('diff-modal').style.display = 'none';
-    document.body.style.overflow = '';
+    window.unlockBodyScroll();
 }
 
 if (document.readyState !== 'loading') {
@@ -1343,7 +1343,7 @@ function showVersionDetail(version, encodedPayload) {
     }
     
     document.getElementById('version-detail-modal').style.display = 'flex';
-    document.body.style.overflow = 'hidden';
+    window.lockBodyScroll();
     if (window.lucide) {
         lucide.createIcons();
     }
@@ -1351,7 +1351,7 @@ function showVersionDetail(version, encodedPayload) {
 
 function closeVersionDetailModal() {
     document.getElementById('version-detail-modal').style.display = 'none';
-    document.body.style.overflow = '';
+    window.unlockBodyScroll();
 }
 </script>
 

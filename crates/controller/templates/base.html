@@ -201,7 +201,63 @@
         window.appUi = window.appUi || {
             dialogResolver: null,
             requestSubmitWithoutSubmitterForms: new WeakSet(),
-            requestSubmitPatched: false
+            requestSubmitPatched: false,
+            scrollLockCount: 0,
+            originalBodyOverflow: "",
+            originalBodyPaddingRight: "",
+            originalBodyPosition: "",
+            originalBodyTop: "",
+            originalBodyLeft: "",
+            originalBodyWidth: "",
+            scrollLockX: 0,
+            scrollLockY: 0
+        };
+
+        window.lockBodyScroll = function() {
+            const body = document.body;
+            if (!body) return;
+
+            if (window.appUi.scrollLockCount === 0) {
+                const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+                window.appUi.scrollLockX = window.scrollX;
+                window.appUi.scrollLockY = window.scrollY;
+                window.appUi.originalBodyOverflow = body.style.overflow;
+                window.appUi.originalBodyPaddingRight = body.style.paddingRight;
+                window.appUi.originalBodyPosition = body.style.position;
+                window.appUi.originalBodyTop = body.style.top;
+                window.appUi.originalBodyLeft = body.style.left;
+                window.appUi.originalBodyWidth = body.style.width;
+
+                if (scrollbarWidth > 0) {
+                    const computedPaddingRight = parseFloat(window.getComputedStyle(body).paddingRight) || 0;
+                    body.style.paddingRight = (computedPaddingRight + scrollbarWidth) + "px";
+                }
+
+                body.style.overflow = "hidden";
+                body.style.position = "fixed";
+                body.style.top = (-window.appUi.scrollLockY) + "px";
+                body.style.left = (-window.appUi.scrollLockX) + "px";
+                body.style.width = "100%";
+            }
+
+            window.appUi.scrollLockCount += 1;
+        };
+
+        window.unlockBodyScroll = function() {
+            const body = document.body;
+            if (!body || window.appUi.scrollLockCount === 0) return;
+
+            window.appUi.scrollLockCount -= 1;
+
+            if (window.appUi.scrollLockCount === 0) {
+                body.style.overflow = window.appUi.originalBodyOverflow;
+                body.style.paddingRight = window.appUi.originalBodyPaddingRight;
+                body.style.position = window.appUi.originalBodyPosition;
+                body.style.top = window.appUi.originalBodyTop;
+                body.style.left = window.appUi.originalBodyLeft;
+                body.style.width = window.appUi.originalBodyWidth;
+                window.scrollTo(window.appUi.scrollLockX, window.appUi.scrollLockY);
+            }
         };
 
         window.appConfirm = function(options = {}) {
@@ -221,7 +277,7 @@
             message.textContent = options.message || "";
             confirmBtn.textContent = options.confirmLabel || "実行";
             cancelBtn.textContent = options.cancelLabel || "キャンセル";
-            document.body.style.overflow = "hidden";
+            window.lockBodyScroll();
 
             return new Promise(resolve => {
                 window.appUi.dialogResolver = resolve;
@@ -234,7 +290,7 @@
 
             overlay.classList.remove("active");
             overlay.setAttribute("aria-hidden", "true");
-            document.body.style.overflow = "";
+            window.unlockBodyScroll();
 
             const resolve = window.appUi.dialogResolver;
             window.appUi.dialogResolver = null;
@@ -789,7 +845,7 @@
                 }
 
                 document.getElementById('diff-modal').style.display = 'flex';
-                document.body.style.overflow = 'hidden';
+                window.lockBodyScroll();
                 if (window.lucide) {
                     lucide.createIcons();
                 }
@@ -799,7 +855,7 @@
                 const modal = document.getElementById('diff-modal');
                 if (!modal) return;
                 modal.style.display = 'none';
-                document.body.style.overflow = '';
+                window.unlockBodyScroll();
             };
 
             if (!window.compareState.initialized) {
