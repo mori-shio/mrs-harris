@@ -827,19 +827,38 @@ window.compareState = {
     initialized: false
 };
 
+function syncCompareStateFromDom() {
+    var selectedA = document.querySelector('input[name="compare-a"]:checked');
+    if (selectedA) {
+        window.compareState.a = { version: selectedA.value, payload: selectedA.dataset.payload };
+    }
+
+    var selectedB = document.querySelector('input[name="compare-b"]:checked');
+    if (selectedB) {
+        window.compareState.b = { version: selectedB.value, payload: selectedB.dataset.payload };
+    }
+
+    document.querySelectorAll('input[name="compare-a"]').forEach(r => {
+        r.dataset.wasChecked = r.checked ? "true" : "false";
+    });
+    document.querySelectorAll('input[name="compare-b"]').forEach(r => {
+        r.dataset.wasChecked = r.checked ? "true" : "false";
+    });
+}
+
 function initCompareState() {
     // 常にDOMの現在のchecked状態をcompareStateに同期する
-    var initA = document.querySelector('input[name="compare-a"]:checked');
-    if (initA) {
-        window.compareState.a = { version: initA.value, payload: initA.dataset.payload };
-        initA.dataset.wasChecked = "true";
-    }
-    var initB = document.querySelector('input[name="compare-b"]:checked');
-    if (initB) {
-        window.compareState.b = { version: initB.value, payload: initB.dataset.payload };
-        initB.dataset.wasChecked = "true";
-    }
+    syncCompareStateFromDom();
     window.compareState.initialized = true;
+}
+
+function ensureCompareStateInitialized() {
+    if (!window.compareState.initialized) {
+        initCompareState();
+        return;
+    }
+
+    syncCompareStateFromDom();
 }
 
 function restoreCompareState() {
@@ -889,10 +908,13 @@ document.addEventListener('htmx:afterSwap', function(e) {
     if (e.target.id === 'history-table-container') {
         // まずDOMにcompareStateを復元し、wasCheckedを正しくセットする
         restoreCompareState();
+        syncCompareStateFromDom();
     }
 });
 
 function compareVersions() {
+    ensureCompareStateInitialized();
+
     if (!window.compareState.a.version || !window.compareState.b.version) {
         alert('比較する2つのバージョン（AとB）を選択してください。');
         return;
@@ -989,6 +1011,14 @@ function closeDiffModal() {
     document.getElementById('diff-modal').style.display = 'none';
     document.body.style.overflow = '';
 }
+
+if (document.readyState !== 'loading') {
+    initCompareState();
+}
+
+window.toggleCompareRadio = toggleCompareRadio;
+window.compareVersions = compareVersions;
+window.closeDiffModal = closeDiffModal;
 </script>
 
 <!-- ========== MODAL: バージョン構成詳細ビューア (Readonly Form UI) ========== -->
