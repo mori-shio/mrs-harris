@@ -267,7 +267,13 @@
         </a>
         <button class="btn btn-danger"
                 hx-delete="/api/jobs/{{ job.name }}"
-                hx-confirm="本当にこのジョブ定義を削除しますか？"
+                hx-trigger="confirmed-action"
+                data-confirm-kind="htmx"
+                data-confirm-title="ジョブを削除しますか？"
+                data-confirm-message="このジョブ定義を削除します。元に戻せません。"
+                data-confirm-confirm-label="削除する"
+                data-confirm-cancel-label="キャンセル"
+                data-confirm-tone="danger"
                 hx-headers='{"Authorization": ""}'
                 hx-on::after-request="if (event.detail.successful) window.location.href='/jobs'">
             <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>

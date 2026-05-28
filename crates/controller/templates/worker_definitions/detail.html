@@ -31,7 +31,15 @@
             編集する
         </a>
         
-        <form action="/worker-definitions/{{ def.id }}/delete" method="POST" onsubmit="return confirm('本当にこのワーカー定義を削除しますか？紐付いているジョブの実行に影響が出る可能性があります。');" style="display: inline;">
+        <form action="/worker-definitions/{{ def.id }}/delete"
+              method="POST"
+              style="display: inline;"
+              data-confirm-kind="form"
+              data-confirm-title="ワーカー定義を削除しますか？"
+              data-confirm-message="紐付いているジョブの実行に影響が出る可能性があります。"
+              data-confirm-confirm-label="削除する"
+              data-confirm-cancel-label="キャンセル"
+              data-confirm-tone="danger">
             <button type="submit" class="btn btn-secondary" style="background-color: rgba(244,63,94,0.1); color: #fb7185; border-color: rgba(244,63,94,0.15); display: inline-flex; align-items: center; gap: 8px;">
                 <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
                 削除

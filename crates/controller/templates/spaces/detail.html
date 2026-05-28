@@ -30,7 +30,15 @@
             <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
             編集
         </a>
-        <form action="/spaces/{{ space.id }}/delete" method="POST" style="margin: 0;" onsubmit="return confirm('本当にこのスペースを削除しますか？\n所属していたジョブは自動的かつ安全に「未分類」に移動します。')">
+        <form action="/spaces/{{ space.id }}/delete"
+              method="POST"
+              style="margin: 0;"
+              data-confirm-kind="form"
+              data-confirm-title="スペースを削除しますか？"
+              data-confirm-message="所属していたジョブは自動的かつ安全に「未分類」に移動します。"
+              data-confirm-confirm-label="削除する"
+              data-confirm-cancel-label="キャンセル"
+              data-confirm-tone="danger">
             <button type="submit" class="btn btn-secondary" style="color: var(--color-danger); border-color: rgba(239,68,68,0.2); display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
                 <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
                 削除
