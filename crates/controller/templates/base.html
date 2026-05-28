@@ -282,8 +282,24 @@
             return notice;
         };
 
+        function resolveConfirmKind(trigger) {
+            if (trigger.dataset.confirmKind) {
+                return trigger.dataset.confirmKind;
+            }
+
+            if (trigger.tagName === "FORM") {
+                return "form";
+            }
+
+            if (trigger.closest("form")) {
+                return "form";
+            }
+
+            return window.htmx ? "htmx" : "click";
+        }
+
         async function handleConfirmTrigger(trigger, event) {
-            if (!trigger || !trigger.dataset.confirmMessage || trigger.dataset.confirmPending === "true") {
+            if (!trigger || !trigger.dataset.confirmMessage || trigger.dataset.confirmPending === "true" || trigger.dataset.confirmBypass === "true") {
                 return false;
             }
 
@@ -302,14 +318,45 @@
                 return true;
             }
 
-            if (window.htmx) {
-                htmx.trigger(trigger, "confirmed-action");
-            }
+            const confirmKind = resolveConfirmKind(trigger);
+            trigger.dataset.confirmBypass = "true";
 
-            return true;
+            try {
+                if (confirmKind === "form") {
+                    const form = trigger.tagName === "FORM" ? trigger : trigger.closest("form");
+                    if (form) {
+                        if (trigger !== form && typeof form.requestSubmit === "function") {
+                            form.requestSubmit(trigger);
+                        } else if (typeof form.requestSubmit === "function") {
+                            form.requestSubmit();
+                        } else {
+                            form.submit();
+                        }
+                    }
+                    return true;
+                }
+
+                if (confirmKind === "htmx" && window.htmx) {
+                    htmx.trigger(trigger, "confirmed-action");
+                    return true;
+                }
+
+                trigger.click();
+                return true;
+            } finally {
+                window.setTimeout(() => {
+                    delete trigger.dataset.confirmBypass;
+                }, 0);
+            }
         }
 
         document.addEventListener("click", event => {
+            const trigger = event.target.closest("[data-confirm-message]");
+            if (!trigger) return;
+            void handleConfirmTrigger(trigger, event);
+        }, true);
+
+        document.addEventListener("submit", event => {
             const trigger = event.target.closest("[data-confirm-message]");
             if (!trigger) return;
             void handleConfirmTrigger(trigger, event);
