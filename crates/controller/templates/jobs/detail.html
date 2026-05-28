@@ -756,6 +756,9 @@
         var panel = document.getElementById(targetId);
         if (btn) btn.classList.add('active');
         if (panel) panel.classList.add('active');
+        if (targetId === 'tab-history' && typeof window.initJobHistoryCompare === 'function') {
+            window.initJobHistoryCompare();
+        }
         lucide.createIcons();
     }
 

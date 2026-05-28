@@ -77,7 +77,7 @@
     <a href="/jobs" style="color: var(--text-muted); text-decoration: none;">ジョブ</a>
     <span style="margin: 0 8px;">/</span>
     {% if is_edit %}
-    <a href="/jobs/{{ original_name.as_ref().unwrap() }}" style="color: var(--text-muted); text-decoration: none;" hx-boost="true">{{ original_name.as_ref().unwrap() }}</a>
+    <a href="/jobs/{{ original_name.as_ref().unwrap() }}" style="color: var(--text-muted); text-decoration: none;" hx-boost="false">{{ original_name.as_ref().unwrap() }}</a>
     <span style="margin: 0 8px;">/</span>
     <span style="color: var(--text-primary);">編集</span>
     {% else %}
@@ -94,7 +94,7 @@
         <div class="page-header" style="margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center;">
             <div class="page-title">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <a href="{% if is_edit %}/jobs/{{ original_name.as_ref().unwrap() }}{% else %}/jobs{% endif %}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
+                    <a href="{% if is_edit %}/jobs/{{ original_name.as_ref().unwrap() }}{% else %}/jobs{% endif %}" style="color: var(--text-muted); display: inline-flex; align-items: center;" {% if is_edit %}hx-boost="false"{% else %}hx-boost="true"{% endif %}>
                         <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
                     </a>
                     <h2>{% if is_edit %}ジョブ 編集{% else %}ジョブ 新規作成{% endif %}</h2>
