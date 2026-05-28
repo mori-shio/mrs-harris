@@ -421,11 +421,14 @@
 
         document.addEventListener("submit", event => {
             const form = event.target;
-            if (!(form instanceof HTMLFormElement) || form.dataset.confirmBypass === "true") return;
-            const submitter = window.appUi.requestSubmitWithoutSubmitterForms.has(form)
-                ? null
-                : event.submitter;
+            if (!(form instanceof HTMLFormElement)) return;
+
+            const hasNoSubmitterRequest = window.appUi.requestSubmitWithoutSubmitterForms.has(form);
+            const submitter = hasNoSubmitterRequest ? null : event.submitter;
             window.appUi.requestSubmitWithoutSubmitterForms.delete(form);
+
+            if (form.dataset.confirmBypass === "true") return;
+
             const trigger = findSubmitConfirmTrigger(form, submitter);
             if (!trigger) return;
             void handleConfirmTrigger(trigger, event);
