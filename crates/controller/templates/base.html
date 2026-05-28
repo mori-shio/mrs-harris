@@ -199,23 +199,15 @@
 
     <script>
         window.appUi = window.appUi || {
-            activeDialogTrigger: null,
-            dialogResolver: null,
-            previousActiveElement: null
+            dialogResolver: null
         };
 
         window.appConfirm = function(options = {}) {
             const overlay = document.getElementById("app-dialog-root");
-            if (!overlay) {
-                return Promise.resolve(window.confirm(options.message || "確認しますか？"));
-            }
-
-            const dialog = overlay.querySelector(".app-dialog");
             const title = document.getElementById("app-dialog-title");
             const message = document.getElementById("app-dialog-message");
             const confirmBtn = overlay.querySelector("[data-dialog-confirm]");
             const cancelBtn = overlay.querySelector("[data-dialog-cancel]");
-            const tone = options.tone || "default";
 
             if (window.appUi.dialogResolver) {
                 window.closeAppDialog(false);
@@ -223,17 +215,14 @@
 
             overlay.classList.add("active");
             overlay.setAttribute("aria-hidden", "false");
-            dialog.dataset.tone = tone;
             title.textContent = options.title || "確認";
             message.textContent = options.message || "";
             confirmBtn.textContent = options.confirmLabel || "実行";
             cancelBtn.textContent = options.cancelLabel || "キャンセル";
             document.body.style.overflow = "hidden";
-            window.appUi.previousActiveElement = document.activeElement;
 
             return new Promise(resolve => {
                 window.appUi.dialogResolver = resolve;
-                window.requestAnimationFrame(() => confirmBtn.focus());
             });
         };
 
@@ -243,7 +232,6 @@
 
             overlay.classList.remove("active");
             overlay.setAttribute("aria-hidden", "true");
-            overlay.querySelector(".app-dialog").dataset.tone = "default";
             document.body.style.overflow = "";
 
             const resolve = window.appUi.dialogResolver;
@@ -252,13 +240,6 @@
             if (resolve) {
                 resolve(Boolean(confirmed));
             }
-
-            const focusTarget = window.appUi.activeDialogTrigger || window.appUi.previousActiveElement;
-            window.appUi.activeDialogTrigger = null;
-            window.appUi.previousActiveElement = null;
-            if (focusTarget && typeof focusTarget.focus === "function") {
-                window.requestAnimationFrame(() => focusTarget.focus());
-            }
         };
 
         window.appToast = function(options = {}) {
@@ -266,23 +247,15 @@
             if (!region || !options.message) return null;
 
             const toast = document.createElement("div");
-            const tone = options.tone || "success";
             const timeoutMs = options.timeoutMs || 4000;
 
-            toast.className = "app-toast app-toast-" + tone;
-            toast.setAttribute("role", tone === "danger" ? "alert" : "status");
+            toast.className = "app-toast";
+            toast.setAttribute("role", "status");
             toast.textContent = options.message;
             region.appendChild(toast);
 
-            window.requestAnimationFrame(() => {
-                toast.classList.add("active");
-            });
-
             window.setTimeout(() => {
-                toast.classList.remove("active");
-                window.setTimeout(() => {
-                    toast.remove();
-                }, 180);
+                toast.remove();
             }, timeoutMs);
 
             return toast;
@@ -291,57 +264,37 @@
         window.renderInlineNotice = function(container, options = {}) {
             if (!container || !options.message) return null;
 
-            const host = container.classList.contains("inline-notice-host")
-                ? container
-                : container.querySelector(".inline-notice-host") || (() => {
-                    const nextHost = document.createElement("div");
-                    nextHost.className = "inline-notice-host";
-                    container.prepend(nextHost);
-                    return nextHost;
-                })();
+            let host = container.querySelector(".inline-notice-host");
+            if (!host) {
+                host = document.createElement("div");
+                host.className = "inline-notice-host";
+                container.prepend(host);
+            }
 
             host.replaceChildren();
 
             const notice = document.createElement("div");
-            notice.className = "inline-notice inline-notice-" + (options.tone || "info");
-            notice.setAttribute("role", options.tone === "danger" ? "alert" : "status");
+            notice.className = "inline-notice";
+            notice.setAttribute("role", "alert");
             notice.textContent = options.message;
             host.appendChild(notice);
 
             return notice;
         };
 
-        function resolveConfirmAction(trigger) {
-            const explicitKind = trigger.dataset.confirmKind;
-            if (explicitKind) return explicitKind;
-
-            if (trigger.tagName === "FORM") return "form";
-
-            const form = trigger.closest("form");
-            if (form && (trigger.tagName === "BUTTON" || trigger.tagName === "INPUT")) {
-                return "form";
-            }
-
-            return "click";
-        }
-
         async function handleConfirmTrigger(trigger, event) {
-            if (!trigger || !trigger.dataset.confirmMessage || trigger.dataset.confirmPending === "true" || trigger.dataset.confirmBypass === "true") {
+            if (!trigger || !trigger.dataset.confirmMessage || trigger.dataset.confirmPending === "true") {
                 return false;
             }
 
             event.preventDefault();
-            event.stopPropagation();
-
             trigger.dataset.confirmPending = "true";
-            window.appUi.activeDialogTrigger = trigger;
 
             const confirmed = await window.appConfirm({
                 title: trigger.dataset.confirmTitle || "確認",
                 message: trigger.dataset.confirmMessage,
                 confirmLabel: trigger.dataset.confirmConfirmLabel || "実行",
-                cancelLabel: trigger.dataset.confirmCancelLabel || "キャンセル",
-                tone: trigger.dataset.confirmTone || "default"
+                cancelLabel: trigger.dataset.confirmCancelLabel || "キャンセル"
             });
 
             trigger.dataset.confirmPending = "false";
@@ -349,45 +302,14 @@
                 return true;
             }
 
-            const actionKind = resolveConfirmAction(trigger);
-            trigger.dataset.confirmBypass = "true";
-
-            try {
-                if (actionKind === "form") {
-                    const form = trigger.tagName === "FORM" ? trigger : trigger.closest("form");
-                    if (form) {
-                        if (trigger !== form && typeof form.requestSubmit === "function" && (trigger.tagName === "BUTTON" || trigger.tagName === "INPUT")) {
-                            form.requestSubmit(trigger);
-                        } else if (typeof form.requestSubmit === "function") {
-                            form.requestSubmit();
-                        } else {
-                            form.submit();
-                        }
-                    }
-                    return true;
-                }
-
-                if (actionKind === "htmx" && window.htmx && trigger.dataset.confirmEvent) {
-                    htmx.trigger(trigger, trigger.dataset.confirmEvent);
-                    return true;
-                }
-
-                trigger.click();
-                return true;
-            } finally {
-                window.setTimeout(() => {
-                    delete trigger.dataset.confirmBypass;
-                }, 0);
+            if (window.htmx) {
+                htmx.trigger(trigger, "confirmed-action");
             }
+
+            return true;
         }
 
         document.addEventListener("click", event => {
-            const trigger = event.target.closest("[data-confirm-message]");
-            if (!trigger) return;
-            void handleConfirmTrigger(trigger, event);
-        }, true);
-
-        document.addEventListener("submit", event => {
             const trigger = event.target.closest("[data-confirm-message]");
             if (!trigger) return;
             void handleConfirmTrigger(trigger, event);
@@ -403,22 +325,6 @@
             if (event.target.matches("[data-dialog-confirm]")) {
                 window.closeAppDialog(true);
             }
-        });
-
-        document.addEventListener("keydown", event => {
-            const overlay = document.getElementById("app-dialog-root");
-            if (!overlay || overlay.getAttribute("aria-hidden") === "true") return;
-
-            if (event.key === "Escape") {
-                event.preventDefault();
-                window.closeAppDialog(false);
-            }
-        });
-
-        document.addEventListener("click", event => {
-            const overlay = document.getElementById("app-dialog-root");
-            if (!overlay || event.target !== overlay) return;
-            window.closeAppDialog(false);
         });
 
         // Initialize Lucide icons on page load and after HTMX swaps
