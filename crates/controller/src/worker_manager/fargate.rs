@@ -1,27 +1,33 @@
 use crate::app::AppState;
-use mrs_harris_common::models::run::JobRun;
 use aws_sdk_ecs::Client as EcsClient;
-use aws_sdk_ecs::types::{LaunchType, TaskOverride, ContainerOverride, NetworkConfiguration, AwsVpcConfiguration, AssignPublicIp};
+use aws_sdk_ecs::types::{
+    AssignPublicIp, AwsVpcConfiguration, ContainerOverride, LaunchType, NetworkConfiguration,
+    TaskOverride,
+};
+use mrs_harris_common::models::run::JobRun;
 
 /// Fargate タスクとしてジョブを起動
 pub async fn launch(state: &AppState, run: &JobRun) -> anyhow::Result<String> {
     tracing::info!(run_id = %run.id, "Fargate タスクの起動を開始");
 
-    let mut is_local = state.config.fargate.cluster_arn == "local" || state.config.fargate.cluster_arn.is_empty();
+    let mut is_local =
+        state.config.fargate.cluster_arn == "local" || state.config.fargate.cluster_arn.is_empty();
 
-    if let Some(def_id) = run.worker_definition_id {
-        if let Ok(Some(def)) = crate::db::workers::get_worker_definition(&state.db, &def_id).await {
-            if let Some(val) = def.config.get("cluster_arn").and_then(|v| v.as_str()) {
-                is_local = val == "local" || val.is_empty();
-            }
-        }
+    if let Some(def_id) = run.worker_definition_id
+        && let Ok(Some(def)) = crate::db::workers::get_worker_definition(&state.db, &def_id).await
+        && let Some(val) = def.config.get("cluster_arn").and_then(|v| v.as_str())
+    {
+        is_local = val == "local" || val.is_empty();
     }
 
     if !is_local {
         match launch_aws_fargate(state, run).await {
             Ok(arn) => return Ok(arn),
             Err(e) => {
-                tracing::warn!("Failed to launch Fargate on AWS: {}. Falling back to local process spawning.", e);
+                tracing::warn!(
+                    "Failed to launch Fargate on AWS: {}. Falling back to local process spawning.",
+                    e
+                );
             }
         }
     }
@@ -30,7 +36,7 @@ pub async fn launch(state: &AppState, run: &JobRun) -> anyhow::Result<String> {
 }
 
 async fn launch_aws_fargate(state: &AppState, run: &JobRun) -> anyhow::Result<String> {
-    let sdk_config = aws_config::load_from_env().await;
+    let sdk_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
     let client = EcsClient::new(&sdk_config);
     let callback_url = format!("{}/api/internal/callback", state.config.server.external_url);
 
@@ -43,26 +49,32 @@ async fn launch_aws_fargate(state: &AppState, run: &JobRun) -> anyhow::Result<St
     let mut assign_public_ip_bool = state.config.fargate.assign_public_ip.unwrap_or(true);
 
     // 自作ワーカー定義の設定でオーバーライド
-    if let Some(def_id) = run.worker_definition_id {
-        if let Some(def) = crate::db::workers::get_worker_definition(&state.db, &def_id).await? {
-            if let Some(val) = def.config.get("cluster_arn").and_then(|v| v.as_str()) {
-                cluster_arn = val.to_string();
-            }
-            if let Some(val) = def.config.get("task_definition").and_then(|v| v.as_str()) {
-                task_definition = val.to_string();
-            }
-            if let Some(val) = def.config.get("subnets").and_then(|v| v.as_array()) {
-                subnets = val.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect();
-            }
-            if let Some(val) = def.config.get("security_groups").and_then(|v| v.as_array()) {
-                security_groups = val.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect();
-            }
-            if let Some(val) = def.config.get("container_name").and_then(|v| v.as_str()) {
-                container_name = val.to_string();
-            }
-            if let Some(val) = def.config.get("assign_public_ip").and_then(|v| v.as_bool()) {
-                assign_public_ip_bool = val;
-            }
+    if let Some(def_id) = run.worker_definition_id
+        && let Some(def) = crate::db::workers::get_worker_definition(&state.db, &def_id).await?
+    {
+        if let Some(val) = def.config.get("cluster_arn").and_then(|v| v.as_str()) {
+            cluster_arn = val.to_string();
+        }
+        if let Some(val) = def.config.get("task_definition").and_then(|v| v.as_str()) {
+            task_definition = val.to_string();
+        }
+        if let Some(val) = def.config.get("subnets").and_then(|v| v.as_array()) {
+            subnets = val
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+        }
+        if let Some(val) = def.config.get("security_groups").and_then(|v| v.as_array()) {
+            security_groups = val
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+        }
+        if let Some(val) = def.config.get("container_name").and_then(|v| v.as_str()) {
+            container_name = val.to_string();
+        }
+        if let Some(val) = def.config.get("assign_public_ip").and_then(|v| v.as_bool()) {
+            assign_public_ip_bool = val;
         }
     }
 
@@ -123,7 +135,12 @@ async fn launch_local_process(state: &AppState, run: &JobRun) -> anyhow::Result<
     let callback_url = format!("{}/api/internal/callback", state.config.server.external_url);
     let task_id = run.id.to_string();
 
-    tracing::info!("Launching local worker process as fallback: {:?} worker --task-id {} --callback-url {}", current_exe, task_id, callback_url);
+    tracing::info!(
+        "Launching local worker process as fallback: {:?} worker --task-id {} --callback-url {}",
+        current_exe,
+        task_id,
+        callback_url
+    );
 
     let mut child = tokio::process::Command::new(current_exe)
         .arg("worker")

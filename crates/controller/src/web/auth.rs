@@ -1,18 +1,18 @@
-use axum::{
-    extract::{State, FromRequestParts},
-    http::{request::Parts, StatusCode},
-    response::{IntoResponse, Redirect, Response},
-    routing::{get, post},
-    Form, Router,
-};
-use axum_extra::extract::cookie::{Cookie, CookieJar};
-use time;
-use askama::Template;
-use mrs_harris_common::models::user::{Claims, LoginRequest};
 use crate::app::AppState;
 use argon2::{Argon2, PasswordVerifier};
-use jsonwebtoken::{encode, decode, Header, EncodingKey, DecodingKey, Validation};
+use askama::Template;
+use axum::{
+    Form, Router,
+    extract::{FromRequestParts, State},
+    http::request::Parts,
+    response::{IntoResponse, Redirect},
+    routing::get,
+};
+use axum_extra::extract::cookie::{Cookie, CookieJar};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use mrs_harris_common::models::user::{Claims, LoginRequest};
 use std::time::SystemTime;
+use time;
 
 /// Web用カスタム認証抽出子。JWTがCookieに存在しない、または無効な場合は自動的に `/login` にリダイレクトします。
 pub struct WebClaims(pub Claims);
@@ -63,7 +63,6 @@ struct LoginTemplate {
 }
 crate::impl_into_response!(LoginTemplate);
 
-
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/login", get(login_page).post(login_submit))
@@ -83,7 +82,8 @@ async fn login_submit(
     Form(payload): Form<LoginRequest>,
 ) -> impl IntoResponse {
     // 1. DBからユーザーを取得
-    let user_opt = match crate::db::users::get_user_by_username(&state.db, &payload.username).await {
+    let user_opt = match crate::db::users::get_user_by_username(&state.db, &payload.username).await
+    {
         Ok(opt) => opt,
         Err(e) => {
             return LoginTemplate {
@@ -163,7 +163,9 @@ async fn login_submit(
     let mut cookie = Cookie::new("jwt", token);
     cookie.set_path("/");
     cookie.set_http_only(true);
-    cookie.set_max_age(time::Duration::hours(state.config.auth.jwt_expiry_hours as i64));
+    cookie.set_max_age(time::Duration::hours(
+        state.config.auth.jwt_expiry_hours as i64,
+    ));
 
     let updated_jar = jar.add(cookie);
     (updated_jar, Redirect::to("/")).into_response()

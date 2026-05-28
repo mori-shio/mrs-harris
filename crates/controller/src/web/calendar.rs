@@ -1,7 +1,7 @@
-use axum::{response::IntoResponse, routing::get, Router};
-use askama::Template;
 use super::auth::WebClaims;
 use crate::app::AppState;
+use askama::Template;
+use axum::{Router, response::IntoResponse, routing::get};
 
 #[derive(Template)]
 #[template(path = "calendar.html")]

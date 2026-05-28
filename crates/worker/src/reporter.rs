@@ -1,6 +1,5 @@
 use mrs_harris_common::models::run::WorkerCallback;
 
-
 /// Controller から取得するタスク情報
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct TaskInfo {
@@ -20,11 +19,7 @@ pub async fn fetch_task_info(callback_url: &str, task_id: &i64) -> anyhow::Resul
         .unwrap_or(callback_url);
     let url = format!("{}/api/internal/task/{}", base_url, task_id);
 
-    let response = client
-        .get(&url)
-        .send()
-        .await?
-        .error_for_status()?;
+    let response = client.get(&url).send().await?.error_for_status()?;
 
     let task_info: TaskInfo = response.json().await?;
     Ok(task_info)
@@ -48,11 +43,12 @@ pub async fn report_result(
         format!("{}/api/internal/callback", base_url)
     };
 
-
     let callback = WorkerCallback {
         task_id: *task_id,
         status: result.status,
-        output: result.exit_code.map(|c| serde_json::json!({ "exit_code": c })),
+        output: result
+            .exit_code
+            .map(|c| serde_json::json!({ "exit_code": c })),
         error: result.error,
         logs: result.logs,
         duration_ms: Some(result.duration_ms),

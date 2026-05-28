@@ -1,5 +1,5 @@
-use sqlx::MySqlPool;
 use argon2::{Argon2, PasswordHasher, password_hash::SaltString};
+use sqlx::MySqlPool;
 
 use chrono::{DateTime, Utc};
 
@@ -16,7 +16,6 @@ pub async fn create_admin_user(
         .map_err(|e| anyhow::anyhow!("パスワードハッシュエラー: {}", e))?
         .to_string();
 
-    
     let now = chrono::Utc::now().to_rfc3339();
 
     sqlx::query(
@@ -24,7 +23,6 @@ pub async fn create_admin_user(
            VALUES (?, ?, 'admin', ?, ?)
            ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), updated_at = VALUES(updated_at)"#
     )
-    
     .bind(username)
     .bind(&password_hash)
     .bind(&now)
@@ -55,7 +53,7 @@ pub async fn get_user_by_username(
         let role_str: String = r.try_get("role")?;
         let role = mrs_harris_common::models::user::UserRole::from_str(&role_str)
             .map_err(|e| anyhow::anyhow!("Invalid UserRole: {}", e))?;
-        
+
         let created_at: DateTime<Utc> = r.try_get("created_at")?;
         let updated_at: DateTime<Utc> = r.try_get("updated_at")?;
 
@@ -86,4 +84,3 @@ pub async fn seed_default_admin_if_needed(pool: &MySqlPool) -> anyhow::Result<()
 
     Ok(())
 }
-

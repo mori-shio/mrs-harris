@@ -4,7 +4,6 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-
 /// ジョブ実行結果
 #[derive(Debug)]
 pub struct ExecutionResult {
@@ -127,15 +126,16 @@ pub async fn execute_shell_command(task_info: &super::reporter::TaskInfo) -> Exe
             } else {
                 RunStatus::Failed
             };
-            
+
             let error_msg = if !status.success() {
-                let last_stderr: Vec<String> = logs.iter()
+                let last_stderr: Vec<String> = logs
+                    .iter()
                     .filter(|l| matches!(l.stream, LogStream::Stderr))
                     .rev()
                     .take(5)
                     .map(|l| l.line.clone())
                     .collect();
-                
+
                 let mut msg = format!("終了コード: {:?}", exit_code);
                 if !last_stderr.is_empty() {
                     msg.push_str("\n\n[エラー詳細 (Stderr)]\n");
@@ -144,7 +144,8 @@ pub async fn execute_shell_command(task_info: &super::reporter::TaskInfo) -> Exe
                         msg.push('\n');
                     }
                 } else {
-                    let last_stdout: Vec<String> = logs.iter()
+                    let last_stdout: Vec<String> = logs
+                        .iter()
                         .filter(|l| matches!(l.stream, LogStream::Stdout))
                         .rev()
                         .take(5)
@@ -162,7 +163,7 @@ pub async fn execute_shell_command(task_info: &super::reporter::TaskInfo) -> Exe
             } else {
                 None
             };
-            
+
             ExecutionResult {
                 status: run_status,
                 exit_code,

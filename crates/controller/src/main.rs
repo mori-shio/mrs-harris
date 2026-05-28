@@ -1,14 +1,14 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::EnvFilter;
 
-mod app;
 mod api;
+mod app;
 mod db;
-mod scheduler;
-mod worker_manager;
 mod notification;
+mod scheduler;
 mod web;
+mod worker_manager;
 
 /// Mrs. Harris — ジョブスケジューラ
 #[derive(Parser)]
@@ -87,7 +87,11 @@ async fn main() -> anyhow::Result<()> {
             db::run_migrations(&config.database).await?;
             tracing::info!("マイグレーション完了");
         }
-        Commands::InitAdmin { config, username, password } => {
+        Commands::InitAdmin {
+            config,
+            username,
+            password,
+        } => {
             tracing::info!("Admin ユーザーを作成します...");
             let config = mrs_harris_common::config::ControllerConfig::from_file(&config)
                 .map_err(|e| anyhow::anyhow!("設定ファイルの読み込みに失敗: {}", e))?;
@@ -95,7 +99,11 @@ async fn main() -> anyhow::Result<()> {
             db::users::create_admin_user(&pool, &username, &password).await?;
             tracing::info!("Admin ユーザー '{}' を作成しました", username);
         }
-        Commands::Worker { task_id, callback_url, api_key } => {
+        Commands::Worker {
+            task_id,
+            callback_url,
+            api_key,
+        } => {
             mrs_harris_worker::run_worker(task_id, callback_url, api_key).await?;
         }
     }

@@ -1,5 +1,5 @@
-use axum::{Router, routing::get, Json};
 use crate::app::AppState;
+use axum::{Json, Router, routing::get};
 
 pub fn router() -> Router<AppState> {
     Router::new().route("/health", get(health_check))

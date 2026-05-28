@@ -29,10 +29,14 @@ pub async fn dispatch_pending_runs(state: &AppState) -> anyhow::Result<()> {
                 None,
                 None,
                 None,
-                
             )
-            .await {
-                tracing::error!("Failed to update run status to running for DAG run {}: {}", run.id, e);
+            .await
+            {
+                tracing::error!(
+                    "Failed to update run status to running for DAG run {}: {}",
+                    run.id,
+                    e
+                );
                 continue;
             }
 
@@ -40,8 +44,14 @@ pub async fn dispatch_pending_runs(state: &AppState) -> anyhow::Result<()> {
             let state_clone = state.clone();
             let run_id = run.id;
             tokio::spawn(async move {
-                if let Err(e) = crate::scheduler::dag_engine::resolve_and_dispatch(state_clone, run_id).await {
-                    tracing::error!("Failed to resolve and dispatch DAG initially for run {}: {}", run_id, e);
+                if let Err(e) =
+                    crate::scheduler::dag_engine::resolve_and_dispatch(state_clone, run_id).await
+                {
+                    tracing::error!(
+                        "Failed to resolve and dispatch DAG initially for run {}: {}",
+                        run_id,
+                        e
+                    );
                 }
             });
             continue;
@@ -62,7 +72,11 @@ pub async fn dispatch_pending_runs(state: &AppState) -> anyhow::Result<()> {
         let worker = match worker_res {
             Ok(w) => w,
             Err(e) => {
-                tracing::error!("Failed to register worker in database for run {}: {}", run.id, e);
+                tracing::error!(
+                    "Failed to register worker in database for run {}: {}",
+                    run.id,
+                    e
+                );
                 continue;
             }
         };
@@ -74,9 +88,18 @@ pub async fn dispatch_pending_runs(state: &AppState) -> anyhow::Result<()> {
         // ワーカーを非同期で起動
         match crate::worker_manager::launch_worker(state, &run_clone).await {
             Ok(external_id) => {
-                tracing::info!("Successfully launched worker for run {}. External ID: {}", run.id, external_id);
+                tracing::info!(
+                    "Successfully launched worker for run {}. External ID: {}",
+                    run.id,
+                    external_id
+                );
                 // workers テーブルの external_id を更新
-                let _ = crate::db::workers::update_worker_external_id(&state.db, &worker.id, &external_id).await;
+                let _ = crate::db::workers::update_worker_external_id(
+                    &state.db,
+                    &worker.id,
+                    &external_id,
+                )
+                .await;
 
                 // ステータスを running に更新、および worker_id に BIGINT を設定
                 if let Err(e) = crate::db::runs::update_run_status(
@@ -88,13 +111,18 @@ pub async fn dispatch_pending_runs(state: &AppState) -> anyhow::Result<()> {
                     None,
                     None,
                 )
-                .await {
-                    tracing::error!("Failed to update run status to running for run {}: {}", run.id, e);
+                .await
+                {
+                    tracing::error!(
+                        "Failed to update run status to running for run {}: {}",
+                        run.id,
+                        e
+                    );
                 }
             }
             Err(err) => {
                 tracing::error!("Failed to launch worker for run {}: {}", run.id, err);
-                
+
                 // workers テーブルのステータスを failed に更新
                 let _ = crate::db::workers::update_worker_status(
                     &state.db,
@@ -114,10 +142,16 @@ pub async fn dispatch_pending_runs(state: &AppState) -> anyhow::Result<()> {
                     None,
                     None,
                 )
-                .await {
-                    tracing::error!("Failed to update run status to failed for run {}: {}", run.id, e);
+                .await
+                {
+                    tracing::error!(
+                        "Failed to update run status to failed for run {}: {}",
+                        run.id,
+                        e
+                    );
                 } else {
-                    let _ = crate::notification::trigger_notifications(state, &run.id, "failed").await;
+                    let _ =
+                        crate::notification::trigger_notifications(state, &run.id, "failed").await;
                 }
             }
         }

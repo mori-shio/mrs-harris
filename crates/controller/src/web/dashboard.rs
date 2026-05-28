@@ -1,17 +1,12 @@
-use axum::{
-    extract::State,
-    response::IntoResponse,
-    routing::get,
-    Router,
-};
 use askama::Template;
+use axum::{Router, extract::State, response::IntoResponse, routing::get};
 
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Duration, Utc};
 use sqlx::{MySqlPool, Row};
 use std::str::FromStr;
 
-use mrs_harris_common::models::run::RunStatus;
 use mrs_harris_common::models::job::WorkerType;
+use mrs_harris_common::models::run::RunStatus;
 use mrs_harris_common::models::run::TriggerType;
 
 use super::auth::WebClaims;
@@ -70,20 +65,22 @@ async fn fetch_dashboard_data(pool: &MySqlPool) -> anyhow::Result<DashboardLiveT
         .await?;
 
     // 2. 有効なジョブ定義数
-    let active_jobs_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM jobs WHERE is_active = 1")
-        .fetch_one(pool)
-        .await?;
+    let active_jobs_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM jobs WHERE is_active = 1")
+            .fetch_one(pool)
+            .await?;
 
     // 3. 直近24時間の実行
     let cutoff = Utc::now() - Duration::hours(24);
-    let today_runs_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM job_runs WHERE created_at >= ?")
-        .bind(cutoff)
-        .fetch_one(pool)
-        .await?;
+    let today_runs_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM job_runs WHERE created_at >= ?")
+            .bind(cutoff)
+            .fetch_one(pool)
+            .await?;
 
     // 4. 24時間以内の成功数
     let succeeded_today: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM job_runs WHERE status = 'succeeded' AND created_at >= ?"
+        "SELECT COUNT(*) FROM job_runs WHERE status = 'succeeded' AND created_at >= ?",
     )
     .bind(cutoff)
     .fetch_one(pool)
@@ -105,11 +102,10 @@ async fn fetch_dashboard_data(pool: &MySqlPool) -> anyhow::Result<DashboardLiveT
     };
 
     // 7. アクティブワーカー数
-    let active_workers_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM workers WHERE status = 'running'"
-    )
-    .fetch_one(pool)
-    .await?;
+    let active_workers_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM workers WHERE status = 'running'")
+            .fetch_one(pool)
+            .await?;
 
     // 8. 直近の実行履歴（10件）
     let rows = sqlx::query(
@@ -128,7 +124,7 @@ async fn fetch_dashboard_data(pool: &MySqlPool) -> anyhow::Result<DashboardLiveT
     for r in rows {
         let id: i64 = r.try_get("id")?;
         let job_name: String = r.try_get("job_name")?;
-        
+
         let status_str: String = r.try_get("status")?;
         let status = RunStatus::from_str(&status_str)?;
 
@@ -171,7 +167,10 @@ async fn fetch_dashboard_data(pool: &MySqlPool) -> anyhow::Result<DashboardLiveT
         };
 
         let started_at_str = match started_at {
-            Some(dt) => dt.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string(),
+            Some(dt) => dt
+                .with_timezone(&chrono::Local)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string(),
             None => "-".to_string(),
         };
 
@@ -199,40 +198,40 @@ async fn fetch_dashboard_data(pool: &MySqlPool) -> anyhow::Result<DashboardLiveT
     })
 }
 
-async fn dashboard(
-    _claims: WebClaims,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+async fn dashboard(_claims: WebClaims, State(state): State<AppState>) -> impl IntoResponse {
     match fetch_dashboard_data(&state.db).await {
-        Ok(data) => {
-            DashboardTemplate {
-                active_jobs_count: data.active_jobs_count,
-                total_jobs_count: data.total_jobs_count,
-                today_runs_count: data.today_runs_count,
-                success_rate_percent: data.success_rate_percent,
-                succeeded_today: data.succeeded_today,
-                failed_today: data.failed_today,
-                active_workers_count: data.active_workers_count,
-                recent_runs: data.recent_runs,
-            }
-            .into_response()
+        Ok(data) => DashboardTemplate {
+            active_jobs_count: data.active_jobs_count,
+            total_jobs_count: data.total_jobs_count,
+            today_runs_count: data.today_runs_count,
+            success_rate_percent: data.success_rate_percent,
+            succeeded_today: data.succeeded_today,
+            failed_today: data.failed_today,
+            active_workers_count: data.active_workers_count,
+            recent_runs: data.recent_runs,
         }
+        .into_response(),
         Err(e) => {
             tracing::error!("Dashboard data fetch error: {}", e);
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Internal Server Error: {}", e)).into_response()
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal Server Error: {}", e),
+            )
+                .into_response()
         }
     }
 }
 
-async fn dashboard_live(
-    _claims: WebClaims,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+async fn dashboard_live(_claims: WebClaims, State(state): State<AppState>) -> impl IntoResponse {
     match fetch_dashboard_data(&state.db).await {
         Ok(data) => data.into_response(),
         Err(e) => {
             tracing::error!("Live dashboard data fetch error: {}", e);
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Internal Server Error: {}", e)).into_response()
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal Server Error: {}", e),
+            )
+                .into_response()
         }
     }
 }

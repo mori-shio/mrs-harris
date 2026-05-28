@@ -1,9 +1,9 @@
 use crate::app::AppState;
+use chrono::Utc;
+use cron::Schedule;
 use mrs_harris_common::models::job::JobType;
 use mrs_harris_common::models::run::{NewRun, TriggerType};
-use cron::Schedule;
 use std::str::FromStr;
-use chrono::Utc;
 
 /// Cron 式に基づいてジョブをトリガー
 pub async fn check_cron_jobs(state: &AppState) -> anyhow::Result<()> {
@@ -30,7 +30,8 @@ pub async fn check_cron_jobs(state: &AppState) -> anyhow::Result<()> {
         };
 
         // 2. 最新の実行レコードを取得
-        let latest_runs = crate::db::runs::list_runs(&state.db, Some(&job.id), Some(1), None, true).await?;
+        let latest_runs =
+            crate::db::runs::list_runs(&state.db, Some(&job.id), Some(1), None, true).await?;
         let latest_run = latest_runs.first();
 
         //chrono v0.4 の TimeDelta (Duration) を使う
@@ -40,14 +41,20 @@ pub async fn check_cron_jobs(state: &AppState) -> anyhow::Result<()> {
             schedule.after(&base_time).next()
         } else {
             // 初回の場合、現在時刻より少し前の時刻を起点にして「次」の実行予定を求める
-            schedule.after(&(Utc::now() - chrono::Duration::seconds(1))).next()
+            schedule
+                .after(&(Utc::now() - chrono::Duration::seconds(1)))
+                .next()
         };
 
         if let Some(scheduled_at) = next_run_time {
             // 現在時刻を過ぎていたらトリガーする
             if scheduled_at <= Utc::now() {
-                tracing::info!("Triggering cron job '{}' for scheduled time {:?}", job.name, scheduled_at);
-                
+                tracing::info!(
+                    "Triggering cron job '{}' for scheduled time {:?}",
+                    job.name,
+                    scheduled_at
+                );
+
                 let new_run = NewRun {
                     job_id: job.id,
                     worker_type: job.worker_type,

@@ -1,10 +1,14 @@
-use mrs_harris_common::models::run::{JobRun, RunStatus, TriggerType, NewRun};
-use mrs_harris_common::models::job::WorkerType;
 use mrs_harris_common::models::calendar::CalendarEntry;
+use mrs_harris_common::models::job::WorkerType;
+use mrs_harris_common::models::run::{JobRun, NewRun, RunStatus, TriggerType};
 use sqlx::{MySqlPool, Row};
 
 use chrono::{DateTime, Utc};
 use std::str::FromStr;
+
+fn require_job_history_id(job_id: i64, job_history_id: Option<i64>) -> anyhow::Result<i64> {
+    job_history_id.ok_or_else(|| anyhow::anyhow!("job {} has no job_history record", job_id))
+}
 
 fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
     let id: i64 = row.try_get("id")?;
@@ -27,14 +31,14 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
         .map_err(|e| anyhow::anyhow!("Invalid TriggerType: {}", e))?;
 
     let attempt: u32 = row.try_get("attempt")?;
-    
+
     let scheduled_at: Option<DateTime<Utc>> = row.try_get("scheduled_at")?;
     let started_at: Option<DateTime<Utc>> = row.try_get("started_at")?;
     let finished_at: Option<DateTime<Utc>> = row.try_get("finished_at")?;
     let next_retry_at: Option<DateTime<Utc>> = row.try_get("next_retry_at")?;
-    
+
     let duration_ms: Option<i64> = row.try_get("duration_ms")?;
-    
+
     let output: Option<serde_json::Value> = row.try_get("output")?;
     let error: Option<String> = row.try_get("error")?;
     let job_history_id: Option<i64> = row.try_get("job_history_id")?;
@@ -67,6 +71,21 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
     })
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn require_job_history_id_rejects_missing_history() {
+        let err = require_job_history_id(123, None).unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("job 123 has no job_history record")
+        );
+    }
+}
+
 /// ジョブ実行を新規作成
 pub async fn create_run(pool: &MySqlPool, new_run: &NewRun) -> anyhow::Result<JobRun> {
     let mut tx = pool.begin().await?;
@@ -79,15 +98,16 @@ pub async fn create_run(pool: &MySqlPool, new_run: &NewRun) -> anyhow::Result<Jo
         .bind(new_run.job_id)
         .fetch_optional(&mut *tx)
         .await?;
-    
+
     let job_history_id = match history_row {
         Some(row) => row.try_get::<Option<i64>, &str>("max_h_id").unwrap_or(None),
         None => None,
     };
+    let job_history_id = require_job_history_id(new_run.job_id, job_history_id)?;
 
     // 最新の run_number を FOR UPDATE で取得
     let max_run_number: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(MAX(run_number), 0) FROM job_runs WHERE job_id = ? FOR UPDATE"
+        "SELECT COALESCE(MAX(run_number), 0) FROM job_runs WHERE job_id = ? FOR UPDATE",
     )
     .bind(new_run.job_id)
     .fetch_one(&mut *tx)
@@ -111,7 +131,9 @@ pub async fn create_run(pool: &MySqlPool, new_run: &NewRun) -> anyhow::Result<Jo
     let new_id = result.last_insert_id() as i64;
     tx.commit().await?;
 
-    get_run(pool, &new_id).await?.ok_or_else(|| anyhow::anyhow!("Created run not found"))
+    get_run(pool, &new_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Created run not found"))
 }
 
 /// 実行履歴を取得
@@ -126,11 +148,11 @@ pub async fn get_run(pool: &MySqlPool, id: &i64) -> anyhow::Result<Option<JobRun
          LEFT JOIN workers w ON r.worker_id = w.id \
          LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id \
          LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id \
-         WHERE r.id = ?"
+         WHERE r.id = ?",
     )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
 
     match row {
         Some(r) => Ok(Some(map_row_to_run(&r)?)),
@@ -154,7 +176,7 @@ pub async fn get_run_by_number(
          LEFT JOIN workers w ON r.worker_id = w.id \
          LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id \
          LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id \
-         WHERE r.job_id = ? AND r.run_number = ?"
+         WHERE r.job_id = ? AND r.run_number = ?",
     )
     .bind(job_id)
     .bind(run_number)
@@ -264,10 +286,7 @@ pub async fn update_run_status(
         query = query.bind(out);
     }
 
-    let result = query
-        .bind(id)
-        .execute(pool)
-        .await?;
+    let result = query.bind(id).execute(pool).await?;
 
     if result.rows_affected() == 0 {
         return Err(anyhow::anyhow!("Run not found or already in target status"));
@@ -302,7 +321,7 @@ pub async fn get_runs_for_calendar(
         let job_id: i64 = r.try_get("job_id")?;
 
         let job_name: String = r.try_get("job_name")?;
-        
+
         let status_str: String = r.try_get("status")?;
         let status = RunStatus::from_str(&status_str)
             .map_err(|e| anyhow::anyhow!("Invalid RunStatus: {}", e))?;
@@ -342,7 +361,7 @@ pub async fn claim_pending_run(pool: &MySqlPool) -> anyhow::Result<Option<JobRun
            LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id
            LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id
            WHERE r.status = 'pending' AND (r.scheduled_at IS NULL OR r.scheduled_at <= ?)
-           LIMIT 1 FOR UPDATE"#
+           LIMIT 1 FOR UPDATE"#,
     )
     .bind(Utc::now())
     .fetch_optional(&mut *tx)
@@ -350,7 +369,7 @@ pub async fn claim_pending_run(pool: &MySqlPool) -> anyhow::Result<Option<JobRun
 
     if let Some(r) = row {
         let run = map_row_to_run(&r)?;
-        
+
         // ステータスを queued に更新
         sqlx::query("UPDATE job_runs SET status = 'queued' WHERE id = ?")
             .bind(run.id)
@@ -358,9 +377,11 @@ pub async fn claim_pending_run(pool: &MySqlPool) -> anyhow::Result<Option<JobRun
             .await?;
 
         tx.commit().await?;
-        
+
         // 更新された状態の JobRun を取得し直して返す
-        let updated = get_run(pool, &run.id).await?.ok_or_else(|| anyhow::anyhow!("Run not found"))?;
+        let updated = get_run(pool, &run.id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Run not found"))?;
         Ok(Some(updated))
     } else {
         tx.commit().await?;
@@ -379,7 +400,7 @@ pub async fn schedule_retry(
     let result = sqlx::query(
         r#"UPDATE job_runs 
            SET status = 'retrying', attempt = ?, next_retry_at = ?, error = ?
-           WHERE id = ?"#
+           WHERE id = ?"#,
     )
     .bind(attempt)
     .bind(next_retry_at)
@@ -404,7 +425,7 @@ pub async fn move_to_dead_letter(
     let result = sqlx::query(
         r#"UPDATE job_runs 
            SET status = 'dead_letter', error = ?
-           WHERE id = ?"#
+           WHERE id = ?"#,
     )
     .bind(error)
     .bind(id)

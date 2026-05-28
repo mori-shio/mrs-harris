@@ -8,9 +8,7 @@ fn map_row_to_log(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<LogLine> {
     let id_u64: u64 = row.try_get("id")?;
     let id = id_u64 as i64;
 
-    
     let run_id: i64 = row.try_get("job_run_id")?;
-    
 
     let task_name: Option<String> = row.try_get("task_name")?;
 
@@ -36,7 +34,7 @@ pub async fn append_log_line(pool: &MySqlPool, log: &LogLine) -> anyhow::Result<
     let stream_str = log.stream.to_string();
     sqlx::query(
         r#"INSERT INTO job_logs (job_run_id, task_name, stream, line, logged_at)
-           VALUES (?, ?, ?, ?, ?)"#
+           VALUES (?, ?, ?, ?, ?)"#,
     )
     .bind(log.run_id)
     .bind(&log.task_name)
@@ -66,7 +64,7 @@ pub async fn append_log_lines(pool: &MySqlPool, logs: &[LogLine]) -> anyhow::Res
         let stream_str = log.stream.to_string();
         sqlx::query(
             r#"INSERT INTO job_logs (job_run_id, task_name, stream, line, logged_at)
-               VALUES (?, ?, ?, ?, ?)"#
+               VALUES (?, ?, ?, ?, ?)"#,
         )
         .bind(log.run_id)
         .bind(&log.task_name)
@@ -83,10 +81,11 @@ pub async fn append_log_lines(pool: &MySqlPool, logs: &[LogLine]) -> anyhow::Res
 
 /// 実行ログを取得
 pub async fn get_logs(pool: &MySqlPool, run_id: &i64) -> anyhow::Result<Vec<LogLine>> {
-    let rows = sqlx::query("SELECT * FROM job_logs WHERE job_run_id = ? ORDER BY logged_at ASC, id ASC")
-        .bind(run_id)
-        .fetch_all(pool)
-        .await?;
+    let rows =
+        sqlx::query("SELECT * FROM job_logs WHERE job_run_id = ? ORDER BY logged_at ASC, id ASC")
+            .bind(run_id)
+            .fetch_all(pool)
+            .await?;
 
     let mut logs = Vec::new();
     for r in rows {

@@ -1,12 +1,12 @@
 use crate::app::AppState;
-use mrs_harris_common::models::run::{RunStatus, LogLine, LogStream};
+use mrs_harris_common::models::run::{LogLine, LogStream, RunStatus};
 
 use chrono::Utc;
 
 /// タイムアウトしたジョブを検出し、失敗としてマーク
 pub async fn check_timeouts(state: &AppState) -> anyhow::Result<()> {
     let now = Utc::now();
-    
+
     // 実行中のジョブ一覧をJOINして取得
     let rows = sqlx::query(
         r#"SELECT r.id as run_id, j.name as job_name, j.timeout_sec, r.status, r.started_at, r.created_at
@@ -19,7 +19,7 @@ pub async fn check_timeouts(state: &AppState) -> anyhow::Result<()> {
 
     for r in rows {
         let run_id: i64 = sqlx::Row::try_get(&r, "run_id")?;
-        
+
         let job_name: String = sqlx::Row::try_get(&r, "job_name")?;
         let timeout_sec: u32 = sqlx::Row::try_get(&r, "timeout_sec")?;
         let status: String = sqlx::Row::try_get(&r, "status")?;
@@ -48,13 +48,17 @@ pub async fn check_timeouts(state: &AppState) -> anyhow::Result<()> {
                 run_id,
                 task_name: None,
                 stream: LogStream::System,
-                line: format!("System: Job execution timed out after {} seconds.", timeout_sec),
+                line: format!(
+                    "System: Job execution timed out after {} seconds.",
+                    timeout_sec
+                ),
                 logged_at: now,
             };
             let _ = crate::db::logs::append_log_line(&state.db, &log_line).await;
 
             // 2. ステータスを Failed に更新
-            let duration_ms = started_at.map(|start| now.signed_duration_since(start).num_milliseconds());
+            let duration_ms =
+                started_at.map(|start| now.signed_duration_since(start).num_milliseconds());
             let _ = crate::db::runs::update_run_status(
                 &state.db,
                 &run_id,

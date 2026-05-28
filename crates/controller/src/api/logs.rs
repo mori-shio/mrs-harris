@@ -1,17 +1,15 @@
+use crate::app::AppState;
 use axum::{
-    extract::{State, Path},
+    Json, Router,
+    extract::{Path, State},
     http::StatusCode,
     routing::get,
-    Json, Router,
 };
 use mrs_harris_common::models::run::LogLine;
 use mrs_harris_common::models::user::Claims;
-use crate::app::AppState;
-
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/runs/{id}/logs", get(get_run_logs))
+    Router::new().route("/runs/{id}/logs", get(get_run_logs))
 }
 
 async fn get_run_logs(

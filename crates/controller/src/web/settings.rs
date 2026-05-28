@@ -1,17 +1,17 @@
+use askama::Template;
 use axum::{
+    Form, Router,
     extract::State,
     response::IntoResponse,
     routing::{get, post},
-    Form, Router,
 };
-use askama::Template;
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 
-use sqlx::Row;
-use mrs_harris_common::config::ControllerConfig;
 use super::auth::WebClaims;
 use crate::app::AppState;
+use mrs_harris_common::config::ControllerConfig;
+use sqlx::Row;
 
 #[derive(Template)]
 #[template(path = "settings.html")]
@@ -33,12 +33,9 @@ pub fn router() -> Router<AppState> {
         .route("/settings/slack", post(save_slack_settings_submit))
 }
 
-async fn settings_page(
-    _claims: WebClaims,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+async fn settings_page(_claims: WebClaims, State(state): State<AppState>) -> impl IntoResponse {
     let config = state.config.clone();
-    
+
     // DB URLをマスク
     let database_url_masked = mask_db_url(&config.database.url);
 
@@ -56,17 +53,20 @@ async fn settings_page(
     let mut slack_ssm_path = String::new();
     let mut slack_ssm_region = String::new();
 
-    if let Some(row) = slack_row {
-        if let Ok(config_val) = row.try_get::<serde_json::Value, _>("config") {
-            if let Some(url) = config_val.get("webhook_url").and_then(|v| v.as_str()) {
-                slack_webhook_url = url.to_string();
-            }
-            if let Some(path) = config_val.get("ssm_parameter_path").and_then(|v| v.as_str()) {
-                slack_ssm_path = path.to_string();
-            }
-            if let Some(region) = config_val.get("ssm_region").and_then(|v| v.as_str()) {
-                slack_ssm_region = region.to_string();
-            }
+    if let Some(row) = slack_row
+        && let Ok(config_val) = row.try_get::<serde_json::Value, _>("config")
+    {
+        if let Some(url) = config_val.get("webhook_url").and_then(|v| v.as_str()) {
+            slack_webhook_url = url.to_string();
+        }
+        if let Some(path) = config_val
+            .get("ssm_parameter_path")
+            .and_then(|v| v.as_str())
+        {
+            slack_ssm_path = path.to_string();
+        }
+        if let Some(region) = config_val.get("ssm_region").and_then(|v| v.as_str()) {
+            slack_ssm_region = region.to_string();
         }
     }
 
@@ -87,7 +87,7 @@ async fn test_email_submit(
     Form(payload): Form<HashMap<String, String>>,
 ) -> impl IntoResponse {
     let to_address = payload.get("to_address").cloned().unwrap_or_default();
-    
+
     if to_address.is_empty() {
         return r#"<div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; padding: 12px; color: #fca5a5; font-size: 0.9rem;">
             宛先アドレスが空です。
@@ -166,7 +166,7 @@ async fn save_slack_settings_submit(
     let res = sqlx::query(
         r#"INSERT INTO notification_channels (id, name, channel_type, config, is_active)
            VALUES ('c1a2b3c4-e5f6-7a8b-9c0d-1e2f3a4b5c6d', 'default-slack', 'slack', ?, 1)
-           ON DUPLICATE KEY UPDATE config = ?, is_active = 1"#
+           ON DUPLICATE KEY UPDATE config = ?, is_active = 1"#,
     )
     .bind(&config)
     .bind(&config)

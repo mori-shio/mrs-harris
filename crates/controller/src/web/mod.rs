@@ -1,5 +1,5 @@
-use axum::Router;
 use crate::app::AppState;
+use axum::Router;
 
 pub mod auth;
 pub mod calendar;
@@ -8,9 +8,9 @@ pub mod database;
 pub mod jobs;
 pub mod runs;
 pub mod settings;
-pub mod workers;
-pub mod worker_definitions;
 pub mod spaces;
+pub mod worker_definitions;
+pub mod workers;
 
 /// Web ダッシュボードルーター
 pub fn router() -> Router<AppState> {
@@ -45,4 +45,3 @@ macro_rules! impl_into_response {
         }
     };
 }
-

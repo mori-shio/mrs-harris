@@ -1,5 +1,5 @@
-use mrs_harris_common::models::worker::{Worker, WorkerStatus};
 use mrs_harris_common::models::job::WorkerType;
+use mrs_harris_common::models::worker::{Worker, WorkerStatus};
 use sqlx::{MySqlPool, Row};
 
 use chrono::{DateTime, Utc};
@@ -67,13 +67,15 @@ pub async fn register_worker(
     .await?;
 
     let id = result.last_insert_id() as i64;
-    get_worker(pool, &id).await?.ok_or_else(|| anyhow::anyhow!("Registered worker not found"))
+    get_worker(pool, &id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Registered worker not found"))
 }
 
 /// ワーカーを取得
 pub async fn get_worker(pool: &MySqlPool, id: &i64) -> anyhow::Result<Option<Worker>> {
     let row = sqlx::query("SELECT * FROM workers WHERE id = ?")
-        .bind(&id)
+        .bind(id)
         .fetch_optional(pool)
         .await?;
 
@@ -106,18 +108,19 @@ pub async fn update_worker_status(
     let status_str = status.to_string();
     sqlx::query("UPDATE workers SET status = ? WHERE id = ?")
         .bind(status_str)
-        .bind(&id)
+        .bind(id)
         .execute(pool)
         .await?;
     Ok(())
 }
 
 /// ハートビートを記録
+#[allow(dead_code)]
 pub async fn heartbeat(pool: &MySqlPool, id: &i64) -> anyhow::Result<()> {
     let now = Utc::now();
     sqlx::query("UPDATE workers SET last_heartbeat = ? WHERE id = ?")
         .bind(now)
-        .bind(&id)
+        .bind(id)
         .execute(pool)
         .await?;
     Ok(())
@@ -125,9 +128,10 @@ pub async fn heartbeat(pool: &MySqlPool, id: &i64) -> anyhow::Result<()> {
 
 /// アクティブなワーカー一覧を取得
 pub async fn list_active_workers(pool: &MySqlPool) -> anyhow::Result<Vec<Worker>> {
-    let rows = sqlx::query("SELECT * FROM workers WHERE status = 'running' ORDER BY started_at DESC")
-        .fetch_all(pool)
-        .await?;
+    let rows =
+        sqlx::query("SELECT * FROM workers WHERE status = 'running' ORDER BY started_at DESC")
+            .fetch_all(pool)
+            .await?;
 
     let mut workers = Vec::new();
     for r in rows {
@@ -140,8 +144,9 @@ pub async fn list_active_workers(pool: &MySqlPool) -> anyhow::Result<Vec<Worker>
 // Worker Definition (自作ワーカー定義) 操作
 // ==========================================
 
-
-use mrs_harris_common::models::worker::{WorkerDefinition, NewWorkerDefinition, WorkerDefinitionUpdate};
+use mrs_harris_common::models::worker::{
+    NewWorkerDefinition, WorkerDefinition, WorkerDefinitionUpdate,
+};
 
 fn map_row_to_worker_def(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<WorkerDefinition> {
     let id: i64 = row.try_get("id")?;
@@ -186,10 +191,13 @@ pub async fn list_worker_definitions(pool: &MySqlPool) -> anyhow::Result<Vec<Wor
 }
 
 /// 有効なワーカー定義一覧を取得
-pub async fn list_active_worker_definitions(pool: &MySqlPool) -> anyhow::Result<Vec<WorkerDefinition>> {
-    let rows = sqlx::query("SELECT * FROM worker_definitions WHERE is_active = 1 ORDER BY name ASC")
-        .fetch_all(pool)
-        .await?;
+pub async fn list_active_worker_definitions(
+    pool: &MySqlPool,
+) -> anyhow::Result<Vec<WorkerDefinition>> {
+    let rows =
+        sqlx::query("SELECT * FROM worker_definitions WHERE is_active = 1 ORDER BY name ASC")
+            .fetch_all(pool)
+            .await?;
 
     let mut defs = Vec::new();
     for r in rows {
@@ -199,9 +207,12 @@ pub async fn list_active_worker_definitions(pool: &MySqlPool) -> anyhow::Result<
 }
 
 /// 単一のワーカー定義を取得
-pub async fn get_worker_definition(pool: &MySqlPool, id: &i64) -> anyhow::Result<Option<WorkerDefinition>> {
+pub async fn get_worker_definition(
+    pool: &MySqlPool,
+    id: &i64,
+) -> anyhow::Result<Option<WorkerDefinition>> {
     let row = sqlx::query("SELECT * FROM worker_definitions WHERE id = ?")
-        .bind(&id)
+        .bind(id)
         .fetch_optional(pool)
         .await?;
 
@@ -216,7 +227,6 @@ pub async fn create_worker_definition(
     pool: &MySqlPool,
     new_def: &NewWorkerDefinition,
 ) -> anyhow::Result<WorkerDefinition> {
-    
     let is_active_val: i8 = if new_def.is_active { 1 } else { 0 };
 
     let result = sqlx::query(
@@ -234,7 +244,9 @@ pub async fn create_worker_definition(
     .await?;
 
     let id = result.last_insert_id() as i64;
-    get_worker_definition(pool, &id).await?.ok_or_else(|| anyhow::anyhow!("Created worker definition not found"))
+    get_worker_definition(pool, &id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Created worker definition not found"))
 }
 
 /// ワーカー定義を更新
@@ -248,7 +260,7 @@ pub async fn update_worker_definition(
     if let Some(ref desc) = update.description {
         sqlx::query("UPDATE worker_definitions SET description = ? WHERE id = ?")
             .bind(desc)
-            .bind(&id)
+            .bind(id)
             .execute(&mut *tx)
             .await?;
     }
@@ -256,7 +268,7 @@ pub async fn update_worker_definition(
     if let Some(ref wt) = update.worker_type {
         sqlx::query("UPDATE worker_definitions SET worker_type = ? WHERE id = ?")
             .bind(wt.to_string())
-            .bind(&id)
+            .bind(id)
             .execute(&mut *tx)
             .await?;
     }
@@ -264,7 +276,7 @@ pub async fn update_worker_definition(
     if let Some(ref cfg) = update.config {
         sqlx::query("UPDATE worker_definitions SET config = ? WHERE id = ?")
             .bind(cfg)
-            .bind(&id)
+            .bind(id)
             .execute(&mut *tx)
             .await?;
     }
@@ -273,28 +285,29 @@ pub async fn update_worker_definition(
         let is_active_val: i8 = if active { 1 } else { 0 };
         sqlx::query("UPDATE worker_definitions SET is_active = ? WHERE id = ?")
             .bind(is_active_val)
-            .bind(&id)
+            .bind(id)
             .execute(&mut *tx)
             .await?;
     }
 
     sqlx::query("UPDATE worker_definitions SET updated_at = ? WHERE id = ?")
         .bind(Utc::now())
-        .bind(&id)
+        .bind(id)
         .execute(&mut *tx)
         .await?;
 
     tx.commit().await?;
 
-    get_worker_definition(pool, id).await?.ok_or_else(|| anyhow::anyhow!("Updated worker definition not found"))
+    get_worker_definition(pool, id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Updated worker definition not found"))
 }
 
 /// ワーカー定義を削除
 pub async fn delete_worker_definition(pool: &MySqlPool, id: &i64) -> anyhow::Result<()> {
     sqlx::query("DELETE FROM worker_definitions WHERE id = ?")
-        .bind(&id)
+        .bind(id)
         .execute(pool)
         .await?;
     Ok(())
 }
-

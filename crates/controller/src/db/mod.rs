@@ -22,9 +22,7 @@ pub async fn create_pool(config: &DatabaseConfig) -> anyhow::Result<MySqlPool> {
 /// マイグレーションを実行
 pub async fn run_migrations(config: &DatabaseConfig) -> anyhow::Result<()> {
     let pool = create_pool(config).await?;
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await?;
+    sqlx::migrate!("./migrations").run(&pool).await?;
     tracing::info!("マイグレーション完了");
     Ok(())
 }

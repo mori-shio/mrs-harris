@@ -1,17 +1,20 @@
+use askama::Template;
 use axum::{
-    extract::{State, Path, ws::{WebSocketUpgrade, WebSocket, Message}},
+    Router,
+    extract::{
+        Path, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
     response::{IntoResponse, Redirect},
     routing::get,
-    Router,
 };
-use askama::Template;
 
 use chrono::{DateTime, Utc};
 use sqlx::{MySqlPool, Row};
 use std::str::FromStr;
 
-use mrs_harris_common::models::run::{JobRun, RunStatus, TriggerType, LogLine, LogStream};
-use mrs_harris_common::models::job::{Job, JobType, WorkerType, ShellPayload};
+use mrs_harris_common::models::job::JobType;
+use mrs_harris_common::models::run::{JobRun, LogLine, LogStream, RunStatus, TriggerType};
 
 use super::auth::WebClaims;
 use crate::app::AppState;
@@ -35,7 +38,6 @@ struct RunDetailTemplate {
     is_dag: bool,
     task_runs: Vec<TaskRunItem>,
     status_ja: String,
-    trigger_ja: String,
     duration_str: String,
     started_at_str: String,
     finished_at_str: String,
@@ -55,7 +57,6 @@ struct RunDetailLiveTemplate {
     is_dag: bool,
     task_runs: Vec<TaskRunItem>,
     status_ja: String,
-    trigger_ja: String,
     duration_str: String,
     started_at_str: String,
     finished_at_str: String,
@@ -71,8 +72,14 @@ pub fn router() -> Router<AppState> {
         .route("/runs/{id}", get(run_detail_page))
         .route("/runs/{id}/live", get(run_detail_live))
         .route("/runs/{id}/logs/ws", get(run_logs_ws_upgrade))
-        .route("/jobs/{job_name}/runs/{run_number}", get(run_detail_by_number))
-        .route("/jobs/{job_name}/runs/{run_number}/live", get(run_detail_by_number_live))
+        .route(
+            "/jobs/{job_name}/runs/{run_number}",
+            get(run_detail_by_number),
+        )
+        .route(
+            "/jobs/{job_name}/runs/{run_number}/live",
+            get(run_detail_by_number_live),
+        )
 }
 
 async fn fetch_run_detail_data(
@@ -162,13 +169,12 @@ async fn fetch_run_detail_data(
         }
 
         // Fetch DAG tasks definitions
-        let tasks_rows = sqlx::query(
-            "SELECT task_name, worker_type, payload FROM dag_tasks WHERE dag_id = ?"
-        )
-        .bind(run.job_id.to_string())
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
+        let tasks_rows =
+            sqlx::query("SELECT task_name, worker_type, payload FROM dag_tasks WHERE dag_id = ?")
+                .bind(run.job_id.to_string())
+                .fetch_all(pool)
+                .await
+                .unwrap_or_default();
 
         let mut tasks = Vec::new();
         for row in tasks_rows {
@@ -184,13 +190,11 @@ async fn fetch_run_detail_data(
         dag_tasks_json = serde_json::to_string(&tasks).unwrap_or_else(|_| "[]".to_string());
 
         // Fetch DAG edges
-        let edges_rows = sqlx::query(
-            "SELECT from_task, to_task FROM dag_edges WHERE dag_id = ?"
-        )
-        .bind(run.job_id.to_string())
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
+        let edges_rows = sqlx::query("SELECT from_task, to_task FROM dag_edges WHERE dag_id = ?")
+            .bind(run.job_id.to_string())
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
 
         let mut edges = Vec::new();
         for row in edges_rows {
@@ -211,7 +215,8 @@ async fn fetch_run_detail_data(
                 "status_str": tr.status_str
             }));
         }
-        task_runs_json = serde_json::to_string(&runs_json_items).unwrap_or_else(|_| "[]".to_string());
+        task_runs_json =
+            serde_json::to_string(&runs_json_items).unwrap_or_else(|_| "[]".to_string());
     }
 
     let status_ja = match run.status {
@@ -246,23 +251,27 @@ async fn fetch_run_detail_data(
     };
 
     let started_at_str = match run.started_at {
-        Some(dt) => dt.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string(),
+        Some(dt) => dt
+            .with_timezone(&chrono::Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string(),
         None => "-".to_string(),
     };
 
     let finished_at_str = match run.finished_at {
-        Some(dt) => dt.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string(),
+        Some(dt) => dt
+            .with_timezone(&chrono::Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string(),
         None => "-".to_string(),
     };
 
     let config_payload_json: String = match run.job_history_id {
-        Some(h_id) => {
-            sqlx::query_scalar("SELECT payload FROM job_history WHERE id = ?")
-                .bind(h_id)
-                .fetch_one(pool)
-                .await
-                .unwrap_or_else(|_| "{}".to_string())
-        }
+        Some(h_id) => sqlx::query_scalar("SELECT payload FROM job_history WHERE id = ?")
+            .bind(h_id)
+            .fetch_one(pool)
+            .await
+            .unwrap_or_else(|_| "{}".to_string()),
         None => "{}".to_string(),
     };
 
@@ -290,28 +299,29 @@ async fn run_detail_page(
     Path(id): Path<i64>,
 ) -> impl IntoResponse {
     match fetch_run_detail_data(&state.db, id).await {
-        Ok(data) => {
-            RunDetailTemplate {
-                run: data.0,
-                job_name: data.1,
-                run_number: data.2,
-                is_dag: data.3,
-                task_runs: data.4,
-                status_ja: data.5,
-                trigger_ja: data.6,
-                duration_str: data.7,
-                started_at_str: data.8,
-                finished_at_str: data.9,
-                dag_tasks_json: data.10,
-                dag_edges_json: data.11,
-                task_runs_json: data.12,
-                config_payload_json: data.13,
-            }
-            .into_response()
+        Ok(data) => RunDetailTemplate {
+            run: data.0,
+            job_name: data.1,
+            run_number: data.2,
+            is_dag: data.3,
+            task_runs: data.4,
+            status_ja: data.5,
+            duration_str: data.7,
+            started_at_str: data.8,
+            finished_at_str: data.9,
+            dag_tasks_json: data.10,
+            dag_edges_json: data.11,
+            task_runs_json: data.12,
+            config_payload_json: data.13,
         }
+        .into_response(),
         Err(e) => {
             tracing::error!("Failed to fetch run details: {}", e);
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Internal Server Error: {}", e)).into_response()
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal Server Error: {}", e),
+            )
+                .into_response()
         }
     }
 }
@@ -322,28 +332,29 @@ async fn run_detail_live(
     Path(id): Path<i64>,
 ) -> impl IntoResponse {
     match fetch_run_detail_data(&state.db, id).await {
-        Ok(data) => {
-            RunDetailLiveTemplate {
-                run: data.0,
-                job_name: data.1,
-                run_number: data.2,
-                is_dag: data.3,
-                task_runs: data.4,
-                status_ja: data.5,
-                trigger_ja: data.6,
-                duration_str: data.7,
-                started_at_str: data.8,
-                finished_at_str: data.9,
-                dag_tasks_json: data.10,
-                dag_edges_json: data.11,
-                task_runs_json: data.12,
-                config_payload_json: data.13,
-            }
-            .into_response()
+        Ok(data) => RunDetailLiveTemplate {
+            run: data.0,
+            job_name: data.1,
+            run_number: data.2,
+            is_dag: data.3,
+            task_runs: data.4,
+            status_ja: data.5,
+            duration_str: data.7,
+            started_at_str: data.8,
+            finished_at_str: data.9,
+            dag_tasks_json: data.10,
+            dag_edges_json: data.11,
+            task_runs_json: data.12,
+            config_payload_json: data.13,
         }
+        .into_response(),
         Err(e) => {
             tracing::error!("Failed to fetch run details for live polling: {}", e);
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Internal Server Error: {}", e)).into_response()
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal Server Error: {}", e),
+            )
+                .into_response()
         }
     }
 }
@@ -380,35 +391,38 @@ async fn run_detail_by_number(
     State(state): State<AppState>,
     Path((job_name, run_number)): Path<(String, i64)>,
 ) -> impl IntoResponse {
-    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &job_name).await.unwrap_or(None);
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &job_name)
+        .await
+        .unwrap_or(None);
     let job_id = match job_opt {
         Some(j) => j.id,
         None => return Redirect::to("/jobs").into_response(),
     };
 
     match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
-        Ok(data) => {
-            RunDetailTemplate {
-                run: data.0,
-                job_name: data.1,
-                run_number: data.2,
-                is_dag: data.3,
-                task_runs: data.4,
-                status_ja: data.5,
-                trigger_ja: data.6,
-                duration_str: data.7,
-                started_at_str: data.8,
-                finished_at_str: data.9,
-                dag_tasks_json: data.10,
-                dag_edges_json: data.11,
-                task_runs_json: data.12,
-                config_payload_json: data.13,
-            }
-            .into_response()
+        Ok(data) => RunDetailTemplate {
+            run: data.0,
+            job_name: data.1,
+            run_number: data.2,
+            is_dag: data.3,
+            task_runs: data.4,
+            status_ja: data.5,
+            duration_str: data.7,
+            started_at_str: data.8,
+            finished_at_str: data.9,
+            dag_tasks_json: data.10,
+            dag_edges_json: data.11,
+            task_runs_json: data.12,
+            config_payload_json: data.13,
         }
+        .into_response(),
         Err(e) => {
             tracing::error!("Failed to fetch run details by number: {}", e);
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Internal Server Error: {}", e)).into_response()
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal Server Error: {}", e),
+            )
+                .into_response()
         }
     }
 }
@@ -418,39 +432,44 @@ async fn run_detail_by_number_live(
     State(state): State<AppState>,
     Path((job_name, run_number)): Path<(String, i64)>,
 ) -> impl IntoResponse {
-    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &job_name).await.unwrap_or(None);
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &job_name)
+        .await
+        .unwrap_or(None);
     let job_id = match job_opt {
         Some(j) => j.id,
         None => return Redirect::to("/jobs").into_response(),
     };
 
     match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
-        Ok(data) => {
-            RunDetailLiveTemplate {
-                run: data.0,
-                job_name: data.1,
-                run_number: data.2,
-                is_dag: data.3,
-                task_runs: data.4,
-                status_ja: data.5,
-                trigger_ja: data.6,
-                duration_str: data.7,
-                started_at_str: data.8,
-                finished_at_str: data.9,
-                dag_tasks_json: data.10,
-                dag_edges_json: data.11,
-                task_runs_json: data.12,
-                config_payload_json: data.13,
-            }
-            .into_response()
+        Ok(data) => RunDetailLiveTemplate {
+            run: data.0,
+            job_name: data.1,
+            run_number: data.2,
+            is_dag: data.3,
+            task_runs: data.4,
+            status_ja: data.5,
+            duration_str: data.7,
+            started_at_str: data.8,
+            finished_at_str: data.9,
+            dag_tasks_json: data.10,
+            dag_edges_json: data.11,
+            task_runs_json: data.12,
+            config_payload_json: data.13,
         }
+        .into_response(),
         Err(e) => {
-            tracing::error!("Failed to fetch run details by number for live polling: {}", e);
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Internal Server Error: {}", e)).into_response()
+            tracing::error!(
+                "Failed to fetch run details by number for live polling: {}",
+                e
+            );
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal Server Error: {}", e),
+            )
+                .into_response()
         }
     }
 }
-
 
 async fn run_logs_ws_upgrade(
     ws: WebSocketUpgrade,
@@ -464,7 +483,7 @@ fn map_row_to_log(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<LogLine> {
     let id_u64: u64 = row.try_get("id")?;
     let id = id_u64 as i64;
     let run_id: i64 = row.try_get("job_run_id")?;
-    
+
     let task_name: Option<String> = row.try_get("task_name")?;
     let stream_str: String = row.try_get("stream")?;
     let stream = LogStream::from_str(&stream_str)
@@ -491,18 +510,18 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, run_id: i64) {
             if !logs.is_empty() {
                 // Find maximum id to set last_log_id
                 for log in &logs {
-                    if let Some(id) = log.id {
-                        if id as u64 > last_log_id {
-                            last_log_id = id as u64;
-                        }
+                    if let Some(id) = log.id
+                        && id as u64 > last_log_id
+                    {
+                        last_log_id = id as u64;
                     }
                 }
 
                 // Serialize and send
-                if let Ok(json_str) = serde_json::to_string(&logs) {
-                    if socket.send(Message::Text(json_str.into())).await.is_err() {
-                        return;
-                    }
+                if let Ok(json_str) = serde_json::to_string(&logs)
+                    && socket.send(Message::Text(json_str.into())).await.is_err()
+                {
+                    return;
                 }
             }
         }
@@ -531,7 +550,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, run_id: i64) {
         };
 
         let new_logs_rows_res = sqlx::query(
-            "SELECT * FROM job_logs WHERE job_run_id = ? AND id > ? ORDER BY logged_at ASC, id ASC"
+            "SELECT * FROM job_logs WHERE job_run_id = ? AND id > ? ORDER BY logged_at ASC, id ASC",
         )
         .bind(run_id.to_string())
         .bind(last_log_id)
@@ -543,21 +562,20 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, run_id: i64) {
                 let mut new_logs = Vec::new();
                 for r in rows {
                     if let Ok(log) = map_row_to_log(&r) {
-                        if let Some(id) = log.id {
-                            if id as u64 > last_log_id {
-                                last_log_id = id as u64;
-                            }
+                        if let Some(id) = log.id
+                            && id as u64 > last_log_id
+                        {
+                            last_log_id = id as u64;
                         }
                         new_logs.push(log);
                     }
                 }
 
-                if !new_logs.is_empty() {
-                    if let Ok(json_str) = serde_json::to_string(&new_logs) {
-                        if socket.send(Message::Text(json_str.into())).await.is_err() {
-                            return; // Client disconnected
-                        }
-                    }
+                if !new_logs.is_empty()
+                    && let Ok(json_str) = serde_json::to_string(&new_logs)
+                    && socket.send(Message::Text(json_str.into())).await.is_err()
+                {
+                    return; // Client disconnected
                 }
             }
             Err(e) => {

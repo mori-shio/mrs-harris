@@ -11,10 +11,7 @@ struct SlackPayload {
 }
 
 /// Slack Webhook に通知を送信する
-pub async fn send_slack_notification(
-    config: &SlackConfig,
-    text: &str,
-) -> anyhow::Result<()> {
+pub async fn send_slack_notification(config: &SlackConfig, text: &str) -> anyhow::Result<()> {
     let client = reqwest::Client::new();
     let payload = SlackPayload {
         text: text.to_string(),

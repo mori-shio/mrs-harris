@@ -4,9 +4,9 @@ use mrs_harris_common::models::run::JobRun;
 pub async fn launch(state: &AppState, run: &JobRun) -> anyhow::Result<String> {
     let task_id = run.id;
     let callback_url = state.config.server.external_url.clone();
-    
+
     // 現在の設計ではAPIキーを特に持たせていないが、将来的に追加可能なように None とする
-    let api_key = None; 
+    let api_key = None;
 
     tracing::info!(
         task_id = %task_id,

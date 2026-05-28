@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
 use super::job::{RetryPolicy, WorkerType};
 
 /// DAGタスク定義

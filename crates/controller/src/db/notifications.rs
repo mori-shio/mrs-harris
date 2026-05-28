@@ -1,4 +1,4 @@
-use mrs_harris_common::models::notification::{NotificationChannel, ChannelType};
+use mrs_harris_common::models::notification::{ChannelType, NotificationChannel};
 use sqlx::{MySqlPool, Row};
 
 use std::str::FromStr;
@@ -13,7 +13,7 @@ pub async fn get_notifications_for_job(
         r#"SELECT c.id, c.name, c.channel_type, c.config, c.is_active, c.created_at, jn.on_events
            FROM notification_channels c
            JOIN job_notifications jn ON c.id = jn.channel_id
-           WHERE jn.job_id = ? AND c.is_active = 1"#
+           WHERE jn.job_id = ? AND c.is_active = 1"#,
     )
     .bind(job_id)
     .fetch_all(pool)
@@ -23,7 +23,7 @@ pub async fn get_notifications_for_job(
     for row in rows {
         let on_events_val: serde_json::Value = row.try_get("on_events")?;
         let on_events: Vec<String> = serde_json::from_value(on_events_val)?;
-        
+
         if on_events.iter().any(|e| e == event) {
             let id: i64 = row.try_get("id")?;
             let name: String = row.try_get("name")?;
@@ -49,6 +49,7 @@ pub async fn get_notifications_for_job(
 }
 
 /// 全ての通知チャネルを取得
+#[allow(dead_code)]
 pub async fn list_channels(pool: &MySqlPool) -> anyhow::Result<Vec<NotificationChannel>> {
     let rows = sqlx::query("SELECT * FROM notification_channels ORDER BY name ASC")
         .fetch_all(pool)

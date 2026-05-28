@@ -1,13 +1,10 @@
-use mrs_harris_common::config::EmailGlobalConfig;
-use mrs_harris_common::models::notification::EmailConfig;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{Message, SmtpTransport, Transport};
+use mrs_harris_common::config::EmailGlobalConfig;
+use mrs_harris_common::models::notification::EmailConfig;
 
 /// テストメールを送信
-pub async fn send_test_email(
-    config: &EmailGlobalConfig,
-    to_address: &str,
-) -> anyhow::Result<()> {
+pub async fn send_test_email(config: &EmailGlobalConfig, to_address: &str) -> anyhow::Result<()> {
     let email = Message::builder()
         .from(config.from_address.parse()?)
         .to(to_address.parse()?)
@@ -18,23 +15,21 @@ pub async fn send_test_email(
         ))?;
 
     // SmtpTransport を構築
-    let mut transport_builder = SmtpTransport::builder_dangerous(&config.smtp_host)
-        .port(config.smtp_port);
+    let mut transport_builder =
+        SmtpTransport::builder_dangerous(&config.smtp_host).port(config.smtp_port);
 
-    if let (Some(user), Some(pass)) = (&config.username, &config.password) {
-        if !user.is_empty() && !pass.is_empty() {
-            let creds = Credentials::new(user.clone(), pass.clone());
-            transport_builder = transport_builder.credentials(creds);
-        }
+    if let (Some(user), Some(pass)) = (&config.username, &config.password)
+        && !user.is_empty()
+        && !pass.is_empty()
+    {
+        let creds = Credentials::new(user.clone(), pass.clone());
+        transport_builder = transport_builder.credentials(creds);
     }
 
     let transport = transport_builder.build();
 
     // lettre の同期送信を非同期コンテキストで安全に実行
-    tokio::task::spawn_blocking(move || {
-        transport.send(&email)
-    })
-    .await??;
+    tokio::task::spawn_blocking(move || transport.send(&email)).await??;
 
     Ok(())
 }
@@ -47,14 +42,15 @@ pub async fn send_email_notification(
     body: &str,
 ) -> anyhow::Result<()> {
     // SmtpTransport を構築
-    let mut transport_builder = SmtpTransport::builder_dangerous(&global_config.smtp_host)
-        .port(global_config.smtp_port);
+    let mut transport_builder =
+        SmtpTransport::builder_dangerous(&global_config.smtp_host).port(global_config.smtp_port);
 
-    if let (Some(user), Some(pass)) = (&global_config.username, &global_config.password) {
-        if !user.is_empty() && !pass.is_empty() {
-            let creds = Credentials::new(user.clone(), pass.clone());
-            transport_builder = transport_builder.credentials(creds);
-        }
+    if let (Some(user), Some(pass)) = (&global_config.username, &global_config.password)
+        && !user.is_empty()
+        && !pass.is_empty()
+    {
+        let creds = Credentials::new(user.clone(), pass.clone());
+        transport_builder = transport_builder.credentials(creds);
     }
 
     let transport = transport_builder.build();
@@ -74,10 +70,7 @@ pub async fn send_email_notification(
         let email = builder.body(body.to_string())?;
 
         let transport_clone = transport.clone();
-        tokio::task::spawn_blocking(move || {
-            transport_clone.send(&email)
-        })
-        .await??;
+        tokio::task::spawn_blocking(move || transport_clone.send(&email)).await??;
     }
 
     Ok(())

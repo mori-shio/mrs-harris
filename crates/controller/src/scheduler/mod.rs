@@ -8,9 +8,7 @@ pub mod retry_manager;
 
 /// スケジューラのメインループ
 pub async fn run_scheduler(state: AppState) -> anyhow::Result<()> {
-    let poll_interval = std::time::Duration::from_secs(
-        state.config.scheduler.poll_interval_sec,
-    );
+    let poll_interval = std::time::Duration::from_secs(state.config.scheduler.poll_interval_sec);
 
     tracing::info!("スケジューラを起動しました (間隔: {:?})", poll_interval);
 

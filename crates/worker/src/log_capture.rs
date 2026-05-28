@@ -1,6 +1,5 @@
 use mrs_harris_common::models::run::{LogLine, LogStream};
 
-
 /// ログバッファ — stdout/stderr をキャプチャして LogLine に変換
 pub struct LogCapture {
     pub run_id: i64,

@@ -1,12 +1,12 @@
+use crate::app::AppState;
 use axum::{
-    extract::{State, Path},
+    Json, Router,
+    extract::{Path, State},
     http::StatusCode,
     routing::post,
-    Json, Router,
 };
-use mrs_harris_common::models::run::{WorkerCallback, RunStatus};
+use mrs_harris_common::models::run::{RunStatus, WorkerCallback};
 use mrs_harris_common::models::worker::WorkerStatus;
-use crate::app::AppState;
 
 use sqlx::Row;
 
@@ -61,7 +61,7 @@ async fn get_internal_task(
            FROM task_runs tr
            JOIN job_runs jr ON tr.run_id = jr.id
            JOIN dag_tasks dt ON jr.job_id = dt.dag_id AND tr.task_name = dt.task_name
-           WHERE tr.id = ?"#
+           WHERE tr.id = ?"#,
     )
     .bind(id)
     .fetch_optional(&state.db)
@@ -75,10 +75,11 @@ async fn get_internal_task(
 
     if let Some(row) = task_run_row {
         let task_run_id: i64 = row.try_get("task_run_id").unwrap();
-        let run_id: i64 = row.try_get("run_id").unwrap();
+        let _run_id: i64 = row.try_get("run_id").unwrap();
         let job_id: i64 = row.try_get("job_id").unwrap();
         let payload_str: String = row.try_get("payload").unwrap();
-        let payload: serde_json::Value = serde_json::from_str(&payload_str).unwrap_or(serde_json::json!({}));
+        let payload: serde_json::Value =
+            serde_json::from_str(&payload_str).unwrap_or(serde_json::json!({}));
         let timeout_sec: Option<i32> = row.try_get("timeout_sec").unwrap_or(None);
 
         return Ok(Json(serde_json::json!({
@@ -145,8 +146,14 @@ async fn worker_callback(
                         }
                     };
 
-                    let next_retry_at = chrono::Utc::now() + chrono::Duration::seconds(delay as i64);
-                    tracing::info!("Scheduling retry for run {} in {} seconds (attempt {})", run.id, delay, next_attempt);
+                    let next_retry_at =
+                        chrono::Utc::now() + chrono::Duration::seconds(delay as i64);
+                    tracing::info!(
+                        "Scheduling retry for run {} in {} seconds (attempt {})",
+                        run.id,
+                        delay,
+                        next_attempt
+                    );
 
                     crate::db::runs::schedule_retry(
                         &state.db,
@@ -154,7 +161,6 @@ async fn worker_callback(
                         next_retry_at,
                         next_attempt,
                         payload.error.as_deref(),
-                        
                     )
                     .await
                     .map_err(|e| {
@@ -170,7 +176,6 @@ async fn worker_callback(
                         &state.db,
                         &payload.task_id,
                         payload.error.as_deref(),
-                        
                     )
                     .await
                     .map_err(|e| {
@@ -179,8 +184,13 @@ async fn worker_callback(
                             Json(serde_json::json!({ "error": format!("Failed to move to dead letter: {}", e) })),
                         )
                     })?;
-                    
-                    let _ = crate::notification::trigger_notifications(&state, &payload.task_id, "dead_letter").await;
+
+                    let _ = crate::notification::trigger_notifications(
+                        &state,
+                        &payload.task_id,
+                        "dead_letter",
+                    )
+                    .await;
                 }
             } else {
                 // ジョブが取得できない場合、通常のステータス更新
@@ -192,7 +202,6 @@ async fn worker_callback(
                     payload.error.as_deref(),
                     payload.output.as_ref(),
                     payload.duration_ms,
-                    
                 )
                 .await
                 .map_err(|e| {
@@ -202,7 +211,12 @@ async fn worker_callback(
                     )
                 })?;
 
-                let _ = crate::notification::trigger_notifications(&state, &payload.task_id, &payload.status.to_string()).await;
+                let _ = crate::notification::trigger_notifications(
+                    &state,
+                    &payload.task_id,
+                    &payload.status.to_string(),
+                )
+                .await;
             }
         } else {
             // 成功などの場合
@@ -214,7 +228,6 @@ async fn worker_callback(
                 payload.error.as_deref(),
                 payload.output.as_ref(),
                 payload.duration_ms,
-                
             )
             .await
             .map_err(|e| {
@@ -224,7 +237,12 @@ async fn worker_callback(
                 )
             })?;
 
-            let _ = crate::notification::trigger_notifications(&state, &payload.task_id, &payload.status.to_string()).await;
+            let _ = crate::notification::trigger_notifications(
+                &state,
+                &payload.task_id,
+                &payload.status.to_string(),
+            )
+            .await;
         }
 
         // 4. ワーカー情報のステータスを更新
@@ -234,16 +252,17 @@ async fn worker_callback(
             } else {
                 WorkerStatus::Failed
             };
-            let _ = crate::db::workers::update_worker_status(&state.db, &worker_id, worker_status).await;
+            let _ = crate::db::workers::update_worker_status(&state.db, &worker_id, worker_status)
+                .await;
         }
 
         // 5. ジョブタイプが DAG の場合、DAG実行エンジンを起動して後続タスクを評価・実行する
-        if let Ok(Some(job)) = crate::db::jobs::get_job(&state.db, &run.job_id).await {
-            if job.job_type == mrs_harris_common::models::job::JobType::Dag {
-                if let Err(e) = crate::scheduler::dag_engine::resolve_and_dispatch(state.clone(), run.id).await {
-                    tracing::error!("Failed to resolve and dispatch DAG: {}", e);
-                }
-            }
+        if let Ok(Some(job)) = crate::db::jobs::get_job(&state.db, &run.job_id).await
+            && job.job_type == mrs_harris_common::models::job::JobType::Dag
+            && let Err(e) =
+                crate::scheduler::dag_engine::resolve_and_dispatch(state.clone(), run.id).await
+        {
+            tracing::error!("Failed to resolve and dispatch DAG: {}", e);
         }
     } else {
         // 2. なければ task_runs から探す（DAGタスクコールバック）
@@ -258,15 +277,19 @@ async fn worker_callback(
     Ok(StatusCode::OK)
 }
 
-async fn handle_dag_task_callback(state: &AppState, payload: &WorkerCallback) -> anyhow::Result<()> {
+async fn handle_dag_task_callback(
+    state: &AppState,
+    payload: &WorkerCallback,
+) -> anyhow::Result<()> {
     let now = chrono::Utc::now();
     let task_run_id = payload.task_id;
 
     // 1. 現在の task_run を取得
-    let task_run_opt = sqlx::query("SELECT run_id, task_name, attempt, status FROM task_runs WHERE id = ?")
-        .bind(task_run_id)
-        .fetch_optional(&state.db)
-        .await?;
+    let task_run_opt =
+        sqlx::query("SELECT run_id, task_name, attempt, status FROM task_runs WHERE id = ?")
+            .bind(task_run_id)
+            .fetch_optional(&state.db)
+            .await?;
 
     let (run_id, task_name, attempt, current_status_str) = match task_run_opt {
         Some(row) => {
@@ -279,7 +302,6 @@ async fn handle_dag_task_callback(state: &AppState, payload: &WorkerCallback) ->
         None => return Err(anyhow::anyhow!("Task run not found")),
     };
 
-    
     if current_status_str == "succeeded" || current_status_str == "failed" {
         return Ok(());
     }
@@ -292,11 +314,11 @@ async fn handle_dag_task_callback(state: &AppState, payload: &WorkerCallback) ->
     // 3. タスク実行ステータスの更新
     let status_str = payload.status.to_string();
     let output_str = payload.output.as_ref().map(|o| o.to_string());
-    
+
     sqlx::query(
         r#"UPDATE task_runs 
            SET status = ?, finished_at = ?, duration_ms = ?, output = ?, error = ?
-           WHERE id = ?"#
+           WHERE id = ?"#,
     )
     .bind(status_str)
     .bind(now)
@@ -320,10 +342,11 @@ async fn handle_dag_task_callback(state: &AppState, payload: &WorkerCallback) ->
         let mut max_retries = 0;
         if let Some(row) = task_def_opt {
             let rp_str: Option<String> = row.try_get("retry_policy")?;
-            if let Some(rp_json) = rp_str {
-                if let Ok(rp) = serde_json::from_str::<mrs_harris_common::models::job::RetryPolicy>(&rp_json) {
-                    max_retries = rp.max_retries;
-                }
+            if let Some(rp_json) = rp_str
+                && let Ok(rp) =
+                    serde_json::from_str::<mrs_harris_common::models::job::RetryPolicy>(&rp_json)
+            {
+                max_retries = rp.max_retries;
             }
         }
 

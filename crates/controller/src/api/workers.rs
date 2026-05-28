@@ -1,16 +1,10 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    routing::get,
-    Json, Router,
-};
-use mrs_harris_common::models::worker::Worker;
-use mrs_harris_common::models::user::Claims;
 use crate::app::AppState;
+use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
+use mrs_harris_common::models::user::Claims;
+use mrs_harris_common::models::worker::Worker;
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/workers", get(list_workers))
+    Router::new().route("/workers", get(list_workers))
 }
 
 async fn list_workers(

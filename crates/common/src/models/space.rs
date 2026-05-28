@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-
 /// スペース定義（DB行に対応）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Space {

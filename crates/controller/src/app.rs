@@ -55,10 +55,7 @@ fn build_router(state: AppState) -> Router {
         // Web dashboard routes
         .merge(crate::web::router())
         // Static files
-        .nest_service(
-            "/static",
-            tower_http::services::ServeDir::new("static"),
-        )
+        .nest_service("/static", tower_http::services::ServeDir::new("static"))
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
         .with_state(state)

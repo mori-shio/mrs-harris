@@ -1,13 +1,13 @@
-use axum::{
-    extract::{State, FromRequestParts},
-    http::{StatusCode, request::Parts},
-    routing::post,
-    Json, Router,
-};
-use mrs_harris_common::models::user::{LoginRequest, Claims};
 use crate::app::AppState;
 use argon2::{Argon2, PasswordVerifier};
-use jsonwebtoken::{encode, decode, Header, EncodingKey, DecodingKey, Validation};
+use axum::{
+    Json, Router,
+    extract::{FromRequestParts, State},
+    http::{StatusCode, request::Parts},
+    routing::post,
+};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use mrs_harris_common::models::user::{Claims, LoginRequest};
 use std::time::SystemTime;
 
 pub fn router() -> Router<AppState> {
@@ -104,11 +104,9 @@ impl FromRequestParts<AppState> for Claims {
             .and_then(|value| value.to_str().ok());
 
         let token = if let Some(header_str) = auth_header {
-            if header_str.starts_with("Bearer ") {
-                Some(header_str[7..].to_string())
-            } else {
-                None
-            }
+            header_str
+                .strip_prefix("Bearer ")
+                .map(|stripped| stripped.to_string())
         } else {
             // 2. Cookieから抽出 (ダッシュボード用)
             parts

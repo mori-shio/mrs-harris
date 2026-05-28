@@ -1,17 +1,19 @@
+use askama::Template;
 use axum::{
-    extract::{State, Path},
+    Form, Router,
+    extract::{Path, State},
     response::{IntoResponse, Redirect},
     routing::{get, post},
-    Form, Router,
 };
-use askama::Template;
 
 use std::str::FromStr;
 
-use mrs_harris_common::models::worker::{WorkerDefinition, NewWorkerDefinition, WorkerDefinitionUpdate};
-use mrs_harris_common::models::job::WorkerType;
-use crate::app::AppState;
 use super::auth::WebClaims;
+use crate::app::AppState;
+use mrs_harris_common::models::job::WorkerType;
+use mrs_harris_common::models::worker::{
+    NewWorkerDefinition, WorkerDefinition, WorkerDefinitionUpdate,
+};
 
 #[derive(Template)]
 #[template(path = "worker_definitions/list.html")]
@@ -52,17 +54,22 @@ pub struct WorkerDefFormData {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/worker-definitions", get(list_defs))
-        .route("/worker-definitions/new", get(new_def_page).post(create_def_submit))
+        .route(
+            "/worker-definitions/new",
+            get(new_def_page).post(create_def_submit),
+        )
         .route("/worker-definitions/{id}", get(def_detail_page))
-        .route("/worker-definitions/{id}/edit", get(edit_def_page).post(edit_def_submit))
+        .route(
+            "/worker-definitions/{id}/edit",
+            get(edit_def_page).post(edit_def_submit),
+        )
         .route("/worker-definitions/{id}/delete", post(delete_def))
 }
 
-async fn list_defs(
-    _claims: WebClaims,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
-    let defs = crate::db::workers::list_worker_definitions(&state.db).await.unwrap_or_default();
+async fn list_defs(_claims: WebClaims, State(state): State<AppState>) -> impl IntoResponse {
+    let defs = crate::db::workers::list_worker_definitions(&state.db)
+        .await
+        .unwrap_or_default();
     WorkerDefListTemplate { defs }
 }
 
@@ -80,7 +87,8 @@ async fn new_def_page(_claims: WebClaims) -> impl IntoResponse {
   "security_groups": ["sg-12345678"],
   "container_name": "mrs-harris-worker",
   "assign_public_ip": true
-}"#.to_string(),
+}"#
+        .to_string(),
         is_active: true,
     }
 }
@@ -117,7 +125,9 @@ async fn create_def_submit(
         is_active: form.is_active.as_deref() == Some("on"),
     };
 
-    let _ = crate::db::workers::create_worker_definition(&state.db, &new_def).await.unwrap();
+    let _ = crate::db::workers::create_worker_definition(&state.db, &new_def)
+        .await
+        .unwrap();
     Redirect::to("/worker-definitions").into_response()
 }
 
@@ -126,7 +136,10 @@ async fn def_detail_page(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> impl IntoResponse {
-    let def = crate::db::workers::get_worker_definition(&state.db, &id).await.unwrap().unwrap();
+    let def = crate::db::workers::get_worker_definition(&state.db, &id)
+        .await
+        .unwrap()
+        .unwrap();
     WorkerDefDetailTemplate { def }
 }
 
@@ -135,7 +148,10 @@ async fn edit_def_page(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> impl IntoResponse {
-    let def = crate::db::workers::get_worker_definition(&state.db, &id).await.unwrap().unwrap();
+    let def = crate::db::workers::get_worker_definition(&state.db, &id)
+        .await
+        .unwrap()
+        .unwrap();
     let config_json = serde_json::to_string_pretty(&def.config).unwrap_or_default();
 
     WorkerDefFormTemplate {
@@ -156,7 +172,8 @@ async fn edit_def_submit(
     Form(form): Form<WorkerDefFormData>,
 ) -> impl IntoResponse {
     let worker_type = WorkerType::from_str(&form.worker_type).unwrap_or(WorkerType::Fargate);
-    let config: serde_json::Value = serde_json::from_str(&form.config_json).unwrap_or(serde_json::Value::Null);
+    let config: serde_json::Value =
+        serde_json::from_str(&form.config_json).unwrap_or(serde_json::Value::Null);
 
     let update = WorkerDefinitionUpdate {
         description: Some(form.description.unwrap_or_default()),
@@ -165,7 +182,9 @@ async fn edit_def_submit(
         is_active: Some(form.is_active.as_deref() == Some("on")),
     };
 
-    let _ = crate::db::workers::update_worker_definition(&state.db, &id, &update).await.unwrap();
+    let _ = crate::db::workers::update_worker_definition(&state.db, &id, &update)
+        .await
+        .unwrap();
     Redirect::to(&format!("/worker-definitions/{}", id)).into_response()
 }
 
@@ -174,6 +193,8 @@ async fn delete_def(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> impl IntoResponse {
-    let _ = crate::db::workers::delete_worker_definition(&state.db, &id).await.unwrap();
+    crate::db::workers::delete_worker_definition(&state.db, &id)
+        .await
+        .unwrap();
     Redirect::to("/worker-definitions").into_response()
 }

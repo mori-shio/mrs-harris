@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-
 /// 起動されたワーカー実体情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Worker {
@@ -18,7 +17,9 @@ pub struct Worker {
 }
 
 /// ワーカーステータス
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString,
+)]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum WorkerStatus {

@@ -1,4 +1,6 @@
-use mrs_harris_common::models::job::{Job, JobType, WorkerType, RetryPolicy, NewJob, JobUpdate, JobFilter};
+use mrs_harris_common::models::job::{
+    Job, JobFilter, JobType, JobUpdate, NewJob, RetryPolicy, WorkerType,
+};
 use sqlx::{MySqlPool, Row};
 
 use chrono::{DateTime, Utc};
@@ -7,35 +9,35 @@ use std::str::FromStr;
 /// 行データから Job 構造体へマッピングするヘルパー
 fn map_row_to_job(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<Job> {
     let id: i64 = row.try_get("id")?;
-    
+
     let name: String = row.try_get("name")?;
     let description: Option<String> = row.try_get("description")?;
-    
+
     let job_type_str: String = row.try_get("job_type")?;
-    let job_type = JobType::from_str(&job_type_str)
-        .map_err(|e| anyhow::anyhow!("Invalid job_type: {}", e))?;
-    
+    let job_type =
+        JobType::from_str(&job_type_str).map_err(|e| anyhow::anyhow!("Invalid job_type: {}", e))?;
+
     let payload: serde_json::Value = row.try_get("payload")?;
     let schedule_expr: Option<String> = row.try_get("schedule_expr")?;
-    
+
     let worker_type_str: String = row.try_get("worker_type")?;
     let worker_type = WorkerType::from_str(&worker_type_str)
         .map_err(|e| anyhow::anyhow!("Invalid worker_type: {}", e))?;
-    
+
     let retry_policy_val: serde_json::Value = row.try_get("retry_policy")?;
     let retry_policy: RetryPolicy = serde_json::from_value(retry_policy_val)?;
-    
+
     let timeout_sec: u32 = row.try_get("timeout_sec")?;
-    
+
     let is_active_val: i8 = row.try_get("is_active")?;
     let is_active = is_active_val != 0;
-    
+
     let tags_val: serde_json::Value = row.try_get("tags")?;
     let tags: Vec<String> = serde_json::from_value(tags_val)?;
 
     let worker_definition_id: Option<i64> = row.try_get("worker_definition_id")?;
     let space_id: Option<i64> = row.try_get("space_id")?;
-    
+
     let created_at: DateTime<Utc> = row.try_get("created_at")?;
     let updated_at: DateTime<Utc> = row.try_get("updated_at")?;
 
@@ -84,7 +86,9 @@ pub async fn create_job(pool: &MySqlPool, new_job: &NewJob) -> anyhow::Result<Jo
     .await?;
 
     let new_id = result.last_insert_id() as i64;
-    get_job(pool, &new_id).await?.ok_or_else(|| anyhow::anyhow!("Created job not found"))
+    get_job(pool, &new_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Created job not found"))
 }
 
 /// ジョブを取得
@@ -92,11 +96,11 @@ pub async fn get_job(pool: &MySqlPool, id: &i64) -> anyhow::Result<Option<Job>> 
     let row = sqlx::query(
         "SELECT j.*, wd.worker_type FROM jobs j \
          LEFT JOIN worker_definitions wd ON j.worker_definition_id = wd.id \
-         WHERE j.id = ?"
+         WHERE j.id = ?",
     )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
 
     match row {
         Some(r) => Ok(Some(map_row_to_job(&r)?)),
@@ -109,11 +113,11 @@ pub async fn get_job_by_name(pool: &MySqlPool, name: &str) -> anyhow::Result<Opt
     let row = sqlx::query(
         "SELECT j.*, wd.worker_type FROM jobs j \
          LEFT JOIN worker_definitions wd ON j.worker_definition_id = wd.id \
-         WHERE j.name = ?"
+         WHERE j.name = ?",
     )
-        .bind(name)
-        .fetch_optional(pool)
-        .await?;
+    .bind(name)
+    .fetch_optional(pool)
+    .await?;
 
     match row {
         Some(r) => Ok(Some(map_row_to_job(&r)?)),
@@ -125,8 +129,9 @@ pub async fn get_job_by_name(pool: &MySqlPool, name: &str) -> anyhow::Result<Opt
 pub async fn list_jobs(pool: &MySqlPool, filter: &JobFilter) -> anyhow::Result<Vec<Job>> {
     let mut query_str = "SELECT j.*, wd.worker_type FROM jobs j \
                          LEFT JOIN worker_definitions wd ON j.worker_definition_id = wd.id \
-                         WHERE 1=1".to_string();
-    
+                         WHERE 1=1"
+        .to_string();
+
     if filter.job_type.is_some() {
         query_str.push_str(" AND j.job_type = ?");
     }
@@ -143,7 +148,7 @@ pub async fn list_jobs(pool: &MySqlPool, filter: &JobFilter) -> anyhow::Result<V
             query_str.push_str(" AND j.space_id = ?");
         }
     }
-    
+
     query_str.push_str(" ORDER BY j.created_at DESC");
 
     if let Some(limit) = filter.limit {
@@ -165,10 +170,11 @@ pub async fn list_jobs(pool: &MySqlPool, filter: &JobFilter) -> anyhow::Result<V
         let search_pattern = format!("%{}%", search);
         query = query.bind(search_pattern.clone()).bind(search_pattern);
     }
-    if let Some(ref space_id) = filter.space_id {
-        if space_id != "unclassified" && !space_id.trim().is_empty() {
-            query = query.bind(space_id);
-        }
+    if let Some(ref space_id) = filter.space_id
+        && space_id != "unclassified"
+        && !space_id.trim().is_empty()
+    {
+        query = query.bind(space_id);
     }
 
     let rows = query.fetch_all(pool).await?;
@@ -219,7 +225,9 @@ pub async fn update_job(pool: &MySqlPool, id: &i64, update: &JobUpdate) -> anyho
     }
 
     if sets.is_empty() {
-        return get_job(pool, id).await?.ok_or_else(|| anyhow::anyhow!("Job not found"));
+        return get_job(pool, id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Job not found"));
     }
 
     query_str.push_str(&sets.join(", "));
@@ -257,7 +265,9 @@ pub async fn update_job(pool: &MySqlPool, id: &i64, update: &JobUpdate) -> anyho
 
     query.bind(id).execute(pool).await?;
 
-    get_job(pool, id).await?.ok_or_else(|| anyhow::anyhow!("Updated job not found"))
+    get_job(pool, id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Updated job not found"))
 }
 
 /// ジョブを削除

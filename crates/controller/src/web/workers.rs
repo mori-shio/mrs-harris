@@ -1,24 +1,14 @@
-use axum::{
-    extract::State,
-    response::IntoResponse,
-    routing::get,
-    Router,
-};
 use askama::Template;
+use axum::{Router, extract::State, response::IntoResponse, routing::get};
 
 use chrono::{DateTime, Utc};
-use sqlx::{MySqlPool, Row};
-use std::str::FromStr;
-
-use mrs_harris_common::models::worker::WorkerStatus;
-use mrs_harris_common::models::job::WorkerType;
+use sqlx::Row;
 
 use super::auth::WebClaims;
 use crate::app::AppState;
 
 #[derive(Clone)]
 pub struct WorkerRenderItem {
-    pub id: i64,
     pub id_short: String,
     pub worker_type_str: String,
     pub external_id: String,
@@ -55,27 +45,29 @@ async fn workers_page(_claims: WebClaims) -> impl IntoResponse {
     WorkersTemplate
 }
 
-async fn workers_live(
-    _claims: WebClaims,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+async fn workers_live(_claims: WebClaims, State(state): State<AppState>) -> impl IntoResponse {
     let pool = &state.db;
 
     // 1. 各メトリクス数の取得
-    let active_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM worker_tracking WHERE status = 'running'")
-        .fetch_one(pool)
-        .await
-        .unwrap_or(0);
+    let active_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM worker_tracking WHERE status = 'running'")
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
 
-    let fargate_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM worker_tracking WHERE status = 'running' AND worker_type = 'fargate'")
-        .fetch_one(pool)
-        .await
-        .unwrap_or(0);
+    let fargate_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM worker_tracking WHERE status = 'running' AND worker_type = 'fargate'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
 
-    let lambda_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM worker_tracking WHERE status = 'running' AND worker_type = 'lambda'")
-        .fetch_one(pool)
-        .await
-        .unwrap_or(0);
+    let lambda_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM worker_tracking WHERE status = 'running' AND worker_type = 'lambda'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
 
     // 2. 最新のワーカー履歴50件の取得
     let rows = sqlx::query("SELECT * FROM worker_tracking ORDER BY started_at DESC LIMIT 50")
@@ -104,10 +96,14 @@ fn map_row_to_render_item(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<WorkerR
 
     let worker_type_str: String = row.try_get("worker_type")?;
     let external_id: String = row.try_get("external_id")?;
-    
+
     // AWS ARN または Request ID を読みやすく短縮
     let external_id_short = if external_id.contains('/') {
-        external_id.split('/').last().unwrap_or(&external_id).to_string()
+        external_id
+            .split('/')
+            .next_back()
+            .unwrap_or(&external_id)
+            .to_string()
     } else if external_id.len() > 16 {
         format!("{}...", &external_id[..16])
     } else {
@@ -115,13 +111,16 @@ fn map_row_to_render_item(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<WorkerR
     };
 
     let status_str: String = row.try_get("status")?;
-    
+
     let run_id: i64 = row.try_get("run_id")?;
-    
+
     let run_id_short = run_id.to_string()[..8].to_string();
 
     let started_at: DateTime<Utc> = row.try_get("started_at")?;
-    let started_at_str = started_at.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
+    let started_at_str = started_at
+        .with_timezone(&chrono::Local)
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
 
     let last_heartbeat: Option<DateTime<Utc>> = row.try_get("last_heartbeat")?;
     let last_heartbeat_str = match last_heartbeat {
@@ -132,14 +131,15 @@ fn map_row_to_render_item(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<WorkerR
             } else if diff.num_minutes() < 60 {
                 format!("{}分前", diff.num_minutes())
             } else {
-                dt.with_timezone(&chrono::Local).format("%H:%M:%S").to_string()
+                dt.with_timezone(&chrono::Local)
+                    .format("%H:%M:%S")
+                    .to_string()
             }
         }
         None => String::new(),
     };
 
     Ok(WorkerRenderItem {
-        id,
         id_short,
         worker_type_str,
         external_id,

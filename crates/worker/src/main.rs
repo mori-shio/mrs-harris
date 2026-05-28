@@ -1,7 +1,6 @@
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-
 /// Mrs. Harris Worker — ジョブ実行プロセス
 #[derive(Parser)]
 #[command(name = "mrs-harris-worker", version, about = "Mrs. Harris Job Worker")]
@@ -24,8 +23,7 @@ async fn main() -> anyhow::Result<()> {
     // ログ初期化
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .json()
         .init();

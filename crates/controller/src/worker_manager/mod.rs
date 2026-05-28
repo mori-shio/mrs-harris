@@ -2,9 +2,9 @@ use crate::app::AppState;
 use mrs_harris_common::models::job::WorkerType;
 use mrs_harris_common::models::run::JobRun;
 
+pub mod controller_worker;
 pub mod fargate;
 pub mod lambda;
-pub mod controller_worker;
 
 /// ワーカーを起動してジョブを実行
 pub async fn launch_worker(state: &AppState, run: &JobRun) -> anyhow::Result<String> {

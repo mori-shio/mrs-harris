@@ -35,7 +35,7 @@ mrs-harris/
 │   ├── controller/          # スケジューラ本体、APIサーバー、Web UI
 │   └── worker/              # シェルコマンド実行、ログキャプチャ、コールバック処理
 ├── static/                  # 静的アセット (CSS/JS)
-└── templates/               # Askama テンプレート (HTML)
+└── crates/controller/templates/ # Askama テンプレート (HTML)
 ```
 
 ---

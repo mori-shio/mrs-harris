@@ -1,12 +1,12 @@
+use crate::app::AppState;
 use axum::{
-    extract::{State, Query},
+    Json, Router,
+    extract::{Query, State},
     http::StatusCode,
     routing::get,
-    Json, Router,
 };
 use mrs_harris_common::models::calendar::CalendarEntry;
 use mrs_harris_common::models::user::Claims;
-use crate::app::AppState;
 
 #[derive(serde::Deserialize)]
 pub struct CalendarRange {
@@ -15,8 +15,7 @@ pub struct CalendarRange {
 }
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/calendar/events", get(get_calendar_events))
+    Router::new().route("/calendar/events", get(get_calendar_events))
 }
 
 async fn get_calendar_events(

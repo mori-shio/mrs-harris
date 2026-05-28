@@ -1,17 +1,20 @@
+use crate::app::AppState;
 use axum::{
-    extract::{State, Path, Query},
+    Json, Router,
+    extract::{Path, Query, State},
     http::StatusCode,
     routing::get,
-    Json, Router,
 };
-use mrs_harris_common::models::job::{Job, NewJob, JobUpdate, JobFilter};
+use mrs_harris_common::models::job::{Job, JobFilter, JobUpdate, NewJob};
 use mrs_harris_common::models::user::Claims;
-use crate::app::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/jobs", get(list_jobs).post(create_job))
-        .route("/jobs/{name}", get(get_job).put(update_job).delete(delete_job))
+        .route(
+            "/jobs/{name}",
+            get(get_job).put(update_job).delete(delete_job),
+        )
         .route("/jobs/{name}/trigger", axum::routing::post(trigger_job))
 }
 

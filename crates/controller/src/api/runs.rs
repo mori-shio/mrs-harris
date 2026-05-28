@@ -1,13 +1,12 @@
+use crate::app::AppState;
 use axum::{
-    extract::{State, Path, Query},
+    Json, Router,
+    extract::{Path, Query, State},
     http::StatusCode,
     routing::get,
-    Json, Router,
 };
 use mrs_harris_common::models::run::{JobRun, RunStatus};
 use mrs_harris_common::models::user::Claims;
-use crate::app::AppState;
-
 
 #[derive(serde::Deserialize)]
 pub struct RunFilter {
@@ -95,7 +94,9 @@ async fn cancel_run(
     if run.status.is_terminal() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": format!("Cannot cancel run in terminal status: {}", run.status) })),
+            Json(
+                serde_json::json!({ "error": format!("Cannot cancel run in terminal status: {}", run.status) }),
+            ),
         ));
     }
 
@@ -107,7 +108,6 @@ async fn cancel_run(
         Some("Cancelled by user"),
         None,
         None,
-        
     )
     .await
     .map_err(|e| {

@@ -1,21 +1,22 @@
-use axum::{
-    extract::{State, Path, Query},
-    http::HeaderMap,
-    response::{IntoResponse, Redirect, Response},
-    routing::{get, post},
-    Form, Router,
-};
 use askama::Template;
-use uuid::Uuid;
-use chrono::{DateTime, Utc};
-use sqlx::{MySqlPool, Row, Connection};
-use std::str::FromStr;
+use axum::{
+    Form, Router,
+    extract::{Path, Query, State},
+    http::HeaderMap,
+    response::{IntoResponse, Redirect},
+    routing::{get, post},
+};
+use chrono::Utc;
+use sqlx::{MySqlPool, Row};
 use std::collections::HashMap;
-use toml;
+use std::str::FromStr;
+use uuid::Uuid;
 
-use mrs_harris_common::models::job::{Job, JobType, WorkerType, NewJob, JobUpdate, JobFilter, ShellPayload, RetryPolicy, BackoffStrategy};
-use mrs_harris_common::models::run::{JobRun, RunStatus, TriggerType};
 use mrs_harris_common::models::dag::DagTaskDefinition;
+use mrs_harris_common::models::job::{
+    BackoffStrategy, Job, JobFilter, JobType, NewJob, RetryPolicy, ShellPayload,
+};
+use mrs_harris_common::models::run::{JobRun, RunStatus, TriggerType};
 
 use super::auth::WebClaims;
 use crate::app::AppState;
@@ -24,9 +25,7 @@ use crate::app::AppState;
 pub struct JobRenderItem {
     pub id: i64,
     pub name: String,
-    pub description: Option<String>,
     pub job_type_ja: &'static str,
-    pub worker_type: String,
     pub worker_name: String,
     pub schedule_expr: Option<String>,
     pub is_active: bool,
@@ -35,15 +34,62 @@ pub struct JobRenderItem {
 
 #[derive(Clone)]
 pub struct JobRunRenderItem {
-    pub id: i64,
     pub status_str: String,
     pub status_ja: &'static str,
     pub run_number: i64,
     pub trigger_ja: &'static str,
-    pub attempt: u32,
     pub duration_str: String,
     pub started_at_str: String,
     pub config_version_str: String,
+}
+
+fn job_run_render_item_from_run(run: &JobRun) -> JobRunRenderItem {
+    let status_ja = match run.status {
+        RunStatus::Pending => "保留中",
+        RunStatus::Scheduled => "予約済",
+        RunStatus::Queued => "キュー済",
+        RunStatus::Running => "実行中",
+        RunStatus::Succeeded => "成功",
+        RunStatus::Failed => "失敗",
+        RunStatus::Retrying => "リトライ中",
+        RunStatus::Cancelled => "キャンセル済",
+        RunStatus::DeadLetter => "致命的エラー (DLQ)",
+    };
+
+    let trigger_ja = match run.trigger_type {
+        TriggerType::Scheduled => "自動スケジュール",
+        TriggerType::Manual => "手動実行",
+        TriggerType::Dependency => "DAG依存",
+    };
+
+    let duration_str = match run.duration_ms {
+        Some(ms) if ms >= 1000 => format!("{:.1}s", ms as f64 / 1000.0),
+        Some(ms) => format!("{}ms", ms),
+        None => "-".to_string(),
+    };
+
+    let started_at_str = match run.started_at {
+        Some(dt) => dt
+            .with_timezone(&chrono::Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string(),
+        None => "-".to_string(),
+    };
+
+    let config_version_str = match run.config_version {
+        Some(v) => format!("v{}", v),
+        None => "-".to_string(),
+    };
+
+    JobRunRenderItem {
+        status_str: run.status.to_string(),
+        status_ja,
+        run_number: run.run_number,
+        trigger_ja,
+        duration_str,
+        started_at_str,
+        config_version_str,
+    }
 }
 
 #[derive(Clone)]
@@ -58,7 +104,6 @@ pub struct JobSpaceTab {
 struct JobsListTemplate {
     jobs: Vec<JobRenderItem>,
     spaces: Vec<JobSpaceTab>,
-    current_space_id: String,
     current_space_name: String,
     current_search: String,
     current_job_type: String,
@@ -112,7 +157,6 @@ struct JobDetailTemplate {
     initial_tab: String,
     is_polling: bool,
     job_type_str: &'static str,
-    worker_type_str: &'static str,
     worker_definition_name: String,
     timeout_minutes: u32,
     retry_backoff_str: &'static str,
@@ -127,7 +171,6 @@ struct JobDetailTemplate {
     empty_runs: Vec<()>,
     is_dag: bool,
     command_preview: String,
-    env_vars: Option<String>,
     env_vars_list: Vec<(String, String)>,
     ssm_region: String,
     ssm_path: String,
@@ -141,7 +184,7 @@ struct JobDetailTemplate {
     dag_tasks_json: String,
     dag_edges_json: String,
     history: Vec<JobHistoryRenderItem>,
-    
+
     // History pagination
     latest_version: u32,
     history_current_page: u32,
@@ -188,6 +231,46 @@ struct JobFormTemplate {
 }
 crate::impl_into_response!(JobFormTemplate);
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+    use mrs_harris_common::models::job::WorkerType;
+
+    fn sample_run(run_number: i64) -> JobRun {
+        let now = Utc.with_ymd_and_hms(2026, 5, 28, 12, 0, 0).unwrap();
+
+        JobRun {
+            id: 10,
+            job_id: 20,
+            run_number,
+            status: RunStatus::Succeeded,
+            worker_type: WorkerType::Controller,
+            worker_id: None,
+            trigger_type: TriggerType::Manual,
+            attempt: 1,
+            scheduled_at: None,
+            started_at: Some(now),
+            finished_at: Some(now),
+            next_retry_at: None,
+            duration_ms: Some(1500),
+            output: None,
+            error: None,
+            job_history_id: Some(30),
+            worker_definition_id: Some(40),
+            config_version: Some(3),
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    #[test]
+    fn run_render_item_uses_persisted_run_number() {
+        let item = job_run_render_item_from_run(&sample_run(42));
+
+        assert_eq!(item.run_number, 42);
+    }
+}
 
 #[derive(serde::Deserialize, Debug)]
 pub struct JobFormData {
@@ -197,19 +280,19 @@ pub struct JobFormData {
     worker_definition_id: String,
     space_id: Option<String>,
     schedule_expr: Option<String>,
-    
+
     // Command payload (Non-DAG)
     script: Option<String>,
     env: Option<String>,
-    
+
     // SSM Parameter Store Settings
     ssm_region: Option<String>,
     ssm_path: Option<String>,
     ssm_recursive: Option<String>, // "on" if checked
-    
+
     // DAG payload
     dag_tasks_json: Option<String>,
-    
+
     // Advanced
     timeout_sec: u32,
     has_retry: Option<String>, // "on" if checked
@@ -233,23 +316,25 @@ pub fn router() -> Router<AppState> {
         .route("/jobs/{id}/edit", get(edit_job_page).post(edit_job_submit))
 }
 
-pub fn map_job_to_render(job: &Job, worker_name_map: &std::collections::HashMap<i64, String>) -> JobRenderItem {
+pub fn map_job_to_render(
+    job: &Job,
+    worker_name_map: &std::collections::HashMap<i64, String>,
+) -> JobRenderItem {
     let job_type_ja = match job.job_type {
         JobType::Cron => "Cron (定期)",
         JobType::Dag => "DAG (連結)",
         JobType::OneShot => "OneShot (単発)",
     };
 
-    let worker_name = job.worker_definition_id
+    let worker_name = job
+        .worker_definition_id
         .and_then(|id| worker_name_map.get(&id).cloned())
         .unwrap_or_else(|| "-".to_string());
 
     JobRenderItem {
         id: job.id,
         name: job.name.clone(),
-        description: job.description.clone(),
         job_type_ja,
-        worker_type: job.worker_type.to_string(),
         worker_name,
         schedule_expr: job.schedule_expr.clone(),
         is_active: job.is_active,
@@ -264,14 +349,20 @@ async fn jobs_page(
     Query(query_filter): Query<HashMap<String, String>>,
 ) -> impl IntoResponse {
     // Build filter from Query params
-    let search = query_filter.get("search").filter(|s| !s.trim().is_empty()).cloned();
-    let job_type = query_filter.get("job_type")
+    let search = query_filter
+        .get("search")
+        .filter(|s| !s.trim().is_empty())
+        .cloned();
+    let job_type = query_filter
+        .get("job_type")
         .and_then(|t| JobType::from_str(t).ok());
-    let is_active = query_filter.get("is_active")
+    let is_active = query_filter
+        .get("is_active")
         .and_then(|v| bool::from_str(v).ok());
 
     // Resolve space_id parameter by looking at either `space` or `space_id`
-    let space_param = query_filter.get("space")
+    let space_param = query_filter
+        .get("space")
         .or(query_filter.get("space_id"))
         .filter(|s| !s.trim().is_empty())
         .cloned();
@@ -325,13 +416,16 @@ async fn jobs_page(
         offset: None,
     };
 
-    let jobs_db = crate::db::jobs::list_jobs(&state.db, &filter).await.unwrap_or_default();
-    
+    let jobs_db = crate::db::jobs::list_jobs(&state.db, &filter)
+        .await
+        .unwrap_or_default();
+
     let worker_rows = sqlx::query("SELECT id, name FROM worker_definitions")
         .fetch_all(&state.db)
         .await
         .unwrap_or_default();
-    let mut worker_name_map: std::collections::HashMap<i64, String> = std::collections::HashMap::new();
+    let mut worker_name_map: std::collections::HashMap<i64, String> =
+        std::collections::HashMap::new();
     for row in worker_rows {
         let uid: i64 = row.try_get("id").unwrap_or_default();
         if true {
@@ -340,9 +434,13 @@ async fn jobs_page(
         }
     }
 
-    let jobs = jobs_db.iter().map(|j| map_job_to_render(j, &worker_name_map)).collect::<Vec<_>>();
+    let jobs = jobs_db
+        .iter()
+        .map(|j| map_job_to_render(j, &worker_name_map))
+        .collect::<Vec<_>>();
 
-    let is_partial = headers.get("hx-target")
+    let is_partial = headers
+        .get("hx-target")
         .map(|v| v == "jobs-list-container")
         .unwrap_or(false);
 
@@ -392,26 +490,27 @@ async fn jobs_page(
         JobsListTemplate {
             jobs,
             spaces,
-            current_space_id: current_sid,
             current_space_name,
             current_search,
             current_job_type,
             current_is_active,
-        }.into_response()
+        }
+        .into_response()
     }
 }
 
-async fn new_job_page(
-    _claims: WebClaims,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
-    let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db).await.unwrap_or_default();
-
-    // Query spaces from DB manually
-    let spaces_rows = sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces ORDER BY name ASC")
-        .fetch_all(&state.db)
+async fn new_job_page(_claims: WebClaims, State(state): State<AppState>) -> impl IntoResponse {
+    let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db)
         .await
         .unwrap_or_default();
+
+    // Query spaces from DB manually
+    let spaces_rows = sqlx::query(
+        "SELECT id, name, description, created_at, updated_at FROM spaces ORDER BY name ASC",
+    )
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
 
     let mut spaces = Vec::new();
     for row in spaces_rows {
@@ -420,7 +519,7 @@ async fn new_job_page(
         let description: Option<String> = row.try_get("description").ok();
         let created_at = row.try_get("created_at").unwrap_or_else(|_| Utc::now());
         let updated_at = row.try_get("updated_at").unwrap_or_else(|_| Utc::now());
-        
+
         spaces.push(mrs_harris_common::models::space::Space {
             id,
             name,
@@ -468,10 +567,13 @@ async fn create_job_submit(
     Form(form): Form<JobFormData>,
 ) -> impl IntoResponse {
     let job_type = JobType::from_str(&form.job_type).unwrap_or(JobType::OneShot);
-    
+
     // ロードされた自作ワーカーノード定義から worker_type を決定
     let worker_def_id = form.worker_definition_id.parse::<i64>().unwrap();
-    let def = crate::db::workers::get_worker_definition(&state.db, &worker_def_id).await.unwrap().unwrap();
+    let def = crate::db::workers::get_worker_definition(&state.db, &worker_def_id)
+        .await
+        .unwrap()
+        .unwrap();
     let worker_type = def.worker_type;
 
     // Build Retry Policy
@@ -488,7 +590,9 @@ async fn create_job_submit(
     };
 
     // Build Tags
-    let tags = form.tags_str.clone()
+    let tags = form
+        .tags_str
+        .clone()
         .unwrap_or_default()
         .split(',')
         .map(|t| t.trim().to_string())
@@ -499,10 +603,10 @@ async fn create_job_submit(
 
     // Build Payload
     let payload = if job_type == JobType::Dag {
-        let task_defs: Vec<DagTaskDefinition> = serde_json::from_str(
-            form.dag_tasks_json.as_deref().unwrap_or("[]")
-        ).unwrap_or_default();
-        
+        let task_defs: Vec<DagTaskDefinition> =
+            serde_json::from_str(form.dag_tasks_json.as_deref().unwrap_or("[]"))
+                .unwrap_or_default();
+
         let env_lines = form.env.as_deref().unwrap_or("");
         let mut env = HashMap::new();
         for line in env_lines.lines() {
@@ -547,7 +651,13 @@ async fn create_job_submit(
 
         let shell = ShellPayload {
             command: "sh".to_string(),
-            args: vec!["-c".to_string(), form.script.clone().unwrap_or_default().replace("\r\n", "\n")],
+            args: vec![
+                "-c".to_string(),
+                form.script
+                    .clone()
+                    .unwrap_or_default()
+                    .replace("\r\n", "\n"),
+            ],
             working_dir: None,
             env,
             ssm_region,
@@ -557,7 +667,8 @@ async fn create_job_submit(
         serde_json::to_value(&shell).unwrap_or(serde_json::Value::Null)
     };
 
-    let space_id = form.space_id
+    let space_id = form
+        .space_id
         .filter(|s| !s.trim().is_empty())
         .and_then(|s| s.parse::<i64>().ok());
 
@@ -580,9 +691,7 @@ async fn create_job_submit(
     let pool = &state.db;
     let mut tx = pool.begin().await.unwrap();
 
-    let job_id = Uuid::new_v4();
     let job_type_str = new_job.job_type.to_string();
-    let worker_type_str = new_job.worker_type.to_string();
     let retry_policy_json = serde_json::to_value(&new_job.retry_policy).unwrap();
     let tags_json = serde_json::to_value(&new_job.tags).unwrap();
     let is_active_val: i8 = if new_job.is_active { 1 } else { 0 };
@@ -610,50 +719,71 @@ async fn create_job_submit(
     let res = match res {
         Ok(res) => res,
         Err(e) => {
-            if let sqlx::Error::Database(db_err) = &e {
-                if db_err.code().as_deref() == Some("23000") || db_err.message().contains("Duplicate") {
-                    let space_rows = sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces").fetch_all(&state.db).await.unwrap_or_default();
-                    let mut spaces = Vec::new();
-                    for row in space_rows {
-                        let id: i64 = row.try_get("id").unwrap_or_default();
-                        let name: String = row.try_get("name").unwrap_or_default();
-                        let description: Option<String> = row.try_get("description").ok();
-                        let created_at = row.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now());
-                        let updated_at = row.try_get("updated_at").unwrap_or_else(|_| chrono::Utc::now());
-                        spaces.push(mrs_harris_common::models::space::Space { id, name, description, created_at, updated_at });
-                    }
-                    let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db).await.unwrap_or_default();
-                    return JobFormTemplate {
-                        error_message: Some("指定されたジョブ名は既に使用されています。別の名前を指定してください。".to_string()),
-                        is_edit: false,
-                        job_id: None,
-                        original_name: None,
-                        name: form.name.clone(),
-                        description: form.description.clone().unwrap_or_default(),
-                        tags_str: form.tags_str.clone().unwrap_or_default(),
-                        job_type: form.job_type.clone(),
-                        worker_definition_id: form.worker_definition_id.clone(),
-                        worker_defs,
-                        spaces,
-                        space_id: new_job.space_id,
-                        schedule_expr: form.schedule_expr.clone().unwrap_or_default(),
-                        script: form.script.clone().unwrap_or_default(),
-                        env: form.env.clone().unwrap_or_default(),
-                        ssm_region: form.ssm_region.clone().unwrap_or_default(),
-                        ssm_path: form.ssm_path.clone().unwrap_or_default(),
-                        ssm_recursive: form.ssm_recursive.as_deref() == Some("on"),
-                        dag_tasks_json: form.dag_tasks_json.clone().unwrap_or_default(),
-                        timeout_sec: form.timeout_sec,
-                        has_retry: form.has_retry.as_deref() == Some("on"),
-                        max_retries: form.max_retries,
-                        backoff: form.backoff.clone(),
-                        base_delay_sec: form.base_delay_sec,
-                        is_active: form.is_active.as_deref() == Some("on"),
-                        slack_on_running: form.slack_on_running.as_deref() == Some("on"),
-                        slack_on_succeeded: form.slack_on_succeeded.as_deref() == Some("on"),
-                        slack_on_failed: form.slack_on_failed.as_deref() == Some("on"),
-                    }.into_response();
+            if let sqlx::Error::Database(db_err) = &e
+                && (db_err.code().as_deref() == Some("23000")
+                    || db_err.message().contains("Duplicate"))
+            {
+                let space_rows =
+                    sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces")
+                        .fetch_all(&state.db)
+                        .await
+                        .unwrap_or_default();
+                let mut spaces = Vec::new();
+                for row in space_rows {
+                    let id: i64 = row.try_get("id").unwrap_or_default();
+                    let name: String = row.try_get("name").unwrap_or_default();
+                    let description: Option<String> = row.try_get("description").ok();
+                    let created_at = row
+                        .try_get("created_at")
+                        .unwrap_or_else(|_| chrono::Utc::now());
+                    let updated_at = row
+                        .try_get("updated_at")
+                        .unwrap_or_else(|_| chrono::Utc::now());
+                    spaces.push(mrs_harris_common::models::space::Space {
+                        id,
+                        name,
+                        description,
+                        created_at,
+                        updated_at,
+                    });
                 }
+                let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db)
+                    .await
+                    .unwrap_or_default();
+                return JobFormTemplate {
+                    error_message: Some(
+                        "指定されたジョブ名は既に使用されています。別の名前を指定してください。"
+                            .to_string(),
+                    ),
+                    is_edit: false,
+                    job_id: None,
+                    original_name: None,
+                    name: form.name.clone(),
+                    description: form.description.clone().unwrap_or_default(),
+                    tags_str: form.tags_str.clone().unwrap_or_default(),
+                    job_type: form.job_type.clone(),
+                    worker_definition_id: form.worker_definition_id.clone(),
+                    worker_defs,
+                    spaces,
+                    space_id: new_job.space_id,
+                    schedule_expr: form.schedule_expr.clone().unwrap_or_default(),
+                    script: form.script.clone().unwrap_or_default(),
+                    env: form.env.clone().unwrap_or_default(),
+                    ssm_region: form.ssm_region.clone().unwrap_or_default(),
+                    ssm_path: form.ssm_path.clone().unwrap_or_default(),
+                    ssm_recursive: form.ssm_recursive.as_deref() == Some("on"),
+                    dag_tasks_json: form.dag_tasks_json.clone().unwrap_or_default(),
+                    timeout_sec: form.timeout_sec,
+                    has_retry: form.has_retry.as_deref() == Some("on"),
+                    max_retries: form.max_retries,
+                    backoff: form.backoff.clone(),
+                    base_delay_sec: form.base_delay_sec,
+                    is_active: form.is_active.as_deref() == Some("on"),
+                    slack_on_running: form.slack_on_running.as_deref() == Some("on"),
+                    slack_on_succeeded: form.slack_on_succeeded.as_deref() == Some("on"),
+                    slack_on_failed: form.slack_on_failed.as_deref() == Some("on"),
+                }
+                .into_response();
             }
             return Redirect::to("/jobs/new").into_response();
         }
@@ -662,9 +792,9 @@ async fn create_job_submit(
     let job_id = res.last_insert_id() as i64;
 
     if new_job.job_type == JobType::Dag {
-        let task_defs: Vec<DagTaskDefinition> = serde_json::from_str(
-            form.dag_tasks_json.as_deref().unwrap_or("[]")
-        ).unwrap_or_default();
+        let task_defs: Vec<DagTaskDefinition> =
+            serde_json::from_str(form.dag_tasks_json.as_deref().unwrap_or("[]"))
+                .unwrap_or_default();
 
         for task in task_defs {
             sqlx::query(
@@ -684,7 +814,7 @@ async fn create_job_submit(
             for dep in task.depends_on {
                 sqlx::query(
                     r#"INSERT INTO dag_edges (dag_id, from_task, to_task)
-                       VALUES (?, ?, ?)"#
+                       VALUES (?, ?, ?)"#,
                 )
                 .bind(job_id)
                 .bind(&dep)
@@ -719,7 +849,7 @@ async fn create_job_submit(
         sqlx::query(
             r#"INSERT INTO notification_channels (id, name, channel_type, config, is_active)
                VALUES (1, 'default-slack', 'slack', '{"webhook_url":""}', 1)
-               ON DUPLICATE KEY UPDATE is_active=is_active"#
+               ON DUPLICATE KEY UPDATE is_active=is_active"#,
         )
         .execute(&mut *tx)
         .await
@@ -727,7 +857,7 @@ async fn create_job_submit(
 
         sqlx::query(
             r#"INSERT INTO job_notifications (job_id, channel_id, on_events)
-               VALUES (?, 1, ?)"#
+               VALUES (?, 1, ?)"#,
         )
         .bind(job_id.to_string())
         .bind(events_json)
@@ -749,23 +879,19 @@ async fn job_detail_page(
     Path(name_in_path): Path<String>,
     Query(query): Query<RunsQuery>,
 ) -> impl IntoResponse {
-        let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path).await.unwrap_or(None);
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path)
+        .await
+        .unwrap_or(None);
     let job = match job_opt {
         Some(j) => j,
         None => return (axum::http::StatusCode::NOT_FOUND, "Job not found").into_response(),
     };
     let id = job.id;
-    
+
     let job_type_str = match job.job_type {
         JobType::Cron => "Cron (定期)",
         JobType::Dag => "DAG (連結)",
         JobType::OneShot => "OneShot (単発)",
-    };
-
-    let worker_type_str = match job.worker_type {
-        WorkerType::Fargate => "fargate",
-        WorkerType::Lambda => "lambda",
-        WorkerType::Controller => "controller",
     };
 
     let retry_backoff_str = match job.retry_policy.backoff {
@@ -786,85 +912,29 @@ async fn job_detail_page(
         .fetch_one(&state.db)
         .await
         .unwrap_or(0);
-    
+
     let total_pages = ((total_runs as f64) / (limit as f64)).ceil() as u32;
     let start_index = if total_runs == 0 { 0 } else { 1 };
     let end_index = std::cmp::min(limit as usize, total_runs as usize);
     let pages = (1..=total_pages).collect::<Vec<u32>>();
 
-    let runs_db = match crate::db::runs::list_runs(&state.db, Some(&id), Some(limit), Some(offset), desc).await {
-        Ok(runs) => runs,
-        Err(e) => {
-            tracing::error!("Failed to list runs in job_detail_page: {:?}", e);
-            Vec::new()
-        }
-    };
+    let runs_db =
+        match crate::db::runs::list_runs(&state.db, Some(&id), Some(limit), Some(offset), desc)
+            .await
+        {
+            Ok(runs) => runs,
+            Err(e) => {
+                tracing::error!("Failed to list runs in job_detail_page: {:?}", e);
+                Vec::new()
+            }
+        };
     let mut recent_runs = Vec::new();
     for r in runs_db {
-        let status_ja = match r.status {
-            RunStatus::Pending => "保留中",
-            RunStatus::Scheduled => "予約済",
-            RunStatus::Queued => "キュー済",
-            RunStatus::Running => "実行中",
-            RunStatus::Succeeded => "成功",
-            RunStatus::Failed => "失敗",
-            RunStatus::Retrying => "リトライ中",
-            RunStatus::Cancelled => "キャンセル済",
-            RunStatus::DeadLetter => "致命的エラー (DLQ)",
-        };
-
-        let trigger_ja = match r.trigger_type {
-            TriggerType::Scheduled => "自動スケジュール",
-            TriggerType::Manual => "手動実行",
-            TriggerType::Dependency => "DAG依存",
-        };
-
-        let duration_str = match r.duration_ms {
-            Some(ms) => {
-                if ms >= 1000 {
-                    format!("{:.1}s", ms as f64 / 1000.0)
-                } else {
-                    format!("{}ms", ms)
-                }
-            }
-            None => "-".to_string(),
-        };
-
-        let started_at_str = match r.started_at {
-            Some(dt) => dt.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string(),
-            None => "-".to_string(),
-        };
-
-        let config_version_str = match r.config_version {
-            Some(v) => format!("v{}", v),
-            None => "-".to_string(),
-        };
-
-        let run_number: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM job_runs WHERE job_id = ? AND created_at <= ?"
-        )
-        .bind(&r.job_id.to_string())
-        .bind(r.created_at)
-        .fetch_one(&state.db)
-        .await
-        .unwrap_or(0);
-
-        recent_runs.push(JobRunRenderItem {
-            id: r.id,
-            status_str: r.status.to_string(),
-            status_ja,
-            run_number,
-            trigger_ja,
-            attempt: r.attempt,
-            duration_str,
-            started_at_str,
-            config_version_str,
-        });
+        recent_runs.push(job_run_render_item_from_run(&r));
     }
 
     let is_dag = job.job_type == JobType::Dag;
     let mut command_preview = String::new();
-    let mut env_vars = None;
     let mut env_vars_list = Vec::new();
     let mut ssm_region = String::new();
     let mut ssm_path = String::new();
@@ -875,52 +945,50 @@ async fn job_detail_page(
 
     // 1. ワーカー定義名の取得
     let mut worker_definition_name = "デフォルト (起動タイプ設定)".to_string();
-    if let Some(def_id) = job.worker_definition_id {
-        if let Ok(Some(def)) = crate::db::workers::get_worker_definition(&state.db, &def_id).await {
-            worker_definition_name = def.name;
-        }
+    if let Some(def_id) = job.worker_definition_id
+        && let Ok(Some(def)) = crate::db::workers::get_worker_definition(&state.db, &def_id).await
+    {
+        worker_definition_name = def.name;
     }
 
     // 2. Slack通知設定の取得
-    let noti_row = sqlx::query(
-        "SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 1"
-    )
-    .bind(job.id.to_string())
-    .fetch_optional(&state.db)
-    .await
-    .unwrap_or_default();
+    let noti_row =
+        sqlx::query("SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 1")
+            .bind(job.id.to_string())
+            .fetch_optional(&state.db)
+            .await
+            .unwrap_or_default();
 
     let mut slack_on_running = false;
     let mut slack_on_succeeded = false;
     let mut slack_on_failed = false;
 
-    if let Some(row) = noti_row {
-        if let Ok(on_events_val) = row.try_get::<serde_json::Value, _>("on_events") {
-            if let Ok(on_events) = serde_json::from_value::<Vec<String>>(on_events_val) {
-                slack_on_running = on_events.contains(&"running".to_string());
-                slack_on_succeeded = on_events.contains(&"succeeded".to_string());
-                slack_on_failed = on_events.contains(&"failed".to_string()) || on_events.contains(&"dead_letter".to_string());
-            }
-        }
+    if let Some(row) = noti_row
+        && let Ok(on_events_val) = row.try_get::<serde_json::Value, _>("on_events")
+        && let Ok(on_events) = serde_json::from_value::<Vec<String>>(on_events_val)
+    {
+        slack_on_running = on_events.contains(&"running".to_string());
+        slack_on_succeeded = on_events.contains(&"succeeded".to_string());
+        slack_on_failed = on_events.contains(&"failed".to_string())
+            || on_events.contains(&"dead_letter".to_string());
     }
 
     // 3. 環境変数・SSM設定・DAG設定の取得
     if is_dag {
         // Load DAG tasks and edges from DB
-        let tasks_rows = sqlx::query(
-            "SELECT task_name, worker_type, payload FROM dag_tasks WHERE dag_id = ?"
-        )
-        .bind(id)
-        .fetch_all(&state.db)
-        .await
-        .unwrap_or_default();
+        let tasks_rows =
+            sqlx::query("SELECT task_name, worker_type, payload FROM dag_tasks WHERE dag_id = ?")
+                .bind(id)
+                .fetch_all(&state.db)
+                .await
+                .unwrap_or_default();
 
         let mut tasks = Vec::new();
         for row in tasks_rows {
             let name: String = row.try_get("task_name").unwrap();
             let wt: String = row.try_get("worker_type").unwrap();
             let pl: serde_json::Value = row.try_get("payload").unwrap();
-            
+
             tasks.push(serde_json::json!({
                 "name": name,
                 "worker_type": wt,
@@ -929,13 +997,11 @@ async fn job_detail_page(
         }
         dag_tasks_json = serde_json::to_string(&tasks).unwrap_or_else(|_| "[]".to_string());
 
-        let edges_rows = sqlx::query(
-            "SELECT from_task, to_task FROM dag_edges WHERE dag_id = ?"
-        )
-        .bind(id)
-        .fetch_all(&state.db)
-        .await
-        .unwrap_or_default();
+        let edges_rows = sqlx::query("SELECT from_task, to_task FROM dag_edges WHERE dag_id = ?")
+            .bind(id)
+            .fetch_all(&state.db)
+            .await
+            .unwrap_or_default();
 
         let mut edges = Vec::new();
         for row in edges_rows {
@@ -954,9 +1020,23 @@ async fn job_detail_page(
                 env_vars_list.push((k.clone(), v.as_str().unwrap_or_default().to_string()));
             }
         }
-        ssm_region = job.payload.get("ssm_region").and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        ssm_path = job.payload.get("ssm_path").and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        ssm_recursive = job.payload.get("ssm_recursive").and_then(|v| v.as_bool()).unwrap_or(false);
+        ssm_region = job
+            .payload
+            .get("ssm_region")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        ssm_path = job
+            .payload
+            .get("ssm_path")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        ssm_recursive = job
+            .payload
+            .get("ssm_recursive")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
     } else {
         // Parse payload as shell command
         if let Ok(shell) = serde_json::from_value::<ShellPayload>(job.payload.clone()) {
@@ -974,12 +1054,6 @@ async fn job_detail_page(
             command_preview = cmd;
 
             if !shell.env.is_empty() {
-                let envs = shell.env.iter()
-                    .map(|(k, v)| format!("{}={}", k, v))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                env_vars = Some(envs);
-
                 for (k, v) in &shell.env {
                     env_vars_list.push((k.clone(), v.clone()));
                 }
@@ -995,8 +1069,16 @@ async fn job_detail_page(
 
     let timeout_minutes = job.timeout_sec / 60;
 
-    let created_at_str = job.created_at.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
-    let updated_at_str = job.updated_at.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
+    let created_at_str = job
+        .created_at
+        .with_timezone(&chrono::Local)
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
+    let updated_at_str = job
+        .updated_at
+        .with_timezone(&chrono::Local)
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
 
     // 4. 設定変更履歴の取得（空なら自動で初期履歴を記録）
     let mut history_rows = sqlx::query(
@@ -1021,11 +1103,17 @@ async fn job_detail_page(
     let mut history = Vec::new();
     for row in history_rows {
         let version: u32 = row.try_get("version").unwrap_or(1);
-        let changed_by: String = row.try_get("changed_by").unwrap_or_else(|_| "admin".to_string());
+        let changed_by: String = row
+            .try_get("changed_by")
+            .unwrap_or_else(|_| "admin".to_string());
         let changed_at: chrono::DateTime<chrono::Utc> = row.try_get("changed_at").unwrap();
-        let changed_at_str = changed_at.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
-        
-        let payload_val: serde_json::Value = row.try_get("payload").unwrap_or(serde_json::Value::Null);
+        let changed_at_str = changed_at
+            .with_timezone(&chrono::Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+
+        let payload_val: serde_json::Value =
+            row.try_get("payload").unwrap_or(serde_json::Value::Null);
         let payload_json = serde_json::to_string(&payload_val).unwrap_or_default();
 
         history.push(JobHistoryRenderItem {
@@ -1055,7 +1143,6 @@ async fn job_detail_page(
         job_name: job.name.clone(),
         job,
         job_type_str,
-        worker_type_str,
         worker_definition_name,
         timeout_minutes,
         retry_backoff_str,
@@ -1071,7 +1158,6 @@ async fn job_detail_page(
         is_polling,
         is_dag,
         command_preview,
-        env_vars,
         env_vars_list,
         ssm_region,
         ssm_path,
@@ -1094,8 +1180,8 @@ async fn job_detail_page(
         history_page_items: Vec::new(),
         empty_history: Vec::new(),
         initial_tab: "runs".to_string(),
-
-    }.into_response()
+    }
+    .into_response()
 }
 
 async fn job_runs_list(
@@ -1104,7 +1190,9 @@ async fn job_runs_list(
     Path(name_in_path): Path<String>,
     Query(query): Query<RunsQuery>,
 ) -> impl IntoResponse {
-    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path).await.unwrap_or(None);
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path)
+        .await
+        .unwrap_or(None);
     let job = match job_opt {
         Some(j) => j,
         None => return axum::response::Redirect::to("/jobs").into_response(),
@@ -1124,79 +1212,28 @@ async fn job_runs_list(
         .unwrap_or(0);
 
     let total_pages = ((total_runs as f64) / (limit as f64)).ceil() as u32;
-    let start_index = if total_runs == 0 { 0 } else { (offset as usize) + 1 };
+    let start_index = if total_runs == 0 {
+        0
+    } else {
+        (offset as usize) + 1
+    };
     let end_index = std::cmp::min((offset + limit) as usize, total_runs as usize);
     let pages = (1..=total_pages).collect::<Vec<u32>>();
 
-    let runs_db = match crate::db::runs::list_runs(&state.db, Some(&id), Some(limit), Some(offset), desc).await {
-        Ok(runs) => runs,
-        Err(e) => {
-            tracing::error!("Failed to list runs in job_runs_list: {:?}", e);
-            Vec::new()
-        }
-    };
-    
+    let runs_db =
+        match crate::db::runs::list_runs(&state.db, Some(&id), Some(limit), Some(offset), desc)
+            .await
+        {
+            Ok(runs) => runs,
+            Err(e) => {
+                tracing::error!("Failed to list runs in job_runs_list: {:?}", e);
+                Vec::new()
+            }
+        };
+
     let mut recent_runs = Vec::new();
     for r in runs_db {
-        let status_ja = match r.status {
-            RunStatus::Pending => "保留中",
-            RunStatus::Scheduled => "予約済",
-            RunStatus::Queued => "キュー済",
-            RunStatus::Running => "実行中",
-            RunStatus::Succeeded => "成功",
-            RunStatus::Failed => "失敗",
-            RunStatus::Retrying => "リトライ中",
-            RunStatus::Cancelled => "キャンセル済",
-            RunStatus::DeadLetter => "致命的エラー (DLQ)",
-        };
-
-        let trigger_ja = match r.trigger_type {
-            TriggerType::Scheduled => "自動スケジュール",
-            TriggerType::Manual => "手動実行",
-            TriggerType::Dependency => "DAG依存",
-        };
-
-        let duration_str = match r.duration_ms {
-            Some(ms) => {
-                if ms >= 1000 {
-                    format!("{:.1}s", ms as f64 / 1000.0)
-                } else {
-                    format!("{}ms", ms)
-                }
-            }
-            None => "-".to_string(),
-        };
-
-        let started_at_str = match r.started_at {
-            Some(dt) => dt.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string(),
-            None => "-".to_string(),
-        };
-
-        let config_version_str = match r.config_version {
-            Some(v) => format!("v{}", v),
-            None => "-".to_string(),
-        };
-
-        let run_number: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM job_runs WHERE job_id = ? AND created_at <= ?"
-        )
-        .bind(&r.job_id.to_string())
-        .bind(r.created_at)
-        .fetch_one(&state.db)
-        .await
-        .unwrap_or(0);
-
-        recent_runs.push(JobRunRenderItem {
-            id: r.id,
-            status_str: r.status.to_string(),
-            status_ja,
-            run_number,
-            trigger_ja,
-            attempt: r.attempt,
-            duration_str,
-            started_at_str,
-            config_version_str,
-        });
+        recent_runs.push(job_run_render_item_from_run(&r));
     }
 
     let empty_runs = if total_runs > 10 {
@@ -1226,7 +1263,8 @@ async fn job_runs_list(
         current_sort,
         empty_runs,
         is_polling,
-    }.into_response()
+    }
+    .into_response()
 }
 
 async fn edit_job_page(
@@ -1234,7 +1272,9 @@ async fn edit_job_page(
     State(state): State<AppState>,
     Path(name_in_path): Path<String>,
 ) -> impl IntoResponse {
-        let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path).await.unwrap_or(None);
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path)
+        .await
+        .unwrap_or(None);
     let job = match job_opt {
         Some(j) => j,
         None => return (axum::http::StatusCode::NOT_FOUND, "Job not found").into_response(),
@@ -1267,14 +1307,13 @@ async fn edit_job_page(
             let to_opt: Option<u32> = row.try_get("timeout_sec").ok();
 
             // Load dependencies
-            let dep_rows = sqlx::query(
-                "SELECT from_task FROM dag_edges WHERE dag_id = ? AND to_task = ?"
-            )
-            .bind(id)
-            .bind(&name)
-            .fetch_all(&state.db)
-            .await
-            .unwrap_or_default();
+            let dep_rows =
+                sqlx::query("SELECT from_task FROM dag_edges WHERE dag_id = ? AND to_task = ?")
+                    .bind(id)
+                    .bind(&name)
+                    .fetch_all(&state.db)
+                    .await
+                    .unwrap_or_default();
 
             let mut depends_on = Vec::new();
             for dep_row in dep_rows {
@@ -1298,14 +1337,35 @@ async fn edit_job_page(
 
         // DAGでも環境変数/SSM設定を復元
         if let Some(env_map) = job.payload.get("env").and_then(|v| v.as_object()) {
-            env = env_map.iter().map(|(k, v)| format!("{}={}", k, v.as_str().unwrap_or_default())).collect::<Vec<_>>().join("\n");
+            env = env_map
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, v.as_str().unwrap_or_default()))
+                .collect::<Vec<_>>()
+                .join("\n");
         }
-        ssm_region = job.payload.get("ssm_region").and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        ssm_path = job.payload.get("ssm_path").and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        ssm_recursive = job.payload.get("ssm_recursive").and_then(|v| v.as_bool()).unwrap_or(false);
+        ssm_region = job
+            .payload
+            .get("ssm_region")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        ssm_path = job
+            .payload
+            .get("ssm_path")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        ssm_recursive = job
+            .payload
+            .get("ssm_recursive")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
     } else {
         if let Ok(shell) = serde_json::from_value::<ShellPayload>(job.payload.clone()) {
-            if (shell.command == "sh" || shell.command == "/bin/sh" || shell.command == "bash" || shell.command == "/bin/bash")
+            if (shell.command == "sh"
+                || shell.command == "/bin/sh"
+                || shell.command == "bash"
+                || shell.command == "/bin/bash")
                 && shell.args.len() == 2
                 && shell.args[0] == "-c"
             {
@@ -1318,7 +1378,12 @@ async fn edit_job_page(
                 }
                 script = cmd;
             }
-            env = shell.env.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<_>>().join("\n");
+            env = shell
+                .env
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, v))
+                .collect::<Vec<_>>()
+                .join("\n");
             ssm_region = shell.ssm_region.unwrap_or_default();
             ssm_path = shell.ssm_path.unwrap_or_default();
             ssm_recursive = shell.ssm_recursive.unwrap_or(false);
@@ -1328,36 +1393,39 @@ async fn edit_job_page(
     let tags_str = job.tags.join(", ");
     let has_retry = job.retry_policy.max_retries > 0;
 
-    let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db).await.unwrap_or_default();
+    let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db)
+        .await
+        .unwrap_or_default();
 
     // Slack通知設定の復元取得
-    let noti_row = sqlx::query(
-        "SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 1"
-    )
-    .bind(job.id.to_string())
-    .fetch_optional(&state.db)
-    .await
-    .unwrap_or_default();
+    let noti_row =
+        sqlx::query("SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 1")
+            .bind(job.id.to_string())
+            .fetch_optional(&state.db)
+            .await
+            .unwrap_or_default();
 
     let mut slack_on_running = false;
     let mut slack_on_succeeded = false;
     let mut slack_on_failed = false;
 
-    if let Some(row) = noti_row {
-        if let Ok(on_events_val) = row.try_get::<serde_json::Value, _>("on_events") {
-            if let Ok(on_events) = serde_json::from_value::<Vec<String>>(on_events_val) {
-                slack_on_running = on_events.contains(&"running".to_string());
-                slack_on_succeeded = on_events.contains(&"succeeded".to_string());
-                slack_on_failed = on_events.contains(&"failed".to_string()) || on_events.contains(&"dead_letter".to_string());
-            }
-        }
+    if let Some(row) = noti_row
+        && let Ok(on_events_val) = row.try_get::<serde_json::Value, _>("on_events")
+        && let Ok(on_events) = serde_json::from_value::<Vec<String>>(on_events_val)
+    {
+        slack_on_running = on_events.contains(&"running".to_string());
+        slack_on_succeeded = on_events.contains(&"succeeded".to_string());
+        slack_on_failed = on_events.contains(&"failed".to_string())
+            || on_events.contains(&"dead_letter".to_string());
     }
 
     // Query spaces from DB manually
-    let spaces_rows = sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces ORDER BY name ASC")
-        .fetch_all(&state.db)
-        .await
-        .unwrap_or_default();
+    let spaces_rows = sqlx::query(
+        "SELECT id, name, description, created_at, updated_at FROM spaces ORDER BY name ASC",
+    )
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
 
     let mut spaces = Vec::new();
     for row in spaces_rows {
@@ -1366,7 +1434,7 @@ async fn edit_job_page(
         let description: Option<String> = row.try_get("description").ok();
         let created_at = row.try_get("created_at").unwrap_or_else(|_| Utc::now());
         let updated_at = row.try_get("updated_at").unwrap_or_else(|_| Utc::now());
-        
+
         spaces.push(mrs_harris_common::models::space::Space {
             id,
             name,
@@ -1384,7 +1452,10 @@ async fn edit_job_page(
         name: job.name,
         description: job.description.unwrap_or_default(),
         job_type: job.job_type.to_string(),
-        worker_definition_id: job.worker_definition_id.map(|id| id.to_string()).unwrap_or_default(),
+        worker_definition_id: job
+            .worker_definition_id
+            .map(|id| id.to_string())
+            .unwrap_or_default(),
         worker_defs,
         spaces,
         space_id: job.space_id,
@@ -1405,7 +1476,8 @@ async fn edit_job_page(
         slack_on_running,
         slack_on_succeeded,
         slack_on_failed,
-    }.into_response()
+    }
+    .into_response()
 }
 
 async fn edit_job_submit(
@@ -1414,7 +1486,9 @@ async fn edit_job_submit(
     Path(name_in_path): Path<String>,
     Form(form): Form<JobFormData>,
 ) -> impl IntoResponse {
-    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path).await.unwrap_or(None);
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path)
+        .await
+        .unwrap_or(None);
     let existing_job = match job_opt {
         Some(j) => j,
         None => return Redirect::to("/jobs").into_response(),
@@ -1422,11 +1496,13 @@ async fn edit_job_submit(
     let id = existing_job.id;
 
     let job_type = JobType::from_str(&form.job_type).unwrap_or(JobType::OneShot);
-    
+
     // ロードされた自作ワーカーノード定義から worker_type を決定
     let worker_def_id = form.worker_definition_id.parse::<i64>().unwrap();
-    let def = crate::db::workers::get_worker_definition(&state.db, &worker_def_id).await.unwrap().unwrap();
-    let worker_type = def.worker_type;
+    let _def = crate::db::workers::get_worker_definition(&state.db, &worker_def_id)
+        .await
+        .unwrap()
+        .unwrap();
 
     let backoff = match form.backoff.as_str() {
         "fixed" => BackoffStrategy::Fixed,
@@ -1440,7 +1516,8 @@ async fn edit_job_submit(
         base_delay_sec: form.base_delay_sec,
     };
 
-    let tags = form.tags_str
+    let tags = form
+        .tags_str
         .clone()
         .unwrap_or_default()
         .split(',')
@@ -1451,10 +1528,10 @@ async fn edit_job_submit(
     let is_active = form.is_active.as_deref() == Some("on");
 
     let payload = if job_type == JobType::Dag {
-        let task_defs: Vec<DagTaskDefinition> = serde_json::from_str(
-            form.dag_tasks_json.as_deref().unwrap_or("[]")
-        ).unwrap_or_default();
-        
+        let task_defs: Vec<DagTaskDefinition> =
+            serde_json::from_str(form.dag_tasks_json.as_deref().unwrap_or("[]"))
+                .unwrap_or_default();
+
         let env_lines = form.env.as_deref().unwrap_or("");
         let mut env = HashMap::new();
         for line in env_lines.lines() {
@@ -1499,7 +1576,13 @@ async fn edit_job_submit(
 
         let shell = ShellPayload {
             command: "sh".to_string(),
-            args: vec!["-c".to_string(), form.script.clone().unwrap_or_default().replace("\r\n", "\n")],
+            args: vec![
+                "-c".to_string(),
+                form.script
+                    .clone()
+                    .unwrap_or_default()
+                    .replace("\r\n", "\n"),
+            ],
             working_dir: None,
             env,
             ssm_region,
@@ -1509,7 +1592,8 @@ async fn edit_job_submit(
         serde_json::to_value(&shell).unwrap_or(serde_json::Value::Null)
     };
 
-    let space_id = form.space_id
+    let space_id = form
+        .space_id
         .clone()
         .filter(|s| !s.trim().is_empty())
         .and_then(|s| s.parse::<i64>().ok());
@@ -1527,10 +1611,10 @@ async fn edit_job_submit(
            WHERE id = ?"#
     )
     .bind(&form.name)
-    .bind(&form.description.clone().filter(|d| !d.trim().is_empty()))
+    .bind(form.description.clone().filter(|d| !d.trim().is_empty()))
     .bind(job_type.to_string())
     .bind(&payload)
-    .bind(&form.schedule_expr.clone().filter(|s| !s.trim().is_empty()))
+    .bind(form.schedule_expr.clone().filter(|s| !s.trim().is_empty()))
     .bind(retry_policy_json)
     .bind(form.timeout_sec)
     .bind(is_active_val)
@@ -1543,52 +1627,73 @@ async fn edit_job_submit(
     .await;
 
     match update_result {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
-            if let sqlx::Error::Database(db_err) = &e {
-                if db_err.code().as_deref() == Some("23000") || db_err.message().contains("Duplicate") {
-                    let space_rows = sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces").fetch_all(&state.db).await.unwrap_or_default();
-                    let mut spaces = Vec::new();
-                    for row in space_rows {
-                        let id: i64 = row.try_get("id").unwrap_or_default();
-                        let name: String = row.try_get("name").unwrap_or_default();
-                        let description: Option<String> = row.try_get("description").ok();
-                        let created_at = row.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now());
-                        let updated_at = row.try_get("updated_at").unwrap_or_else(|_| chrono::Utc::now());
-                        spaces.push(mrs_harris_common::models::space::Space { id, name, description, created_at, updated_at });
-                    }
-                    let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db).await.unwrap_or_default();
-                    return JobFormTemplate {
-                        error_message: Some("指定されたジョブ名は既に使用されています。別の名前を指定してください。".to_string()),
-                        is_edit: true,
-                        job_id: Some(existing_job.id),
-                        original_name: Some(existing_job.name.clone()),
-                        name: form.name.clone(),
-                        description: form.description.clone().unwrap_or_default(),
-                        tags_str: form.tags_str.clone().unwrap_or_default(),
-                        job_type: form.job_type.clone(),
-                        worker_definition_id: form.worker_definition_id.clone(),
-                        worker_defs,
-                        spaces,
-                        space_id: space_id.or(existing_job.space_id),
-                        schedule_expr: form.schedule_expr.clone().unwrap_or_default(),
-                        script: form.script.clone().unwrap_or_default(),
-                        env: form.env.clone().unwrap_or_default(),
-                        ssm_region: form.ssm_region.clone().unwrap_or_default(),
-                        ssm_path: form.ssm_path.clone().unwrap_or_default(),
-                        ssm_recursive: form.ssm_recursive.as_deref() == Some("on"),
-                        dag_tasks_json: form.dag_tasks_json.clone().unwrap_or_default(),
-                        timeout_sec: form.timeout_sec,
-                        has_retry: form.has_retry.as_deref() == Some("on"),
-                        max_retries: form.max_retries,
-                        backoff: form.backoff.clone(),
-                        base_delay_sec: form.base_delay_sec,
-                        is_active: form.is_active.as_deref() == Some("on"),
-                        slack_on_running: form.slack_on_running.as_deref() == Some("on"),
-                        slack_on_succeeded: form.slack_on_succeeded.as_deref() == Some("on"),
-                        slack_on_failed: form.slack_on_failed.as_deref() == Some("on"),
-                    }.into_response();
+            if let sqlx::Error::Database(db_err) = &e
+                && (db_err.code().as_deref() == Some("23000")
+                    || db_err.message().contains("Duplicate"))
+            {
+                let space_rows =
+                    sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces")
+                        .fetch_all(&state.db)
+                        .await
+                        .unwrap_or_default();
+                let mut spaces = Vec::new();
+                for row in space_rows {
+                    let id: i64 = row.try_get("id").unwrap_or_default();
+                    let name: String = row.try_get("name").unwrap_or_default();
+                    let description: Option<String> = row.try_get("description").ok();
+                    let created_at = row
+                        .try_get("created_at")
+                        .unwrap_or_else(|_| chrono::Utc::now());
+                    let updated_at = row
+                        .try_get("updated_at")
+                        .unwrap_or_else(|_| chrono::Utc::now());
+                    spaces.push(mrs_harris_common::models::space::Space {
+                        id,
+                        name,
+                        description,
+                        created_at,
+                        updated_at,
+                    });
                 }
+                let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db)
+                    .await
+                    .unwrap_or_default();
+                return JobFormTemplate {
+                    error_message: Some(
+                        "指定されたジョブ名は既に使用されています。別の名前を指定してください。"
+                            .to_string(),
+                    ),
+                    is_edit: true,
+                    job_id: Some(existing_job.id),
+                    original_name: Some(existing_job.name.clone()),
+                    name: form.name.clone(),
+                    description: form.description.clone().unwrap_or_default(),
+                    tags_str: form.tags_str.clone().unwrap_or_default(),
+                    job_type: form.job_type.clone(),
+                    worker_definition_id: form.worker_definition_id.clone(),
+                    worker_defs,
+                    spaces,
+                    space_id: space_id.or(existing_job.space_id),
+                    schedule_expr: form.schedule_expr.clone().unwrap_or_default(),
+                    script: form.script.clone().unwrap_or_default(),
+                    env: form.env.clone().unwrap_or_default(),
+                    ssm_region: form.ssm_region.clone().unwrap_or_default(),
+                    ssm_path: form.ssm_path.clone().unwrap_or_default(),
+                    ssm_recursive: form.ssm_recursive.as_deref() == Some("on"),
+                    dag_tasks_json: form.dag_tasks_json.clone().unwrap_or_default(),
+                    timeout_sec: form.timeout_sec,
+                    has_retry: form.has_retry.as_deref() == Some("on"),
+                    max_retries: form.max_retries,
+                    backoff: form.backoff.clone(),
+                    base_delay_sec: form.base_delay_sec,
+                    is_active: form.is_active.as_deref() == Some("on"),
+                    slack_on_running: form.slack_on_running.as_deref() == Some("on"),
+                    slack_on_succeeded: form.slack_on_succeeded.as_deref() == Some("on"),
+                    slack_on_failed: form.slack_on_failed.as_deref() == Some("on"),
+                }
+                .into_response();
             }
             // Other DB errors
             return Redirect::to(&format!("/jobs/{}", name_in_path)).into_response();
@@ -1597,12 +1702,20 @@ async fn edit_job_submit(
 
     if job_type == JobType::Dag {
         // Clear old tasks/edges and write new ones
-        sqlx::query("DELETE FROM dag_tasks WHERE dag_id = ?").bind(id).execute(&mut *tx).await.unwrap();
-        sqlx::query("DELETE FROM dag_edges WHERE dag_id = ?").bind(id).execute(&mut *tx).await.unwrap();
+        sqlx::query("DELETE FROM dag_tasks WHERE dag_id = ?")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM dag_edges WHERE dag_id = ?")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
 
-        let task_defs: Vec<DagTaskDefinition> = serde_json::from_str(
-            form.dag_tasks_json.as_deref().unwrap_or("[]")
-        ).unwrap_or_default();
+        let task_defs: Vec<DagTaskDefinition> =
+            serde_json::from_str(form.dag_tasks_json.as_deref().unwrap_or("[]"))
+                .unwrap_or_default();
 
         for task in task_defs {
             sqlx::query(
@@ -1622,7 +1735,7 @@ async fn edit_job_submit(
             for dep in task.depends_on {
                 sqlx::query(
                     r#"INSERT INTO dag_edges (dag_id, from_task, to_task)
-                       VALUES (?, ?, ?)"#
+                       VALUES (?, ?, ?)"#,
                 )
                 .bind(id)
                 .bind(&dep)
@@ -1662,7 +1775,7 @@ async fn edit_job_submit(
         sqlx::query(
             r#"INSERT INTO notification_channels (id, name, channel_type, config, is_active)
                VALUES (1, 'default-slack', 'slack', '{"webhook_url":""}', 1)
-               ON DUPLICATE KEY UPDATE is_active=is_active"#
+               ON DUPLICATE KEY UPDATE is_active=is_active"#,
         )
         .execute(&mut *tx)
         .await
@@ -1670,7 +1783,7 @@ async fn edit_job_submit(
 
         sqlx::query(
             r#"INSERT INTO job_notifications (job_id, channel_id, on_events)
-               VALUES (?, 1, ?)"#
+               VALUES (?, 1, ?)"#,
         )
         .bind(id)
         .bind(events_json)
@@ -1686,11 +1799,7 @@ async fn edit_job_submit(
     Redirect::to(&format!("/jobs/{}", form.name)).into_response()
 }
 
-
-async fn build_job_snapshot(
-    pool: &MySqlPool,
-    job: &Job,
-) -> serde_json::Value {
+async fn build_job_snapshot(pool: &MySqlPool, job: &Job) -> serde_json::Value {
     let job_type_str = match job.job_type {
         JobType::Cron => "Cron (定期)",
         JobType::Dag => "DAG (連結)",
@@ -1715,13 +1824,12 @@ async fn build_job_snapshot(
 
     if job.job_type == JobType::Dag {
         // Load DAG tasks
-        let tasks_rows = sqlx::query(
-            "SELECT task_name, worker_type, payload FROM dag_tasks WHERE dag_id = ?"
-        )
-        .bind(job.id)
-        .fetch_all(pool)
-        .await
-        .unwrap_or_default();
+        let tasks_rows =
+            sqlx::query("SELECT task_name, worker_type, payload FROM dag_tasks WHERE dag_id = ?")
+                .bind(job.id)
+                .fetch_all(pool)
+                .await
+                .unwrap_or_default();
 
         let mut tasks = Vec::new();
         for row in tasks_rows {
@@ -1741,9 +1849,23 @@ async fn build_job_snapshot(
                 env_vars.insert(k.clone(), v.as_str().unwrap_or_default().to_string());
             }
         }
-        ssm_region = job.payload.get("ssm_region").and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        ssm_path = job.payload.get("ssm_path").and_then(|v| v.as_str()).unwrap_or_default().to_string();
-        ssm_recursive = job.payload.get("ssm_recursive").and_then(|v| v.as_bool()).unwrap_or(false);
+        ssm_region = job
+            .payload
+            .get("ssm_region")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        ssm_path = job
+            .payload
+            .get("ssm_path")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        ssm_recursive = job
+            .payload
+            .get("ssm_recursive")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
     } else {
         if let Ok(shell) = serde_json::from_value::<ShellPayload>(job.payload.clone()) {
             let mut cmd = shell.command;
@@ -1769,26 +1891,25 @@ async fn build_job_snapshot(
     };
 
     // Slack settings
-    let noti_row = sqlx::query(
-        "SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 1"
-    )
-    .bind(job.id.to_string())
-    .fetch_optional(pool)
-    .await
-    .unwrap_or_default();
+    let noti_row =
+        sqlx::query("SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 1")
+            .bind(job.id.to_string())
+            .fetch_optional(pool)
+            .await
+            .unwrap_or_default();
 
     let mut slack_running = false;
     let mut slack_succeeded = false;
     let mut slack_failed = false;
 
-    if let Some(row) = noti_row {
-        if let Ok(on_events_val) = row.try_get::<serde_json::Value, _>("on_events") {
-            if let Ok(on_events) = serde_json::from_value::<Vec<String>>(on_events_val) {
-                slack_running = on_events.contains(&"running".to_string());
-                slack_succeeded = on_events.contains(&"succeeded".to_string());
-                slack_failed = on_events.contains(&"failed".to_string()) || on_events.contains(&"dead_letter".to_string());
-            }
-        }
+    if let Some(row) = noti_row
+        && let Ok(on_events_val) = row.try_get::<serde_json::Value, _>("on_events")
+        && let Ok(on_events) = serde_json::from_value::<Vec<String>>(on_events_val)
+    {
+        slack_running = on_events.contains(&"running".to_string());
+        slack_succeeded = on_events.contains(&"succeeded".to_string());
+        slack_failed = on_events.contains(&"failed".to_string())
+            || on_events.contains(&"dead_letter".to_string());
     }
 
     serde_json::json!({
@@ -1833,13 +1954,11 @@ async fn record_job_history(
     let snapshot = build_job_snapshot(pool, &job).await;
 
     // 3. バージョンの決定
-    let version_row = sqlx::query(
-        "SELECT MAX(version) as max_v FROM job_history WHERE job_id = ?"
-    )
-    .bind(job_id)
-    .fetch_one(pool)
-    .await?;
-    
+    let version_row = sqlx::query("SELECT MAX(version) as max_v FROM job_history WHERE job_id = ?")
+        .bind(job_id)
+        .fetch_one(pool)
+        .await?;
+
     let current_max: Option<u32> = version_row.try_get("max_v").ok();
     let next_version = current_max.unwrap_or(0) + 1;
 
@@ -1847,7 +1966,7 @@ async fn record_job_history(
     let history_id = Uuid::new_v4();
     sqlx::query(
         r#"INSERT INTO job_history (id, job_id, version, payload, changed_by, changed_at)
-           VALUES (?, ?, ?, ?, ?, ?)"#
+           VALUES (?, ?, ?, ?, ?, ?)"#,
     )
     .bind(history_id.to_string())
     .bind(job_id)
@@ -1876,16 +1995,17 @@ pub async fn api_validate_job_name(
     if name_trimmed.is_empty() {
         return axum::response::Html("").into_response();
     }
-    let job_opt = crate::db::jobs::get_job_by_name(&state.db, name_trimmed).await.unwrap_or(None);
+    let job_opt = crate::db::jobs::get_job_by_name(&state.db, name_trimmed)
+        .await
+        .unwrap_or(None);
     let mut exists = job_opt.is_some();
-    if let Some(job) = job_opt {
-        if let Some(ignore_id) = form.current_job_id {
-            if job.id == ignore_id {
-                exists = false;
-            }
-        }
+    if let Some(job) = job_opt
+        && let Some(ignore_id) = form.current_job_id
+        && job.id == ignore_id
+    {
+        exists = false;
     }
-    
+
     if exists {
         axum::response::Html(r#"<span style="color: #ef4444; font-size: 0.85rem; display: block; margin-top: 4px;">このジョブ名は既に使用されています。</span>"#).into_response()
     } else {

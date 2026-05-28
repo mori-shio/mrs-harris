@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-
 /// ジョブの種類
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString,
+)]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum JobType {
@@ -13,10 +14,13 @@ pub enum JobType {
 }
 
 /// ワーカーの種類
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default, strum::Display, strum::EnumString,
+)]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum WorkerType {
+    #[default]
     Fargate,
     Lambda,
     Controller,
@@ -31,7 +35,7 @@ pub struct ShellPayload {
     pub working_dir: Option<String>,
     #[serde(default)]
     pub env: std::collections::HashMap<String, String>,
-    
+
     // SSM Parameter Store Settings
     #[serde(default)]
     pub ssm_region: Option<String>,
@@ -73,7 +77,9 @@ impl Default for RetryPolicy {
 }
 
 /// バックオフ戦略
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString,
+)]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum BackoffStrategy {
@@ -129,12 +135,6 @@ fn default_timeout() -> u32 {
 }
 fn default_active() -> bool {
     true
-}
-
-impl Default for WorkerType {
-    fn default() -> Self {
-        WorkerType::Fargate
-    }
 }
 
 /// ジョブ更新リクエスト

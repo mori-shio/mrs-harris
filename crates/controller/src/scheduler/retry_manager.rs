@@ -7,7 +7,7 @@ pub async fn check_retries(state: &AppState) -> anyhow::Result<()> {
     let result = sqlx::query(
         r#"UPDATE job_runs 
            SET status = 'pending', next_retry_at = NULL
-           WHERE status = 'retrying' AND next_retry_at <= ?"#
+           WHERE status = 'retrying' AND next_retry_at <= ?"#,
     )
     .bind(now)
     .execute(&state.db)
@@ -15,7 +15,10 @@ pub async fn check_retries(state: &AppState) -> anyhow::Result<()> {
 
     let count = result.rows_affected();
     if count > 0 {
-        tracing::info!("Moved {} retrying runs back to pending status for re-execution", count);
+        tracing::info!(
+            "Moved {} retrying runs back to pending status for re-execution",
+            count
+        );
     }
 
     Ok(())
