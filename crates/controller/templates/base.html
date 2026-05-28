@@ -282,20 +282,63 @@
             return notice;
         };
 
+        function isSubmitControl(trigger) {
+            if (!trigger) return false;
+            if (trigger.tagName === "BUTTON") {
+                return !trigger.type || trigger.type === "submit";
+            }
+            return trigger.tagName === "INPUT" && trigger.type === "submit";
+        }
+
+        function hasExplicitHtmxResume(trigger) {
+            if (!window.htmx || !trigger) return false;
+            const hxTrigger = trigger.getAttribute("hx-trigger");
+            if (!hxTrigger) return false;
+            return /(^|,)\s*confirmed-action(?=[\s,\[]|$)/.test(hxTrigger);
+        }
+
+        function findSubmitConfirmTrigger(form, submitter) {
+            if (submitter && submitter.dataset.confirmMessage) {
+                return submitter;
+            }
+
+            if (form.dataset.confirmMessage) {
+                return form;
+            }
+
+            return form.querySelector('button[data-confirm-message][type="submit"], button[data-confirm-message]:not([type]), input[data-confirm-message][type="submit"]');
+        }
+
         function resolveConfirmKind(trigger) {
             if (trigger.dataset.confirmKind) {
                 return trigger.dataset.confirmKind;
             }
 
-            if (trigger.tagName === "FORM") {
+            if (trigger.tagName === "FORM" || isSubmitControl(trigger)) {
                 return "form";
             }
 
-            if (trigger.closest("form")) {
-                return "form";
+            if (hasExplicitHtmxResume(trigger)) {
+                return "htmx";
             }
 
-            return window.htmx ? "htmx" : "click";
+            return "click";
+        }
+
+        function stopConfirmInterception(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === "function") {
+                event.stopImmediatePropagation();
+            }
+        }
+
+        function redispatchClick(trigger) {
+            trigger.dispatchEvent(new MouseEvent("click", {
+                bubbles: true,
+                cancelable: true,
+                view: window
+            }));
         }
 
         async function handleConfirmTrigger(trigger, event) {
@@ -303,7 +346,7 @@
                 return false;
             }
 
-            event.preventDefault();
+            stopConfirmInterception(event);
             trigger.dataset.confirmPending = "true";
 
             const confirmed = await window.appConfirm({
@@ -325,6 +368,7 @@
                 if (confirmKind === "form") {
                     const form = trigger.tagName === "FORM" ? trigger : trigger.closest("form");
                     if (form) {
+                        form.dataset.confirmBypass = "true";
                         if (trigger !== form && typeof form.requestSubmit === "function") {
                             form.requestSubmit(trigger);
                         } else if (typeof form.requestSubmit === "function") {
@@ -341,11 +385,15 @@
                     return true;
                 }
 
-                trigger.click();
+                redispatchClick(trigger);
                 return true;
             } finally {
                 window.setTimeout(() => {
                     delete trigger.dataset.confirmBypass;
+                    const form = trigger.tagName === "FORM" ? trigger : trigger.closest("form");
+                    if (form) {
+                        delete form.dataset.confirmBypass;
+                    }
                 }, 0);
             }
         }
@@ -357,7 +405,9 @@
         }, true);
 
         document.addEventListener("submit", event => {
-            const trigger = event.target.closest("[data-confirm-message]");
+            const form = event.target;
+            if (!(form instanceof HTMLFormElement) || form.dataset.confirmBypass === "true") return;
+            const trigger = findSubmitConfirmTrigger(form, event.submitter);
             if (!trigger) return;
             void handleConfirmTrigger(trigger, event);
         }, true);
