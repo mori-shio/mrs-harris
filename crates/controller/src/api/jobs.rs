@@ -155,7 +155,7 @@ async fn delete_job(
 
 async fn trigger_job(
     State(state): State<AppState>,
-    _claims: Claims,
+    claims: Claims,
     Path(name): Path<String>,
 ) -> Result<Json<mrs_harris_common::models::run::JobRun>, (StatusCode, Json<serde_json::Value>)> {
     // 1. ジョブ定義を取得
@@ -177,6 +177,13 @@ async fn trigger_job(
             ));
         }
     };
+
+    if let Err(e) = crate::web::jobs::ensure_job_history(&state.db, &job.id, &claims.username).await {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": format!("Failed to ensure job history: {}", e) })),
+        ));
+    }
 
     // 2. 新規 Run (実行履歴) の作成
     let new_run = mrs_harris_common::models::run::NewRun {

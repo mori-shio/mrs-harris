@@ -10,7 +10,6 @@ use chrono::Utc;
 use sqlx::{MySqlPool, Row};
 use std::collections::HashMap;
 use std::str::FromStr;
-use uuid::Uuid;
 
 use mrs_harris_common::models::dag::DagTaskDefinition;
 use mrs_harris_common::models::job::{
@@ -868,7 +867,9 @@ async fn create_job_submit(
 
     tx.commit().await.unwrap();
 
-    let _ = record_job_history(&state.db, &job_id, &claims.0.username).await;
+    if let Err(e) = ensure_job_history(&state.db, &job_id, &claims.0.username).await {
+        tracing::error!("Failed to create initial job history after create: {:?}", e);
+    }
 
     Redirect::to("/jobs").into_response()
 }
@@ -1090,7 +1091,9 @@ async fn job_detail_page(
     .unwrap_or_default();
 
     if history_rows.is_empty() {
-        let _ = record_job_history(&state.db, &id, &claims.0.username).await;
+        if let Err(e) = ensure_job_history(&state.db, &id, &claims.0.username).await {
+            tracing::error!("Failed to ensure initial job history on detail load: {:?}", e);
+        }
         history_rows = sqlx::query(
             "SELECT version, changed_by, payload, changed_at FROM job_history WHERE job_id = ? ORDER BY version DESC"
         )
@@ -1794,7 +1797,9 @@ async fn edit_job_submit(
 
     tx.commit().await.unwrap();
 
-    let _ = record_job_history(&state.db, &id, &claims.0.username).await;
+    if let Err(e) = record_job_history(&state.db, &id, &claims.0.username).await {
+        tracing::error!("Failed to record job history after edit: {:?}", e);
+    }
 
     Redirect::to(&format!("/jobs/{}", form.name)).into_response()
 }
@@ -1939,6 +1944,23 @@ async fn build_job_snapshot(pool: &MySqlPool, job: &Job) -> serde_json::Value {
     })
 }
 
+pub(crate) async fn ensure_job_history(
+    pool: &MySqlPool,
+    job_id: &i64,
+    changed_by: &str,
+) -> anyhow::Result<()> {
+    let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM job_history WHERE job_id = ? LIMIT 1")
+        .bind(job_id)
+        .fetch_optional(pool)
+        .await?;
+
+    if existing.is_some() {
+        return Ok(());
+    }
+
+    record_job_history(pool, job_id, changed_by).await
+}
+
 async fn record_job_history(
     pool: &MySqlPool,
     job_id: &i64,
@@ -1963,12 +1985,10 @@ async fn record_job_history(
     let next_version = current_max.unwrap_or(0) + 1;
 
     // 4. 履歴に挿入
-    let history_id = Uuid::new_v4();
     sqlx::query(
-        r#"INSERT INTO job_history (id, job_id, version, payload, changed_by, changed_at)
-           VALUES (?, ?, ?, ?, ?, ?)"#,
+        r#"INSERT INTO job_history (job_id, version, payload, changed_by, changed_at)
+           VALUES (?, ?, ?, ?, ?)"#,
     )
-    .bind(history_id.to_string())
     .bind(job_id)
     .bind(next_version)
     .bind(snapshot)
