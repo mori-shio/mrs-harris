@@ -6,9 +6,9 @@
 
 1. `job_logs` を実行中のホットログ置き場に限定し、実行終了後はアーカイブへ退避する
 2. ローカル開発では `floci` を使って S3 / Lambda / ECS(Fargate 相当) の検証をしやすくする
-3. 最終的に Harris Controller 自体を Fargate 上で複数レプリカ動作させる前提に耐える設計へ寄せる
+3. 最終的に Harris Controller 自体を Fargate 上で `web` / `scheduler` の 2 service 構成で運用し、将来的な複数レプリカ動作に耐える設計へ寄せる
 
-この spec はまず設計方針を固めるものであり、S3 アーカイブ、multi-controller 対応、scheduler 分離、leader election の即時実装までは含まない。
+この spec はまず設計方針を固めるものであり、S3 アーカイブ、multi-controller 対応、`web / scheduler` role 分離、leader election の即時実装までは含まない。
 
 ## Current State
 
@@ -29,6 +29,7 @@
   [runs.rs](/Users/shion.morikawa/private/mrs-harris/crates/controller/src/db/runs.rs)
 - 一方で `cron_trigger` は全 Controller が同じ Cron ジョブを見て `create_run()` するため、複数 Controller で二重起動リスクがある  
   [cron_trigger.rs](/Users/shion.morikawa/private/mrs-harris/crates/controller/src/scheduler/cron_trigger.rs)
+- 現在は HTTP/API/WebSocket と scheduler loop が単一バイナリの同一プロセスに同居している
 
 ### Local AWS emulation
 
@@ -55,6 +56,7 @@
 3. アーカイブ失敗時にログをロストしないこと
 4. ローカル開発で本番相当の S3 / Lambda / ECS worker 動作確認ができること
 5. 将来的な Controller 複数レプリカ化に向けて、scheduler 系の重複実行リスクを明確に分離できること
+6. 同一 container image を `web` と `scheduler` の両 service で使い回せること
 
 ### Non-Functional
 
@@ -62,6 +64,7 @@
 2. アーカイブ処理は冪等にする
 3. 複数 Controller を前提にしても、同じ run のアーカイブや Cron 起動が重複しにくい設計にする
 4. local と prod の差分は storage/infra adapter に閉じ込める
+5. service 分離後も artifact 数を増やさず、同一 image の role 切替で運用できること
 
 ## Recommended Direction
 
@@ -202,16 +205,55 @@ pub trait LogArchiveStore: Send + Sync {
 
 ## 2. Recommended topology
 
-最初の現実解:
+最初の現実解は、ECS cluster `mrs-harris` 配下で service を分離する構成である。
 
-- `web/controller` role: 複数台
-- `scheduler` role: 1 台
+```text
+ECS cluster: mrs-harris
+  service: web
+  service: scheduler
+```
 
-つまり「Controller を複数台」にする時も、scheduler だけは別 role として 1 レプリカで動かす。
+役割:
 
-これが最短で安全。
+- `web`
+  - HTTP
+  - API
+  - UI
+  - WebSocket
+- `scheduler`
+  - cron trigger
+  - retry manager
+  - dispatcher
+  - reaper
+  - 将来的には log archive worker
 
-## 3. Longer-term topology
+同じ image を使い、role だけで挙動を切り替える。
+
+推奨起動方法:
+
+- `mrs-harris web --config config/controller.toml`
+- `mrs-harris scheduler --config config/controller.toml`
+
+補助的に環境変数を使ってもよいが、第一選択は subcommand とする。理由は ECS task definition / local 実行 / ログ上で役割が明示的になるため。
+
+## 3. Scheduler scaling strategy
+
+短期:
+
+- `scheduler` service は 1 replica
+
+中期:
+
+- コードは複数 replica を前提に claim / lease / idempotency を持つ
+
+長期:
+
+- `scheduler` 自体も複数 replica で動かせるようにする
+- ただし各処理は「全台実行」ではなく「claim した 1 台だけが実行」に寄せる
+
+つまり、運用上の initial state は single replica でも、設計方針は active-active 耐性を持たせる。
+
+## 4. Longer-term topology
 
 将来的には DB lease / leader election を入れてもよい。
 
@@ -223,7 +265,7 @@ pub trait LogArchiveStore: Send + Sync {
 
 ただし最初は scheduler 分離の方が単純で壊れにくい。
 
-## 4. Archive worker and multi-controller
+## 5. Archive worker and multi-controller
 
 ログアーカイブも multi-controller を前提に冪等化する必要がある。
 
@@ -234,6 +276,25 @@ pub trait LogArchiveStore: Send + Sync {
 - `archived` 済みなら再実行しても no-op
 
 つまり archive 処理も scheduler と同じく「claim-based worker」にする。
+
+## Controller worker type direction
+
+`controller` worker type は最終的には廃止候補である。
+
+理由:
+
+- Controller 本体を Fargate 上の `web / scheduler` service として運用する前提では、「Controller がローカル subprocess として直接ジョブを実行する」モデルは本番アーキテクチャと乖離する
+- `lambda` / `fargate(ECS)` を本番 worker の主経路に寄せたい
+
+ただし即時削除は推奨しない。
+
+推奨段階:
+
+1. まず `controller` worker type を development / migration 用として残す
+2. 本番では非推奨または使用禁止にする
+3. `floci` ベースで `lambda / ecs` ローカル検証が安定したら削除する
+
+つまり方針は「deprecated -> remove」であり、「immediate delete」ではない。
 
 ## `floci` usage recommendation
 
@@ -259,7 +320,10 @@ pub trait LogArchiveStore: Send + Sync {
 5. run detail の archive read path 追加
 6. `S3LogArchiveStore` 実装
 7. `floci` ベースのローカル integration 手順整備
-8. scheduler role 分離 spec / implementation
+8. CLI に `web` / `scheduler` subcommand を追加
+9. scheduler loop を `scheduler` role 側へ分離
+10. `controller` worker type を deprecated 化
+11. scheduler の claim / lease 改良
 
 ## Open questions
 
@@ -267,6 +331,7 @@ pub trait LogArchiveStore: Send + Sync {
 2. archive format は `jsonl.gz` 固定でよいか
 3. run detail で archive 読み込みを全文にするか、ページングを入れるか
 4. Controller 複数台化の先に scheduler 分離だけで十分か、lease まで先に入れるか
+5. `controller` worker type の削除タイミングをどこに置くか
 
 ## Recommendation Summary
 
@@ -279,5 +344,6 @@ pub trait LogArchiveStore: Send + Sync {
 
 1. ログは hot/cold を分離する
 2. archive は冪等な claim-based worker にする
-3. Controller web と scheduler を分離する
-4. local/prod 差分は archive store adapter と AWS emulator adapter に閉じ込める
+3. Controller は `web` / `scheduler` service に分離する
+4. 両 service は同じ image を role 切替で起動する
+5. local/prod 差分は archive store adapter と AWS emulator adapter に閉じ込める
