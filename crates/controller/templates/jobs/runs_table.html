@@ -5,14 +5,6 @@
     hx-swap="outerHTML"
     {% endif %}
 >
-    {% if is_polling %}
-    <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
-        <span class="badge badge-info" style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem;">
-            <i data-lucide="refresh-cw" class="spin" style="width: 12px; height: 12px;"></i>
-            5秒で更新
-        </span>
-    </div>
-    {% endif %}
     <div class="table-container" style="margin-top: 0; border-bottom: none;">
         <table class="data-table" data-no-sort style="font-size:0.85rem;">
             <thead>
