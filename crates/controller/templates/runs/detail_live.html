@@ -295,6 +295,14 @@
         }
     }
 
+    function isTraceEchoLog(log) {
+        return log && log.stream === 'stderr' && typeof log.line === 'string' && log.line.startsWith('+ echo ');
+    }
+
+    function isStdoutLog(log) {
+        return log && log.stream === 'stdout' && typeof log.line === 'string';
+    }
+
     function normalizeTraceLine(line) {
         if (typeof line !== 'string' || !line.startsWith('+ ')) {
             return line;
@@ -303,6 +311,78 @@
         return line.replace(/\$'((?:\\.|[^'])*)'/g, function(_, body) {
             return '\'' + decodeAnsiCString(body) + '\'';
         });
+    }
+
+    function parseLoggedAtMs(log) {
+        if (!log || !log.logged_at) {
+            return null;
+        }
+
+        var ms = Date.parse(log.logged_at);
+        return Number.isNaN(ms) ? null : ms;
+    }
+
+    function areAdjacentEchoPair(first, second) {
+        if (!first || !second) {
+            return false;
+        }
+
+        var traceLog = isTraceEchoLog(first) ? first : (isTraceEchoLog(second) ? second : null);
+        var stdoutLog = isStdoutLog(first) ? first : (isStdoutLog(second) ? second : null);
+        if (!traceLog || !stdoutLog) {
+            return false;
+        }
+
+        var firstMs = parseLoggedAtMs(first);
+        var secondMs = parseLoggedAtMs(second);
+        if (firstMs === null || secondMs === null) {
+            return false;
+        }
+
+        return Math.abs(firstMs - secondMs) <= 100;
+    }
+
+    function buildTraceDisplayLine(traceLog, pairedStdoutLog) {
+        if (pairedStdoutLog && typeof pairedStdoutLog.line === 'string' && pairedStdoutLog.line.length > 0) {
+            return '+ echo ' + pairedStdoutLog.line;
+        }
+
+        return normalizeTraceLine(traceLog.line);
+    }
+
+    function buildDisplayEntries(logs) {
+        var entries = [];
+
+        for (var i = 0; i < logs.length; i += 1) {
+            var current = logs[i];
+            var next = i + 1 < logs.length ? logs[i + 1] : null;
+
+            if (areAdjacentEchoPair(current, next)) {
+                var traceLog = isTraceEchoLog(current) ? current : next;
+                var stdoutLog = isStdoutLog(current) ? current : next;
+                entries.push({
+                    log: traceLog,
+                    text: buildTraceDisplayLine(traceLog, stdoutLog),
+                    isTraceLine: true
+                });
+                entries.push({
+                    log: stdoutLog,
+                    text: stdoutLog.line,
+                    isTraceLine: false
+                });
+                i += 1;
+                continue;
+            }
+
+            var isTraceLine = current.stream === 'stderr' && typeof current.line === 'string' && current.line.startsWith('+ ');
+            entries.push({
+                log: current,
+                text: isTraceLine ? normalizeTraceLine(current.line) : current.line,
+                isTraceLine: isTraceLine
+            });
+        }
+
+        return entries;
     }
 
     var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -318,9 +398,10 @@
     ws.onmessage = function(event) {
         try {
             var logs = JSON.parse(event.data);
-            logs.forEach(function(log) {
+            buildDisplayEntries(logs).forEach(function(entry) {
+                var log = entry.log;
                 var lineDiv = document.createElement('div');
-                var isTraceLine = log.stream === 'stderr' && typeof log.line === 'string' && log.line.startsWith('+ ');
+                var isTraceLine = entry.isTraceLine;
                 lineDiv.className = 'log-line ' + (isTraceLine ? 'log-line-trace' : 'log-line-' + log.stream);
                 var timeStr = '';
                 if (log.logged_at) {
@@ -331,7 +412,7 @@
                 if (log.task_name) {
                     prefix = '[' + log.task_name + '] ';
                 }
-                lineDiv.textContent = timeStr + prefix + (isTraceLine ? normalizeTraceLine(log.line) : log.line);
+                lineDiv.textContent = timeStr + prefix + entry.text;
                 logBody.appendChild(lineDiv);
             });
             logBody.scrollTop = logBody.scrollHeight;
