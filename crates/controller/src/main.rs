@@ -5,6 +5,7 @@ use tracing_subscriber::EnvFilter;
 mod api;
 mod app;
 mod db;
+mod log_archive;
 mod log_ingestion;
 mod notification;
 mod scheduler;
