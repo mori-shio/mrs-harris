@@ -1,6 +1,8 @@
 use mrs_harris_common::models::calendar::CalendarEntry;
 use mrs_harris_common::models::job::WorkerType;
-use mrs_harris_common::models::run::{JobRun, NewRun, RunStatus, TriggerType};
+use mrs_harris_common::models::run::{
+    JobRun, LogArchiveStatus, LogArchiveStore, NewRun, RunStatus, TriggerType,
+};
 use sqlx::{MySqlPool, Row};
 
 use chrono::{DateTime, Utc};
@@ -57,6 +59,20 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
     let next_retry_at: Option<DateTime<Utc>> = row.try_get("next_retry_at")?;
 
     let duration_ms: Option<i64> = row.try_get("duration_ms")?;
+    let log_archive_status = row
+        .try_get::<Option<String>, _>("log_archive_status")?
+        .map(|status| LogArchiveStatus::from_str(&status))
+        .transpose()
+        .map_err(|e| anyhow::anyhow!("Invalid LogArchiveStatus: {}", e))?;
+    let log_archive_store = row
+        .try_get::<Option<String>, _>("log_archive_store")?
+        .map(|store| LogArchiveStore::from_str(&store))
+        .transpose()
+        .map_err(|e| anyhow::anyhow!("Invalid LogArchiveStore: {}", e))?;
+    let log_archive_key: Option<String> = row.try_get("log_archive_key")?;
+    let log_line_count: Option<i64> = row.try_get("log_line_count")?;
+    let log_archive_bytes: Option<i64> = row.try_get("log_archive_bytes")?;
+    let log_archived_at: Option<DateTime<Utc>> = row.try_get("log_archived_at")?;
 
     let output: Option<serde_json::Value> = row.try_get("output")?;
     let error: Option<String> = row.try_get("error")?;
@@ -80,6 +96,12 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
         finished_at,
         next_retry_at,
         duration_ms,
+        log_archive_status,
+        log_archive_store,
+        log_archive_key,
+        log_line_count,
+        log_archive_bytes,
+        log_archived_at,
         output,
         error,
         job_history_id,

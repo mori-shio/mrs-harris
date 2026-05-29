@@ -56,6 +56,28 @@ impl RunStatus {
     }
 }
 
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString,
+)]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum LogArchiveStatus {
+    Pending,
+    Exporting,
+    Archived,
+    Failed,
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString,
+)]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum LogArchiveStore {
+    S3,
+    LocalFile,
+}
+
 impl TriggerType {
     pub fn label_ja(&self) -> &'static str {
         match self {
@@ -68,7 +90,7 @@ impl TriggerType {
 
 #[cfg(test)]
 mod tests {
-    use super::{RunStatus, TriggerType};
+    use super::{LogArchiveStatus, LogArchiveStore, RunStatus, TriggerType};
 
     #[test]
     fn run_status_label_and_badge_are_stable() {
@@ -95,6 +117,14 @@ mod tests {
         assert_eq!(TriggerType::Scheduled.label_ja(), "自動スケジュール");
         assert_eq!(TriggerType::Manual.label_ja(), "手動実行");
         assert_eq!(TriggerType::Dependency.label_ja(), "DAG依存");
+    }
+
+    #[test]
+    fn archive_enums_serialize_in_snake_case() {
+        assert_eq!(LogArchiveStatus::Pending.to_string(), "pending");
+        assert_eq!(LogArchiveStatus::Archived.to_string(), "archived");
+        assert_eq!(LogArchiveStore::S3.to_string(), "s3");
+        assert_eq!(LogArchiveStore::LocalFile.to_string(), "local_file");
     }
 }
 
@@ -126,6 +156,12 @@ pub struct JobRun {
     pub finished_at: Option<DateTime<Utc>>,
     pub next_retry_at: Option<DateTime<Utc>>,
     pub duration_ms: Option<i64>,
+    pub log_archive_status: Option<LogArchiveStatus>,
+    pub log_archive_store: Option<LogArchiveStore>,
+    pub log_archive_key: Option<String>,
+    pub log_line_count: Option<i64>,
+    pub log_archive_bytes: Option<i64>,
+    pub log_archived_at: Option<DateTime<Utc>>,
     pub output: Option<serde_json::Value>,
     pub error: Option<String>,
     pub job_history_id: Option<i64>,
