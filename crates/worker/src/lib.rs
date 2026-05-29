@@ -34,8 +34,14 @@ pub async fn run_worker_with_line_callback(
 
     // 結果を Controller に報告
     let include_logs = !stream_logs_in_callback;
-    reporter::report_result(&callback_url, &task_id, result, api_key.as_deref(), include_logs)
-        .await?;
+    reporter::report_result(
+        &callback_url,
+        &task_id,
+        result,
+        api_key.as_deref(),
+        include_logs,
+    )
+    .await?;
 
     tracing::info!(task_id = %task_id, "Worker 実行完了");
     Ok(())

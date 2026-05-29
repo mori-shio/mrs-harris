@@ -79,13 +79,9 @@ pub async fn execute_shell_command_with_line_callback(
         let mut lines = Vec::new();
         if let Some(stdout) = stdout {
             let reader = BufReader::new(stdout);
-            lines.extend(read_stream_lines(
-                reader,
-                run_id,
-                LogStream::Stdout,
-                stdout_callback,
-            )
-            .await);
+            lines.extend(
+                read_stream_lines(reader, run_id, LogStream::Stdout, stdout_callback).await,
+            );
         }
         lines
     });
@@ -94,13 +90,9 @@ pub async fn execute_shell_command_with_line_callback(
         let mut lines = Vec::new();
         if let Some(stderr) = stderr {
             let reader = BufReader::new(stderr);
-            lines.extend(read_stream_lines(
-                reader,
-                run_id,
-                LogStream::Stderr,
-                stderr_callback,
-            )
-            .await);
+            lines.extend(
+                read_stream_lines(reader, run_id, LogStream::Stderr, stderr_callback).await,
+            );
         }
         lines
     });
