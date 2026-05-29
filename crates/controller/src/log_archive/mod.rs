@@ -77,6 +77,11 @@ impl LogArchiveStore for LocalFileLogArchiveStore {
     ) -> ArchiveFuture<'a, ArchivePutResult> {
         Box::pin(async move {
             let archive_path = self.archive_absolute_path(run);
+            tracing::info!(
+                run_id = run.id,
+                archive_path = %archive_path.display(),
+                "Writing archived run logs"
+            );
             Self::ensure_parent_dir(&archive_path).await?;
 
             let mut file = tokio::fs::File::create(&archive_path)

@@ -148,4 +148,85 @@ mod tests {
         let _ = tokio::fs::remove_file(&archived_path).await;
         let _ = tokio::fs::remove_dir_all(&archive_dir).await;
     }
+
+    #[tokio::test]
+    #[ignore = "requires local MySQL controller config"]
+    async fn archives_terminal_run_into_default_local_archive_dir() {
+        let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../config/controller.toml")
+            .canonicalize()
+            .unwrap();
+        let config = ControllerConfig::from_file(&config_path).unwrap();
+        let archive_root = std::env::current_dir()
+            .unwrap()
+            .join(&config.log_archive.local_file_base_dir);
+        if tokio::fs::try_exists(&archive_root).await.unwrap() {
+            let _ = tokio::fs::remove_dir_all(&archive_root).await;
+        }
+
+        let pool = crate::db::create_pool(&config.database).await.unwrap();
+        let job_id: i64 = sqlx::query("SELECT id FROM jobs ORDER BY id ASC LIMIT 1")
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+            .try_get("id")
+            .unwrap();
+
+        let new_run = NewRun {
+            job_id,
+            worker_type: WorkerType::Fargate,
+            trigger_type: TriggerType::Manual,
+            scheduled_at: None,
+            worker_definition_id: None,
+        };
+        let run = crate::db::runs::create_run(&pool, &new_run).await.unwrap();
+        crate::db::runs::update_run_status(
+            &pool,
+            &run.id,
+            RunStatus::Succeeded,
+            None,
+            None,
+            None,
+            Some(4321),
+        )
+        .await
+        .unwrap();
+        crate::db::logs::append_log_line(
+            &pool,
+            &LogLine {
+                id: None,
+                run_id: run.id,
+                task_name: None,
+                stream: LogStream::Stdout,
+                line: "default-dir".to_string(),
+                logged_at: Utc::now(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let state = AppState {
+            db: pool.clone(),
+            config: Arc::new(config.clone()),
+            scheduler_instance_id: Uuid::new_v4().to_string(),
+        };
+        let claimed_run = crate::db::runs::get_run(&pool, &run.id)
+            .await
+            .unwrap()
+            .unwrap();
+        let store = crate::log_archive::local_store_from_config(&config);
+        archive_claimed_run(&state, &store, claimed_run)
+            .await
+            .unwrap();
+
+        let archived_run = crate::db::runs::get_run(&pool, &run.id)
+            .await
+            .unwrap()
+            .unwrap();
+        let archived_path = archive_root.join(archived_run.log_archive_key.unwrap());
+        assert!(tokio::fs::try_exists(&archived_path).await.unwrap());
+
+        let _ = tokio::fs::remove_file(&archived_path).await;
+        let _ = tokio::fs::remove_dir_all(&archive_root).await;
+    }
 }
