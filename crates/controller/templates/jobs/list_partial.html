@@ -81,7 +81,7 @@
                             <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; background-color: var(--color-primary-glow); color: var(--color-primary); border-color: rgba(14, 165, 233, 0.2);"
                                     hx-post="/api/jobs/{{ job.name }}/trigger" hx-swap="none"
                                     onclick="event.stopPropagation();"
-                                    hx-on::after-request="if (event.detail.successful) { window.appToast({ message: 'ジョブ実行をトリガーしました。ダッシュボードで確認してください。' }); }">
+                                    hx-on::after-request="if (event.detail.successful) { window.appToast({ message: 'ジョブ実行をトリガーしました。' }); }">
                                 <i data-lucide="play" style="width: 12px; height: 12px;"></i>
                                 実行
                             </button>
