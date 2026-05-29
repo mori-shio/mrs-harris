@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+use crate::models::run::LogArchiveStore;
+
 /// Controller 設定
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ControllerConfig {
@@ -9,6 +11,10 @@ pub struct ControllerConfig {
     pub scheduler: SchedulerConfig,
     pub fargate: FargateConfig,
     pub lambda: LambdaConfig,
+    #[serde(default)]
+    pub log_archive: LogArchiveConfig,
+    #[serde(default)]
+    pub controller_worker: ControllerWorkerConfig,
     #[serde(default)]
     pub notification: NotificationConfig,
     #[serde(default)]
@@ -75,6 +81,56 @@ impl Default for SchedulerConfig {
             poll_interval_sec: default_poll_interval(),
             reaper_interval_sec: default_reaper_interval(),
             worker_timeout_sec: default_worker_timeout(),
+        }
+    }
+}
+
+/// 実行ログアーカイブ設定
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogArchiveConfig {
+    #[serde(default = "default_log_archive_store")]
+    pub store: LogArchiveStore,
+    #[serde(default = "default_local_file_base_dir")]
+    pub local_file_base_dir: String,
+    #[serde(default)]
+    pub s3_bucket: Option<String>,
+    #[serde(default)]
+    pub s3_prefix: Option<String>,
+}
+
+fn default_log_archive_store() -> LogArchiveStore {
+    LogArchiveStore::LocalFile
+}
+
+fn default_local_file_base_dir() -> String {
+    "data/log-archives".to_string()
+}
+
+impl Default for LogArchiveConfig {
+    fn default() -> Self {
+        Self {
+            store: default_log_archive_store(),
+            local_file_base_dir: default_local_file_base_dir(),
+            s3_bucket: None,
+            s3_prefix: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ControllerWorkerConfig {
+    #[serde(default = "default_controller_worker_enabled")]
+    pub enabled: bool,
+}
+
+fn default_controller_worker_enabled() -> bool {
+    true
+}
+
+impl Default for ControllerWorkerConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_controller_worker_enabled(),
         }
     }
 }

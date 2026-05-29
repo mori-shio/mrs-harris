@@ -39,6 +39,9 @@ enum Commands {
         /// 設定ファイルのパス
         #[arg(short, long, default_value = "config/controller.toml")]
         config: PathBuf,
+        /// 1 回だけ scheduler ループを実行して終了
+        #[arg(long)]
+        once: bool,
     },
     /// DB マイグレーションを実行
     Migrate {
@@ -100,11 +103,15 @@ async fn main() -> anyhow::Result<()> {
                 .map_err(|e| anyhow::anyhow!("設定ファイルの読み込みに失敗: {}", e))?;
             app::run_web(config).await?;
         }
-        Commands::Scheduler { config } => {
+        Commands::Scheduler { config, once } => {
             tracing::info!("Mrs. Harris Scheduler を起動します...");
             let config = mrs_harris_common::config::ControllerConfig::from_file(&config)
                 .map_err(|e| anyhow::anyhow!("設定ファイルの読み込みに失敗: {}", e))?;
-            app::run_scheduler(config).await?;
+            if once {
+                app::run_scheduler_once(config).await?;
+            } else {
+                app::run_scheduler(config).await?;
+            }
         }
         Commands::Migrate { config } => {
             tracing::info!("データベースマイグレーションを実行します...");

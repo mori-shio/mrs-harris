@@ -41,9 +41,11 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
     let status = RunStatus::from_str(&status_str)
         .map_err(|e| anyhow::anyhow!("Invalid RunStatus: {}", e))?;
 
-    let worker_type_str: String = row.try_get("worker_type")?;
-    let worker_type = WorkerType::from_str(&worker_type_str)
-        .map_err(|e| anyhow::anyhow!("Invalid WorkerType: {}", e))?;
+    let worker_type = match row.try_get::<Option<String>, _>("worker_type")? {
+        Some(worker_type_str) => WorkerType::from_str(&worker_type_str)
+            .map_err(|e| anyhow::anyhow!("Invalid WorkerType: {}", e))?,
+        None => WorkerType::Fargate,
+    };
 
     let worker_id: Option<i64> = row.try_get("worker_id")?;
 
@@ -486,5 +488,80 @@ pub async fn move_to_dead_letter(
         return Err(anyhow::anyhow!("Run not found"));
     }
 
+    Ok(())
+}
+
+pub async fn claim_terminal_run_for_archival(pool: &MySqlPool) -> anyhow::Result<Option<JobRun>> {
+    let mut tx = pool.begin().await?;
+
+    let row = sqlx::query(
+        r#"SELECT r.*, h.version as config_version, \
+                  COALESCE(w.worker_definition_id, j.worker_definition_id) as worker_definition_id, \
+                  COALESCE(wd.worker_type, jd.worker_type) as worker_type \
+           FROM job_runs r \
+           LEFT JOIN job_history h ON r.job_history_id = h.id \
+           LEFT JOIN jobs j ON r.job_id = j.id \
+           LEFT JOIN workers w ON r.worker_id = w.id \
+           LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id \
+           LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id \
+           WHERE r.status IN ('succeeded', 'failed', 'cancelled', 'dead_letter')
+             AND (r.log_archive_status IS NULL OR r.log_archive_status IN ('pending', 'failed'))
+           ORDER BY COALESCE(r.finished_at, r.updated_at) ASC
+           LIMIT 1 FOR UPDATE"#,
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if let Some(r) = row {
+        let run = map_row_to_run(&r)?;
+        sqlx::query(
+            "UPDATE job_runs SET log_archive_status = 'exporting', log_archived_at = NULL WHERE id = ?",
+        )
+        .bind(run.id)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        return get_run(pool, &run.id).await;
+    }
+
+    tx.commit().await?;
+    Ok(None)
+}
+
+pub async fn mark_run_log_archive_success(
+    pool: &MySqlPool,
+    run_id: i64,
+    result: &crate::log_archive::ArchivePutResult,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        r#"UPDATE job_runs
+           SET log_archive_status = ?,
+               log_archive_store = ?,
+               log_archive_key = ?,
+               log_line_count = ?,
+               log_archive_bytes = ?,
+               log_archived_at = ?
+           WHERE id = ?"#,
+    )
+    .bind(LogArchiveStatus::Archived.to_string())
+    .bind(result.store.to_string())
+    .bind(&result.key)
+    .bind(result.line_count)
+    .bind(result.archive_bytes)
+    .bind(result.archived_at)
+    .bind(run_id)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn mark_run_log_archive_failed(pool: &MySqlPool, run_id: i64) -> anyhow::Result<()> {
+    sqlx::query(
+        "UPDATE job_runs SET log_archive_status = 'failed' WHERE id = ? AND log_archive_status = 'exporting'",
+    )
+    .bind(run_id)
+    .execute(pool)
+    .await?;
     Ok(())
 }

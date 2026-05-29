@@ -14,10 +14,11 @@ use sqlx::{MySqlPool, Row};
 use std::str::FromStr;
 
 use mrs_harris_common::models::job::JobType;
-use mrs_harris_common::models::run::{JobRun, LogLine, LogStream};
+use mrs_harris_common::models::run::{JobRun, LogArchiveStatus, LogLine, LogStream};
 
 use super::auth::WebClaims;
 use crate::app::AppState;
+use crate::log_archive::LogArchiveStore;
 
 #[derive(Clone)]
 pub struct TaskRunItem {
@@ -507,9 +508,34 @@ fn map_row_to_log(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<LogLine> {
 
 async fn handle_socket(mut socket: WebSocket, state: AppState, run_id: i64) {
     let mut last_log_id: u64 = 0;
+    let archive_store = crate::log_archive::local_store_from_config(&state.config);
+    let initial_run = match crate::db::runs::get_run(&state.db, &run_id).await {
+        Ok(run) => run,
+        Err(e) => {
+            tracing::error!(
+                "Failed to get run before log streaming for run {}: {}",
+                run_id,
+                e
+            );
+            None
+        }
+    };
 
     // 1. Fetch initial logs
-    match crate::db::logs::get_logs(&state.db, &run_id).await {
+    let initial_logs = match &initial_run {
+        Some(run) if run.log_archive_status == Some(LogArchiveStatus::Archived) => {
+            match archive_store.get_run_logs(run).await {
+                Ok(logs) => Ok(logs),
+                Err(e) => {
+                    tracing::error!("Failed to get archived logs for run {}: {}", run_id, e);
+                    crate::db::logs::get_logs(&state.db, &run_id).await
+                }
+            }
+        }
+        _ => crate::db::logs::get_logs(&state.db, &run_id).await,
+    };
+
+    match initial_logs {
         Ok(logs) => {
             if !logs.is_empty() {
                 // Find maximum id to set last_log_id
@@ -532,6 +558,16 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, run_id: i64) {
         Err(e) => {
             tracing::error!("Failed to get initial logs for run {}: {}", run_id, e);
         }
+    }
+
+    if matches!(
+        initial_run
+            .as_ref()
+            .and_then(|run| run.log_archive_status.clone()),
+        Some(LogArchiveStatus::Archived)
+    ) {
+        let _ = socket.send(Message::Close(None)).await;
+        return;
     }
 
     // 2. Poll for new logs

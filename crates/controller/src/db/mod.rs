@@ -3,6 +3,7 @@ use sqlx::MySqlPool;
 use sqlx::mysql::MySqlPoolOptions;
 
 pub mod jobs;
+pub mod leases;
 pub mod logs;
 pub mod notifications;
 pub mod runs;

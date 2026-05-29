@@ -10,6 +10,7 @@ use tower_http::trace::TraceLayer;
 pub struct AppState {
     pub db: MySqlPool,
     pub config: Arc<ControllerConfig>,
+    pub scheduler_instance_id: String,
 }
 
 struct InitOptions {
@@ -67,6 +68,20 @@ pub async fn run_scheduler(config: ControllerConfig) -> anyhow::Result<()> {
     crate::scheduler::run_scheduler(state).await
 }
 
+pub async fn run_scheduler_once(config: ControllerConfig) -> anyhow::Result<()> {
+    let state = initialize_state(
+        config,
+        InitOptions {
+            run_migrations: false,
+            seed_default_admin: false,
+        },
+    )
+    .await?;
+
+    tracing::info!("Mrs. Harris Scheduler を 1 回だけ実行します");
+    crate::scheduler::run_scheduler_once(state).await
+}
+
 async fn initialize_state(
     config: ControllerConfig,
     options: InitOptions,
@@ -84,6 +99,7 @@ async fn initialize_state(
     Ok(AppState {
         db: pool,
         config: Arc::new(config),
+        scheduler_instance_id: uuid::Uuid::new_v4().to_string(),
     })
 }
 

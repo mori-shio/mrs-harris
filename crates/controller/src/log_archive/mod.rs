@@ -6,6 +6,7 @@ use std::pin::Pin;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
+use mrs_harris_common::config::ControllerConfig;
 use mrs_harris_common::models::run::{JobRun, LogArchiveStore as LogArchiveStoreKind, LogLine};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
@@ -62,6 +63,10 @@ impl LocalFileLogArchiveStore {
             .await
             .with_context(|| format!("failed to create archive dir {}", parent.display()))
     }
+}
+
+pub fn local_store_from_config(config: &ControllerConfig) -> LocalFileLogArchiveStore {
+    LocalFileLogArchiveStore::new(&config.log_archive.local_file_base_dir)
 }
 
 impl LogArchiveStore for LocalFileLogArchiveStore {

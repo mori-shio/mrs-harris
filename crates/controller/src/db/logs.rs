@@ -122,6 +122,14 @@ pub async fn get_logs(pool: &MySqlPool, run_id: &i64) -> anyhow::Result<Vec<LogL
     Ok(logs)
 }
 
+pub async fn delete_logs_for_run(pool: &MySqlPool, run_id: &i64) -> anyhow::Result<u64> {
+    let result = sqlx::query("DELETE FROM job_logs WHERE job_run_id = ?")
+        .bind(run_id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected())
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::Utc;
