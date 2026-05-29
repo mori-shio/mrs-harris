@@ -251,6 +251,60 @@
         hour12: false
     });
 
+    function decodeAnsiCString(body) {
+        var bytes = [];
+        for (var i = 0; i < body.length; i += 1) {
+            var ch = body[i];
+            if (ch !== '\\') {
+                bytes.push(ch.charCodeAt(0));
+                continue;
+            }
+
+            i += 1;
+            if (i >= body.length) {
+                bytes.push('\\'.charCodeAt(0));
+                break;
+            }
+
+            var esc = body[i];
+            if (/[0-7]/.test(esc)) {
+                var octal = esc;
+                while (i + 1 < body.length && octal.length < 3 && /[0-7]/.test(body[i + 1])) {
+                    i += 1;
+                    octal += body[i];
+                }
+                bytes.push(parseInt(octal, 8));
+                continue;
+            }
+
+            switch (esc) {
+                case 'n': bytes.push(10); break;
+                case 'r': bytes.push(13); break;
+                case 't': bytes.push(9); break;
+                case '\\': bytes.push(92); break;
+                case '\'': bytes.push(39); break;
+                case '"': bytes.push(34); break;
+                default: bytes.push(esc.charCodeAt(0)); break;
+            }
+        }
+
+        try {
+            return new TextDecoder('utf-8').decode(new Uint8Array(bytes));
+        } catch (_) {
+            return body;
+        }
+    }
+
+    function normalizeTraceLine(line) {
+        if (typeof line !== 'string' || !line.startsWith('+ ')) {
+            return line;
+        }
+
+        return line.replace(/\$'((?:\\.|[^'])*)'/g, function(_, body) {
+            return '\'' + decodeAnsiCString(body) + '\'';
+        });
+    }
+
     var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var wsUrl = protocol + '//' + window.location.host + '/runs/' + runId + '/logs/ws';
 
@@ -277,7 +331,7 @@
                 if (log.task_name) {
                     prefix = '[' + log.task_name + '] ';
                 }
-                lineDiv.textContent = timeStr + prefix + log.line;
+                lineDiv.textContent = timeStr + prefix + (isTraceLine ? normalizeTraceLine(log.line) : log.line);
                 logBody.appendChild(lineDiv);
             });
             logBody.scrollTop = logBody.scrollHeight;

@@ -201,9 +201,11 @@ where
         match reader.read_until(b'\n', &mut buffer).await {
             Ok(0) => break,
             Ok(_) => {
-                let line = String::from_utf8_lossy(&buffer)
-                    .trim_end_matches(&['\r', '\n'][..])
-                    .to_string();
+                let line = normalize_trace_bytes(&buffer, &stream).unwrap_or_else(|| {
+                    String::from_utf8_lossy(&buffer)
+                        .trim_end_matches(&['\r', '\n'][..])
+                        .to_string()
+                });
                 let log_line = LogLine {
                     id: None,
                     run_id,
@@ -227,6 +229,57 @@ where
     }
 
     lines
+}
+
+fn normalize_trace_bytes(bytes: &[u8], stream: &LogStream) -> Option<String> {
+    if *stream != LogStream::Stderr {
+        return None;
+    }
+
+    let trimmed = bytes.strip_suffix(b"\n").unwrap_or(bytes);
+    let trimmed = trimmed.strip_suffix(b"\r").unwrap_or(trimmed);
+    if !trimmed.starts_with(b"+ ") || !trimmed.windows(2).any(|window| window == b"$'") {
+        return None;
+    }
+
+    let mut normalized = Vec::with_capacity(trimmed.len());
+    let mut i = 0;
+    while i < trimmed.len() {
+        if trimmed[i] == b'$' && i + 1 < trimmed.len() && trimmed[i + 1] == b'\'' {
+            i += 2;
+            normalized.push(b'\'');
+
+            while i < trimmed.len() {
+                if trimmed[i] == b'\'' {
+                    normalized.push(b'\'');
+                    i += 1;
+                    break;
+                }
+
+                if trimmed[i] == b'\\' && i + 1 < trimmed.len() && trimmed[i + 1].is_ascii_digit() {
+                    let mut octal = 0u32;
+                    let mut digits = 0;
+                    i += 1;
+                    while i < trimmed.len() && digits < 3 && (b'0'..=b'7').contains(&trimmed[i]) {
+                        octal = (octal * 8) + u32::from(trimmed[i] - b'0');
+                        i += 1;
+                        digits += 1;
+                    }
+                    normalized.push(octal as u8);
+                    continue;
+                }
+
+                normalized.push(trimmed[i]);
+                i += 1;
+            }
+            continue;
+        }
+
+        normalized.push(trimmed[i]);
+        i += 1;
+    }
+
+    Some(String::from_utf8_lossy(&normalized).to_string())
 }
 
 #[cfg(test)]
@@ -295,5 +348,14 @@ mod tests {
         assert_eq!(lines[0].line, "+ echo 'ok'");
         assert!(lines[1].line.contains('\u{FFFD}'));
         assert_eq!(lines[2].line, "+ sleep 20");
+    }
+
+    #[test]
+    fn normalize_trace_bytes_decodes_shell_ansi_c_segments() {
+        let raw = b"+ echo $'\xe3\\201\\204\xe3\\201\\204\xe3\\201\\255\xef\xbc\\201'\n";
+
+        let normalized = normalize_trace_bytes(raw, &LogStream::Stderr).unwrap();
+
+        assert_eq!(normalized, "+ echo 'いいね！'");
     }
 }
