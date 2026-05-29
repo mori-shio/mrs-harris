@@ -79,23 +79,13 @@ pub async fn execute_shell_command_with_line_callback(
         let mut lines = Vec::new();
         if let Some(stdout) = stdout {
             let reader = BufReader::new(stdout);
-            let mut line_reader = reader.lines();
-            while let Ok(Some(line)) = line_reader.next_line().await {
-                let log_line = LogLine {
-                    id: None,
-                    run_id,
-                    task_name: None,
-                    stream: LogStream::Stdout,
-                    line,
-                    logged_at: chrono::Utc::now(),
-                };
-                if let Some(callback) = &stdout_callback
-                    && let Err(error) = callback(log_line.clone()).await
-                {
-                    tracing::warn!(run_id = %run_id, %error, "stdout line callback failed");
-                }
-                lines.push(log_line);
-            }
+            lines.extend(read_stream_lines(
+                reader,
+                run_id,
+                LogStream::Stdout,
+                stdout_callback,
+            )
+            .await);
         }
         lines
     });
@@ -104,23 +94,13 @@ pub async fn execute_shell_command_with_line_callback(
         let mut lines = Vec::new();
         if let Some(stderr) = stderr {
             let reader = BufReader::new(stderr);
-            let mut line_reader = reader.lines();
-            while let Ok(Some(line)) = line_reader.next_line().await {
-                let log_line = LogLine {
-                    id: None,
-                    run_id,
-                    task_name: None,
-                    stream: LogStream::Stderr,
-                    line,
-                    logged_at: chrono::Utc::now(),
-                };
-                if let Some(callback) = &stderr_callback
-                    && let Err(error) = callback(log_line.clone()).await
-                {
-                    tracing::warn!(run_id = %run_id, %error, "stderr line callback failed");
-                }
-                lines.push(log_line);
-            }
+            lines.extend(read_stream_lines(
+                reader,
+                run_id,
+                LogStream::Stderr,
+                stderr_callback,
+            )
+            .await);
         }
         lines
     });
@@ -204,10 +184,56 @@ pub async fn execute_shell_command_with_line_callback(
     }
 }
 
+async fn read_stream_lines<R>(
+    mut reader: BufReader<R>,
+    run_id: i64,
+    stream: LogStream,
+    callback: Option<super::log_capture::LineCallback>,
+) -> Vec<LogLine>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    let mut lines = Vec::new();
+    let mut buffer = Vec::new();
+
+    loop {
+        buffer.clear();
+        match reader.read_until(b'\n', &mut buffer).await {
+            Ok(0) => break,
+            Ok(_) => {
+                let line = String::from_utf8_lossy(&buffer)
+                    .trim_end_matches(&['\r', '\n'][..])
+                    .to_string();
+                let log_line = LogLine {
+                    id: None,
+                    run_id,
+                    task_name: None,
+                    stream: stream.clone(),
+                    line,
+                    logged_at: chrono::Utc::now(),
+                };
+                if let Some(callback) = &callback
+                    && let Err(error) = callback(log_line.clone()).await
+                {
+                    tracing::warn!(run_id = %run_id, %error, ?stream, "stream line callback failed");
+                }
+                lines.push(log_line);
+            }
+            Err(error) => {
+                tracing::warn!(run_id = %run_id, %error, ?stream, "failed to read stream line");
+                break;
+            }
+        }
+    }
+
+    lines
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::log_capture::LineCallback;
     use super::*;
+    use std::io::Cursor;
     use std::sync::Arc;
     use tokio::sync::Mutex;
 
@@ -256,5 +282,18 @@ mod tests {
                 .iter()
                 .any(|line| line.stream == LogStream::Stderr && line.line == "err")
         );
+    }
+
+    #[tokio::test]
+    async fn read_stream_lines_keeps_following_lines_after_invalid_utf8() {
+        let bytes = b"+ echo 'ok'\n\xff\xfe\n+ sleep 20\n".to_vec();
+        let reader = BufReader::new(Cursor::new(bytes));
+
+        let lines = read_stream_lines(reader, 42, LogStream::Stderr, None).await;
+
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[0].line, "+ echo 'ok'");
+        assert!(lines[1].line.contains('\u{FFFD}'));
+        assert_eq!(lines[2].line, "+ sleep 20");
     }
 }
