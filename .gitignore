@@ -23,3 +23,5 @@ config/controller.toml
 # Temporary and local debug files
 cookie.txt
 *.png
+data/log-archives/
+crates/controller/data/log-archives/
