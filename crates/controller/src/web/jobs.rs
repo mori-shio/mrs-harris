@@ -1081,7 +1081,10 @@ async fn job_detail_page(
 
     if history_rows.is_empty() {
         if let Err(e) = ensure_job_history(&state.db, &id, &claims.0.username).await {
-            tracing::error!("Failed to ensure initial job history on detail load: {:?}", e);
+            tracing::error!(
+                "Failed to ensure initial job history on detail load: {:?}",
+                e
+            );
         }
         history_rows = sqlx::query(
             "SELECT version, changed_by, payload, changed_at FROM job_history WHERE job_id = ? ORDER BY version DESC"
@@ -1918,10 +1921,11 @@ pub(crate) async fn ensure_job_history(
     job_id: &i64,
     changed_by: &str,
 ) -> anyhow::Result<()> {
-    let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM job_history WHERE job_id = ? LIMIT 1")
-        .bind(job_id)
-        .fetch_optional(pool)
-        .await?;
+    let existing: Option<i64> =
+        sqlx::query_scalar("SELECT id FROM job_history WHERE job_id = ? LIMIT 1")
+            .bind(job_id)
+            .fetch_optional(pool)
+            .await?;
 
     if existing.is_some() {
         return Ok(());

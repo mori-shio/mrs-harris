@@ -178,7 +178,8 @@ async fn trigger_job(
         }
     };
 
-    if let Err(e) = crate::web::jobs::ensure_job_history(&state.db, &job.id, &claims.username).await {
+    if let Err(e) = crate::web::jobs::ensure_job_history(&state.db, &job.id, &claims.username).await
+    {
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({ "error": format!("Failed to ensure job history: {}", e) })),
