@@ -8,6 +8,9 @@ use mrs_harris_common::models::run::{JobRun, LogLine};
 
 use crate::app::AppState;
 
+pub mod cloudwatch;
+pub mod locator;
+
 type LogSourceFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'a>>;
 
 #[derive(Debug, Clone, Default)]
