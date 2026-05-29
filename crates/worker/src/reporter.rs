@@ -31,6 +31,7 @@ pub async fn report_result(
     task_id: &i64,
     result: super::executor::ExecutionResult,
     api_key: Option<&str>,
+    include_logs: bool,
 ) -> anyhow::Result<()> {
     let client = reqwest::Client::new();
     let url = if callback_url.contains("/callback") {
@@ -43,16 +44,7 @@ pub async fn report_result(
         format!("{}/api/internal/callback", base_url)
     };
 
-    let callback = WorkerCallback {
-        task_id: *task_id,
-        status: result.status,
-        output: result
-            .exit_code
-            .map(|c| serde_json::json!({ "exit_code": c })),
-        error: result.error,
-        logs: result.logs,
-        duration_ms: Some(result.duration_ms),
-    };
+    let callback = build_worker_callback(*task_id, result, include_logs);
 
     let mut request = client.post(&url).json(&callback);
 
@@ -64,4 +56,63 @@ pub async fn report_result(
 
     tracing::info!(task_id = %task_id, "結果を Controller に報告しました");
     Ok(())
+}
+
+fn build_worker_callback(
+    task_id: i64,
+    result: super::executor::ExecutionResult,
+    include_logs: bool,
+) -> WorkerCallback {
+    WorkerCallback {
+        task_id,
+        status: result.status,
+        output: result
+            .exit_code
+            .map(|c| serde_json::json!({ "exit_code": c })),
+        error: result.error,
+        logs: if include_logs { result.logs } else { vec![] },
+        duration_ms: Some(result.duration_ms),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+    use mrs_harris_common::models::run::{LogLine, LogStream, RunStatus};
+
+    use super::build_worker_callback;
+
+    fn sample_result() -> super::super::executor::ExecutionResult {
+        super::super::executor::ExecutionResult {
+            status: RunStatus::Succeeded,
+            exit_code: Some(0),
+            logs: vec![LogLine {
+                id: None,
+                run_id: 42,
+                task_name: None,
+                stream: LogStream::Stdout,
+                line: "hello".to_string(),
+                logged_at: Utc::now(),
+            }],
+            error: None,
+            duration_ms: 12,
+        }
+    }
+
+    #[test]
+    fn build_worker_callback_keeps_logs_when_requested() {
+        let callback = build_worker_callback(42, sample_result(), true);
+
+        assert_eq!(callback.task_id, 42);
+        assert_eq!(callback.logs.len(), 1);
+        assert_eq!(callback.logs[0].line, "hello");
+    }
+
+    #[test]
+    fn build_worker_callback_omits_logs_when_already_streamed() {
+        let callback = build_worker_callback(42, sample_result(), false);
+
+        assert_eq!(callback.task_id, 42);
+        assert!(callback.logs.is_empty());
+    }
 }
