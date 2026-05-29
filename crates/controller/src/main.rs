@@ -21,8 +21,20 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Controller モードで起動
+    /// 既存互換の Controller モードで起動 (Web + Scheduler)
     Controller {
+        /// 設定ファイルのパス
+        #[arg(short, long, default_value = "config/controller.toml")]
+        config: PathBuf,
+    },
+    /// Web/UI と API を起動
+    Web {
+        /// 設定ファイルのパス
+        #[arg(short, long, default_value = "config/controller.toml")]
+        config: PathBuf,
+    },
+    /// Scheduler を起動
+    Scheduler {
         /// 設定ファイルのパス
         #[arg(short, long, default_value = "config/controller.toml")]
         config: PathBuf,
@@ -76,10 +88,22 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Controller { config } => {
-            tracing::info!("Mrs. Harris Controller を起動します...");
+            tracing::warn!("Mrs. Harris Controller (legacy combined mode) を起動します...");
             let config = mrs_harris_common::config::ControllerConfig::from_file(&config)
                 .map_err(|e| anyhow::anyhow!("設定ファイルの読み込みに失敗: {}", e))?;
             app::run_controller(config).await?;
+        }
+        Commands::Web { config } => {
+            tracing::info!("Mrs. Harris Web を起動します...");
+            let config = mrs_harris_common::config::ControllerConfig::from_file(&config)
+                .map_err(|e| anyhow::anyhow!("設定ファイルの読み込みに失敗: {}", e))?;
+            app::run_web(config).await?;
+        }
+        Commands::Scheduler { config } => {
+            tracing::info!("Mrs. Harris Scheduler を起動します...");
+            let config = mrs_harris_common::config::ControllerConfig::from_file(&config)
+                .map_err(|e| anyhow::anyhow!("設定ファイルの読み込みに失敗: {}", e))?;
+            app::run_scheduler(config).await?;
         }
         Commands::Migrate { config } => {
             tracing::info!("データベースマイグレーションを実行します...");

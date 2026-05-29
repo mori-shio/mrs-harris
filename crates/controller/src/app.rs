@@ -12,23 +12,22 @@ pub struct AppState {
     pub config: Arc<ControllerConfig>,
 }
 
-/// Controller を起動
+struct InitOptions {
+    run_migrations: bool,
+    seed_default_admin: bool,
+}
+
+/// 既存互換の Controller モードで起動
 pub async fn run_controller(config: ControllerConfig) -> anyhow::Result<()> {
-    // DB接続プール作成
-    let pool = crate::db::create_pool(&config.database).await?;
+    let state = initialize_state(
+        config.clone(),
+        InitOptions {
+            run_migrations: true,
+            seed_default_admin: true,
+        },
+    )
+    .await?;
 
-    // マイグレーション実行
-    crate::db::run_migrations(&config.database).await?;
-
-    // 初期管理者ユーザーの自動作成 (テーブルが空の場合)
-    crate::db::users::seed_default_admin_if_needed(&pool).await?;
-
-    let state = AppState {
-        db: pool.clone(),
-        config: Arc::new(config.clone()),
-    };
-
-    // スケジューラをバックグラウンドで起動
     let scheduler_state = state.clone();
     tokio::spawn(async move {
         if let Err(e) = crate::scheduler::run_scheduler(scheduler_state).await {
@@ -36,11 +35,63 @@ pub async fn run_controller(config: ControllerConfig) -> anyhow::Result<()> {
         }
     });
 
-    // Axum ルーター構築
-    let app = build_router(state.clone());
+    serve_web(state).await
+}
 
-    let addr = format!("{}:{}", config.server.host, config.server.port);
-    tracing::info!("Mrs. Harris Controller listening on {}", addr);
+/// Web/UI と API のみを起動
+pub async fn run_web(config: ControllerConfig) -> anyhow::Result<()> {
+    let state = initialize_state(
+        config,
+        InitOptions {
+            run_migrations: true,
+            seed_default_admin: true,
+        },
+    )
+    .await?;
+
+    serve_web(state).await
+}
+
+/// Scheduler のみを起動
+pub async fn run_scheduler(config: ControllerConfig) -> anyhow::Result<()> {
+    let state = initialize_state(
+        config,
+        InitOptions {
+            run_migrations: false,
+            seed_default_admin: false,
+        },
+    )
+    .await?;
+
+    tracing::info!("Mrs. Harris Scheduler を起動します");
+    crate::scheduler::run_scheduler(state).await
+}
+
+async fn initialize_state(
+    config: ControllerConfig,
+    options: InitOptions,
+) -> anyhow::Result<AppState> {
+    let pool = crate::db::create_pool(&config.database).await?;
+
+    if options.run_migrations {
+        crate::db::run_migrations(&config.database).await?;
+    }
+
+    if options.seed_default_admin {
+        crate::db::users::seed_default_admin_if_needed(&pool).await?;
+    }
+
+    Ok(AppState {
+        db: pool,
+        config: Arc::new(config),
+    })
+}
+
+async fn serve_web(state: AppState) -> anyhow::Result<()> {
+    let addr = format!("{}:{}", state.config.server.host, state.config.server.port);
+    let app = build_router(state);
+
+    tracing::info!("Mrs. Harris Web listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
