@@ -187,6 +187,13 @@
                             {{ run.id }}
                         </div>
                     </div>
+
+                    <div class="summary-item" style="display: flex; flex-direction: column; gap: 6px;">
+                        <span class="summary-label" style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500;">ログ保存</span>
+                        <div class="summary-value" style="font-size: 0.8rem; font-weight: 500; display: flex; align-items: center; gap: 6px; line-height: 1.5;">
+                            <span class="archive-state-pill archive-state-pill-{{ archive_state_badge_class }}">{{ archive_state_label }}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -226,6 +233,7 @@
                 ログ出力
             </span>
             <div style="display: flex; align-items: center; gap: 12px;">
+                <span class="archive-state-pill archive-state-pill-{{ archive_state_badge_class }}">{{ archive_state_label }}</span>
                 <span id="log-status" style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
                     <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--text-muted);" id="log-indicator"></span>
                     準備中

@@ -35,6 +35,9 @@ pub struct JobRenderItem {
 pub struct JobRunRenderItem {
     pub status_badge_class: &'static str,
     pub status_ja: &'static str,
+    pub has_archive_state: bool,
+    pub archive_badge_class: &'static str,
+    pub archive_label: String,
     pub run_number: i64,
     pub trigger_ja: &'static str,
     pub duration_str: String,
@@ -65,9 +68,28 @@ fn job_run_render_item_from_run(run: &JobRun) -> JobRunRenderItem {
         None => "-".to_string(),
     };
 
+    let (has_archive_state, archive_badge_class, archive_label) =
+        if let Some(status) = run.log_archive_status.as_ref() {
+            let store_suffix = run
+                .log_archive_store
+                .as_ref()
+                .map(|store| format!(" ({})", store.label_ja()))
+                .unwrap_or_default();
+            (
+                true,
+                status.badge_class(),
+                format!("{}{}", status.label_ja(), store_suffix),
+            )
+        } else {
+            (false, "info", String::new())
+        };
+
     JobRunRenderItem {
         status_badge_class: run.status.badge_class(),
         status_ja,
+        has_archive_state,
+        archive_badge_class,
+        archive_label,
         run_number: run.run_number,
         trigger_ja,
         duration_str,

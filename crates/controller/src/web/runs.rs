@@ -41,6 +41,8 @@ struct RunDetailTemplate {
     task_runs: Vec<TaskRunItem>,
     status_ja: String,
     status_badge_class: &'static str,
+    archive_state_label: String,
+    archive_state_badge_class: &'static str,
     duration_str: String,
     started_at_str: String,
     finished_at_str: String,
@@ -62,6 +64,8 @@ struct RunDetailLiveTemplate {
     task_runs: Vec<TaskRunItem>,
     status_ja: String,
     status_badge_class: &'static str,
+    archive_state_label: String,
+    archive_state_badge_class: &'static str,
     duration_str: String,
     started_at_str: String,
     finished_at_str: String,
@@ -98,6 +102,8 @@ async fn fetch_run_detail_data(
     Vec<TaskRunItem>,
     String,       // status_ja
     &'static str, // status_badge_class
+    String,       // archive_state_label
+    &'static str, // archive_state_badge_class
     String,       // trigger_ja
     String,       // duration_str
     String,       // started_at_str
@@ -231,6 +237,23 @@ async fn fetch_run_detail_data(
 
     let status_ja = run.status.label_ja().to_string();
     let status_badge_class = run.status.badge_class();
+    let archive_state_label = match run.log_archive_status.as_ref() {
+        Some(status) => {
+            let store_suffix = run
+                .log_archive_store
+                .as_ref()
+                .map(|store| format!(" ({})", store.label_ja()))
+                .unwrap_or_default();
+            format!("{}{}", status.label_ja(), store_suffix)
+        }
+        None if run.status.is_terminal() => "ホットログ".to_string(),
+        None => "ライブ".to_string(),
+    };
+    let archive_state_badge_class = match run.log_archive_status.as_ref() {
+        Some(status) => status.badge_class(),
+        None if run.status.is_terminal() => "pending",
+        None => "info",
+    };
     let trigger_ja = run.trigger_type.label_ja().to_string();
 
     let duration_str = match run.duration_ms {
@@ -277,6 +300,8 @@ async fn fetch_run_detail_data(
         task_runs,
         status_ja,
         status_badge_class,
+        archive_state_label,
+        archive_state_badge_class,
         trigger_ja,
         duration_str,
         started_at_str,
@@ -303,13 +328,15 @@ async fn run_detail_page(
             task_runs: data.4,
             status_ja: data.5,
             status_badge_class: data.6,
-            duration_str: data.8,
-            started_at_str: data.9,
-            finished_at_str: data.10,
-            dag_tasks_json: data.11,
-            dag_edges_json: data.12,
-            task_runs_json: data.13,
-            config_payload_json: data.14,
+            archive_state_label: data.7,
+            archive_state_badge_class: data.8,
+            duration_str: data.10,
+            started_at_str: data.11,
+            finished_at_str: data.12,
+            dag_tasks_json: data.13,
+            dag_edges_json: data.14,
+            task_runs_json: data.15,
+            config_payload_json: data.16,
         }
         .into_response(),
         Err(e) => {
@@ -338,13 +365,15 @@ async fn run_detail_live(
             task_runs: data.4,
             status_ja: data.5,
             status_badge_class: data.6,
-            duration_str: data.8,
-            started_at_str: data.9,
-            finished_at_str: data.10,
-            dag_tasks_json: data.11,
-            dag_edges_json: data.12,
-            task_runs_json: data.13,
-            config_payload_json: data.14,
+            archive_state_label: data.7,
+            archive_state_badge_class: data.8,
+            duration_str: data.10,
+            started_at_str: data.11,
+            finished_at_str: data.12,
+            dag_tasks_json: data.13,
+            dag_edges_json: data.14,
+            task_runs_json: data.15,
+            config_payload_json: data.16,
         }
         .into_response(),
         Err(e) => {
@@ -370,6 +399,8 @@ async fn fetch_run_detail_data_by_number(
     Vec<TaskRunItem>,
     String,       // status_ja
     &'static str, // status_badge_class
+    String,       // archive_state_label
+    &'static str, // archive_state_badge_class
     String,       // trigger_ja
     String,       // duration_str
     String,       // started_at_str
@@ -409,13 +440,15 @@ async fn run_detail_by_number(
             task_runs: data.4,
             status_ja: data.5,
             status_badge_class: data.6,
-            duration_str: data.8,
-            started_at_str: data.9,
-            finished_at_str: data.10,
-            dag_tasks_json: data.11,
-            dag_edges_json: data.12,
-            task_runs_json: data.13,
-            config_payload_json: data.14,
+            archive_state_label: data.7,
+            archive_state_badge_class: data.8,
+            duration_str: data.10,
+            started_at_str: data.11,
+            finished_at_str: data.12,
+            dag_tasks_json: data.13,
+            dag_edges_json: data.14,
+            task_runs_json: data.15,
+            config_payload_json: data.16,
         }
         .into_response(),
         Err(e) => {
@@ -452,13 +485,15 @@ async fn run_detail_by_number_live(
             task_runs: data.4,
             status_ja: data.5,
             status_badge_class: data.6,
-            duration_str: data.8,
-            started_at_str: data.9,
-            finished_at_str: data.10,
-            dag_tasks_json: data.11,
-            dag_edges_json: data.12,
-            task_runs_json: data.13,
-            config_payload_json: data.14,
+            archive_state_label: data.7,
+            archive_state_badge_class: data.8,
+            duration_str: data.10,
+            started_at_str: data.11,
+            finished_at_str: data.12,
+            dag_tasks_json: data.13,
+            dag_edges_json: data.14,
+            task_runs_json: data.15,
+            config_payload_json: data.16,
         }
         .into_response(),
         Err(e) => {

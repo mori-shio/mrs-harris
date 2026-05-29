@@ -68,6 +68,26 @@ pub enum LogArchiveStatus {
     Failed,
 }
 
+impl LogArchiveStatus {
+    pub fn label_ja(&self) -> &'static str {
+        match self {
+            Self::Pending => "アーカイブ待ち",
+            Self::Exporting => "アーカイブ中",
+            Self::Archived => "アーカイブ済み",
+            Self::Failed => "アーカイブ失敗",
+        }
+    }
+
+    pub fn badge_class(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Exporting => "running",
+            Self::Archived => "succeeded",
+            Self::Failed => "failed",
+        }
+    }
+}
+
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, strum::Display, strum::EnumString,
 )]
@@ -76,6 +96,15 @@ pub enum LogArchiveStatus {
 pub enum LogArchiveStore {
     S3,
     LocalFile,
+}
+
+impl LogArchiveStore {
+    pub fn label_ja(&self) -> &'static str {
+        match self {
+            Self::S3 => "S3",
+            Self::LocalFile => "ローカル",
+        }
+    }
 }
 
 impl TriggerType {
@@ -125,6 +154,12 @@ mod tests {
         assert_eq!(LogArchiveStatus::Archived.to_string(), "archived");
         assert_eq!(LogArchiveStore::S3.to_string(), "s3");
         assert_eq!(LogArchiveStore::LocalFile.to_string(), "local_file");
+        assert_eq!(LogArchiveStatus::Pending.label_ja(), "アーカイブ待ち");
+        assert_eq!(LogArchiveStatus::Exporting.badge_class(), "running");
+        assert_eq!(LogArchiveStatus::Archived.label_ja(), "アーカイブ済み");
+        assert_eq!(LogArchiveStatus::Failed.badge_class(), "failed");
+        assert_eq!(LogArchiveStore::S3.label_ja(), "S3");
+        assert_eq!(LogArchiveStore::LocalFile.label_ja(), "ローカル");
     }
 }
 

@@ -24,7 +24,14 @@
                 {% for run in recent_runs %}
                 <tr>
                     <td><a href="/jobs/{{ job_name }}/runs/{{ run.run_number }}" class="vd-link" style="font-family:'JetBrains Mono',monospace;font-size:0.88rem;font-weight:600;color:var(--color-primary);text-decoration:none;">#{{ run.run_number }}</a></td>
-                    <td><span class="badge badge-{{ run.status_badge_class }}">{{ run.status_ja }}</span></td>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <span class="badge badge-{{ run.status_badge_class }}">{{ run.status_ja }}</span>
+                            {% if run.has_archive_state %}
+                            <span class="archive-state-pill archive-state-pill-{{ run.archive_badge_class }}">{{ run.archive_label }}</span>
+                            {% endif %}
+                        </div>
+                    </td>
                     <td>{{ run.trigger_ja }}</td>
                     <td style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;">{{ run.config_version_str }}</td>
                     <td style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">{{ run.started_at_str }}</td>
