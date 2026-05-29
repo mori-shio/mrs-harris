@@ -1,10 +1,4 @@
-<div id="runs-table-container"
-    {% if is_polling %}
-    hx-get="/jobs/{{ job_name }}/runs"
-    hx-trigger="every 5s"
-    hx-swap="outerHTML"
-    {% endif %}
->
+<div id="runs-table-container" data-poll-url="/jobs/{{ job_name }}/runs">
     <div class="table-container" style="margin-top: 0; border-bottom: none;">
         <table class="data-table" data-no-sort style="font-size:0.85rem;">
             <thead>

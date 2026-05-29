@@ -753,6 +753,25 @@
     var tabParam = urlParams.get('tab');
     var initialTab = tabParam || '{{ initial_tab }}';
 
+    function syncRunsPolling(isRunsTabActive) {
+        var container = document.getElementById('runs-table-container');
+        if (!container) return;
+
+        var pollUrl = container.getAttribute('data-poll-url');
+        if (!pollUrl) return;
+
+        if (isRunsTabActive) {
+            container.setAttribute('hx-get', pollUrl);
+            container.setAttribute('hx-trigger', 'every 5s');
+            container.setAttribute('hx-swap', 'outerHTML');
+            if (window.htmx) {
+                htmx.process(container);
+            }
+        } else {
+            container.removeAttribute('hx-trigger');
+        }
+    }
+
     function activateTab(targetId) {
         var tabs = document.querySelectorAll('.ec2-tab-btn');
         var panels = document.querySelectorAll('.ec2-tab-pane');
@@ -762,11 +781,15 @@
         var panel = document.getElementById(targetId);
         if (btn) btn.classList.add('active');
         if (panel) panel.classList.add('active');
+        syncRunsPolling(targetId === 'tab-runs');
         if (targetId === 'tab-history' && typeof window.initJobHistoryCompare === 'function') {
             window.initJobHistoryCompare();
         }
         lucide.createIcons();
     }
+
+    window.activateJobDetailTab = activateTab;
+    window.syncJobRunsPolling = syncRunsPolling;
 
     function tabParamToId(tab) {
         var map = {
@@ -1451,8 +1474,8 @@ function closeVersionDetailModal() {
 <script>
 function startRunPolling() {
     // 実行履歴タブに切り替える
-    if (typeof activateTab === 'function') {
-        activateTab('tab-runs');
+    if (typeof window.activateJobDetailTab === 'function') {
+        window.activateJobDetailTab('tab-runs');
     }
     var urlParams = new URLSearchParams(window.location.search);
     urlParams.set('tab', 'runs');
@@ -1490,16 +1513,27 @@ function startRunPolling() {
     // テーブルコンテナにHTMXポーリング属性を付加して即座に発火
     var container = document.getElementById('runs-table-container');
     if (container) {
-        container.setAttribute('hx-get', '/jobs/{{ job.name }}/runs');
-        container.setAttribute('hx-trigger', 'every 5s');
-        container.setAttribute('hx-swap', 'outerHTML');
-        htmx.process(container);
+        if (typeof window.syncJobRunsPolling === 'function') {
+            window.syncJobRunsPolling(true);
+        }
         
         // 少し遅延させてポーリングリクエストを発火（APIのトリガー処理を待つため）
         setTimeout(function() {
-            htmx.trigger(container, 'every 5s');
+            if (window.htmx) {
+                htmx.ajax('GET', container.getAttribute('data-poll-url'), {
+                    target: '#runs-table-container',
+                    swap: 'outerHTML'
+                });
+            }
         }, 1500);
     }
 }
+
+document.addEventListener('htmx:afterSwap', function(event) {
+    if (event.target.id === 'runs-table-container' && typeof window.syncJobRunsPolling === 'function') {
+        var isRunsTabActive = document.getElementById('tab-runs')?.classList.contains('active');
+        window.syncJobRunsPolling(!!isRunsTabActive);
+    }
+});
 </script>
 {% endblock %}

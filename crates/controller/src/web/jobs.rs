@@ -129,7 +129,6 @@ struct JobRunsTableTemplate {
     page_items: Vec<Option<u32>>,
     current_sort: String,
     empty_runs: Vec<()>,
-    is_polling: bool,
 }
 crate::impl_into_response!(JobRunsTableTemplate);
 
@@ -139,7 +138,6 @@ struct JobDetailTemplate {
     job: Job,
     job_name: String,
     initial_tab: String,
-    is_polling: bool,
     job_type_str: &'static str,
     worker_definition_name: String,
     timeout_minutes: u32,
@@ -1118,15 +1116,6 @@ async fn job_detail_page(
         Vec::new()
     };
 
-    let active_runs_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM job_runs WHERE job_id = ? AND status IN ('pending', 'scheduled', 'queued', 'running', 'retrying')"
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await
-    .unwrap_or(0);
-    let is_polling = active_runs_count > 0;
-
     JobDetailTemplate {
         job_name: job.name.clone(),
         job,
@@ -1143,7 +1132,6 @@ async fn job_detail_page(
         page_items: pages.into_iter().map(Some).collect(),
         current_sort,
         empty_runs,
-        is_polling,
         is_dag,
         command_preview,
         env_vars_list,
@@ -1230,15 +1218,6 @@ async fn job_runs_list(
         Vec::new()
     };
 
-    let active_runs_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM job_runs WHERE job_id = ? AND status IN ('pending', 'scheduled', 'queued', 'running', 'retrying')"
-    )
-    .bind(id)
-    .fetch_one(&state.db)
-    .await
-    .unwrap_or(0);
-    let is_polling = active_runs_count > 0;
-
     JobRunsTableTemplate {
         job_name: job.name.clone(),
         recent_runs,
@@ -1250,7 +1229,6 @@ async fn job_runs_list(
         page_items: pages.into_iter().map(Some).collect(),
         current_sort,
         empty_runs,
-        is_polling,
     }
     .into_response()
 }
