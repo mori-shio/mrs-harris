@@ -36,6 +36,7 @@ struct RunDetailTemplate {
     run: JobRun,
     job_name: String,
     run_number: i64,
+    is_live_polling: bool,
     is_dag: bool,
     task_runs: Vec<TaskRunItem>,
     status_ja: String,
@@ -56,6 +57,7 @@ struct RunDetailLiveTemplate {
     run: JobRun,
     job_name: String,
     run_number: i64,
+    is_live_polling: bool,
     is_dag: bool,
     task_runs: Vec<TaskRunItem>,
     status_ja: String,
@@ -94,16 +96,16 @@ async fn fetch_run_detail_data(
     i64,    // run_number
     bool,   // is_dag
     Vec<TaskRunItem>,
-    String, // status_ja
+    String,       // status_ja
     &'static str, // status_badge_class
-    String, // trigger_ja
-    String, // duration_str
-    String, // started_at_str
-    String, // finished_at_str
-    String, // dag_tasks_json
-    String, // dag_edges_json
-    String, // task_runs_json
-    String, // config_payload_json
+    String,       // trigger_ja
+    String,       // duration_str
+    String,       // started_at_str
+    String,       // finished_at_str
+    String,       // dag_tasks_json
+    String,       // dag_edges_json
+    String,       // task_runs_json
+    String,       // config_payload_json
 )> {
     let run = crate::db::runs::get_run(pool, &id)
         .await?
@@ -293,6 +295,7 @@ async fn run_detail_page(
 ) -> impl IntoResponse {
     match fetch_run_detail_data(&state.db, id).await {
         Ok(data) => RunDetailTemplate {
+            is_live_polling: !data.0.status.is_terminal(),
             run: data.0,
             job_name: data.1,
             run_number: data.2,
@@ -327,6 +330,7 @@ async fn run_detail_live(
 ) -> impl IntoResponse {
     match fetch_run_detail_data(&state.db, id).await {
         Ok(data) => RunDetailLiveTemplate {
+            is_live_polling: !data.0.status.is_terminal(),
             run: data.0,
             job_name: data.1,
             run_number: data.2,
@@ -364,16 +368,16 @@ async fn fetch_run_detail_data_by_number(
     i64,    // run_number
     bool,   // is_dag
     Vec<TaskRunItem>,
-    String, // status_ja
+    String,       // status_ja
     &'static str, // status_badge_class
-    String, // trigger_ja
-    String, // duration_str
-    String, // started_at_str
-    String, // finished_at_str
-    String, // dag_tasks_json
-    String, // dag_edges_json
-    String, // task_runs_json
-    String, // config_payload_json
+    String,       // trigger_ja
+    String,       // duration_str
+    String,       // started_at_str
+    String,       // finished_at_str
+    String,       // dag_tasks_json
+    String,       // dag_edges_json
+    String,       // task_runs_json
+    String,       // config_payload_json
 )> {
     let run = crate::db::runs::get_run_by_number(pool, &job_id, run_number)
         .await?
@@ -397,6 +401,7 @@ async fn run_detail_by_number(
 
     match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
         Ok(data) => RunDetailTemplate {
+            is_live_polling: !data.0.status.is_terminal(),
             run: data.0,
             job_name: data.1,
             run_number: data.2,
@@ -439,6 +444,7 @@ async fn run_detail_by_number_live(
 
     match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
         Ok(data) => RunDetailLiveTemplate {
+            is_live_polling: !data.0.status.is_terminal(),
             run: data.0,
             job_name: data.1,
             run_number: data.2,

@@ -16,10 +16,12 @@
                 <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
             </a>
             <h2>実行履歴&nbsp;&nbsp;<span style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">#{{ run_number }}</span></h2>
+            {% if is_live_polling %}
             <div id="polling-indicator" class="htmx-indicator" style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted);">
                 <i data-lucide="refresh-cw" class="spin" style="width: 12px; height: 12px;"></i>
                 更新中...
             </div>
+            {% endif %}
         </div>
     </div>
     <div style="display: flex; gap: 12px;">
@@ -35,7 +37,15 @@
     </div>
 </div>
 
-<div id="run-detail-live-poll" hx-get="/runs/{{ run.id }}/live" hx-select="#run-detail-live-poll" hx-trigger="every 3s" hx-swap="outerHTML" hx-indicator="#polling-indicator">
+<div id="run-detail-live-poll"
+    {% if is_live_polling %}
+    hx-get="/runs/{{ run.id }}/live"
+    hx-select="#run-detail-live-poll"
+    hx-trigger="every 3s"
+    hx-swap="outerHTML"
+    hx-indicator="#polling-indicator"
+    {% endif %}
+>
     <div style="display: flex; flex-direction: column; gap: 24px;">
         
         <!-- DAG Task Flows & Statuses -->
