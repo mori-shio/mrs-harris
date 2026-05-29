@@ -218,6 +218,7 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use mrs_harris_common::models::job::WorkerType;
+    use mrs_harris_common::models::run::{RunStatus, TriggerType};
 
     fn sample_run(run_number: i64) -> JobRun {
         let now = Utc.with_ymd_and_hms(2026, 5, 28, 12, 0, 0).unwrap();
