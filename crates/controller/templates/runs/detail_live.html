@@ -266,7 +266,8 @@
             var logs = JSON.parse(event.data);
             logs.forEach(function(log) {
                 var lineDiv = document.createElement('div');
-                lineDiv.className = 'log-line log-line-' + log.stream;
+                var isTraceLine = log.stream === 'stderr' && typeof log.line === 'string' && log.line.startsWith('+ ');
+                lineDiv.className = 'log-line ' + (isTraceLine ? 'log-line-trace' : 'log-line-' + log.stream);
                 var timeStr = '';
                 if (log.logged_at) {
                     var date = new Date(log.logged_at);
