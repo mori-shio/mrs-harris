@@ -16,6 +16,14 @@ pub struct ExecutionResult {
 
 /// シェルコマンドを実行
 pub async fn execute_shell_command(task_info: &super::reporter::TaskInfo) -> ExecutionResult {
+    execute_shell_command_with_line_callback(task_info, None).await
+}
+
+/// シェルコマンドを実行し、stdout/stderr を行単位で callback する
+pub async fn execute_shell_command_with_line_callback(
+    task_info: &super::reporter::TaskInfo,
+    line_callback: Option<super::log_capture::LineCallback>,
+) -> ExecutionResult {
     let payload: ShellPayload = match serde_json::from_value(task_info.payload.clone()) {
         Ok(p) => p,
         Err(e) => {
@@ -64,6 +72,8 @@ pub async fn execute_shell_command(task_info: &super::reporter::TaskInfo) -> Exe
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     let run_id = task_info.run_id;
+    let stdout_callback = line_callback.clone();
+    let stderr_callback = line_callback;
 
     let stdout_handle = tokio::spawn(async move {
         let mut lines = Vec::new();
@@ -71,14 +81,20 @@ pub async fn execute_shell_command(task_info: &super::reporter::TaskInfo) -> Exe
             let reader = BufReader::new(stdout);
             let mut line_reader = reader.lines();
             while let Ok(Some(line)) = line_reader.next_line().await {
-                lines.push(LogLine {
+                let log_line = LogLine {
                     id: None,
                     run_id,
                     task_name: None,
                     stream: LogStream::Stdout,
                     line,
                     logged_at: chrono::Utc::now(),
-                });
+                };
+                if let Some(callback) = &stdout_callback
+                    && let Err(error) = callback(log_line.clone()).await
+                {
+                    tracing::warn!(run_id = %run_id, %error, "stdout line callback failed");
+                }
+                lines.push(log_line);
             }
         }
         lines
@@ -90,14 +106,20 @@ pub async fn execute_shell_command(task_info: &super::reporter::TaskInfo) -> Exe
             let reader = BufReader::new(stderr);
             let mut line_reader = reader.lines();
             while let Ok(Some(line)) = line_reader.next_line().await {
-                lines.push(LogLine {
+                let log_line = LogLine {
                     id: None,
                     run_id,
                     task_name: None,
                     stream: LogStream::Stderr,
                     line,
                     logged_at: chrono::Utc::now(),
-                });
+                };
+                if let Some(callback) = &stderr_callback
+                    && let Err(error) = callback(log_line.clone()).await
+                {
+                    tracing::warn!(run_id = %run_id, %error, "stderr line callback failed");
+                }
+                lines.push(log_line);
             }
         }
         lines
@@ -179,5 +201,60 @@ pub async fn execute_shell_command(task_info: &super::reporter::TaskInfo) -> Exe
             error: Some(format!("プロセス待機エラー: {}", e)),
             duration_ms,
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::log_capture::LineCallback;
+    use super::*;
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+
+    fn sample_task_info(command: &str, script: &str) -> super::super::reporter::TaskInfo {
+        super::super::reporter::TaskInfo {
+            run_id: 42,
+            job_id: 7,
+            payload: serde_json::json!({
+                "command": command,
+                "args": ["-c", script],
+                "working_dir": null,
+                "env": {}
+            }),
+            timeout_sec: 30,
+        }
+    }
+
+    #[tokio::test]
+    async fn execute_shell_command_invokes_line_callback_for_stdout_and_stderr() {
+        let task_info = sample_task_info("/bin/sh", "printf 'out\\n'; printf 'err\\n' >&2");
+        let callback_lines = Arc::new(Mutex::new(Vec::new()));
+        let callback_lines_for_sink = callback_lines.clone();
+
+        let callback: LineCallback = Arc::new(move |line| {
+            let callback_lines = callback_lines_for_sink.clone();
+            Box::pin(async move {
+                callback_lines.lock().await.push(line);
+                Ok(())
+            })
+        });
+
+        let result = execute_shell_command_with_line_callback(&task_info, Some(callback)).await;
+
+        assert_eq!(result.status, RunStatus::Succeeded);
+        assert_eq!(result.logs.len(), 2);
+
+        let callback_lines = callback_lines.lock().await;
+        assert_eq!(callback_lines.len(), 2);
+        assert!(
+            callback_lines
+                .iter()
+                .any(|line| line.stream == LogStream::Stdout && line.line == "out")
+        );
+        assert!(
+            callback_lines
+                .iter()
+                .any(|line| line.stream == LogStream::Stderr && line.line == "err")
+        );
     }
 }

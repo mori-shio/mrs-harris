@@ -1,4 +1,10 @@
 use mrs_harris_common::models::run::{LogLine, LogStream};
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+
+pub type LineCallbackFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>;
+pub type LineCallback = Arc<dyn Fn(LogLine) -> LineCallbackFuture + Send + Sync>;
 
 /// ログバッファ — stdout/stderr をキャプチャして LogLine に変換
 pub struct LogCapture {
