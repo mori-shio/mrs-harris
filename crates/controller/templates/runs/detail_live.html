@@ -243,6 +243,13 @@
     var logBody = document.getElementById('log-body');
     var logStatus = document.getElementById('log-status');
     if (!logBody) return;
+    var logTimestampFormatter = new Intl.DateTimeFormat('ja-JP', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        fractionalSecondDigits: 3,
+        hour12: false
+    });
 
     var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     var wsUrl = protocol + '//' + window.location.host + '/runs/' + runId + '/logs/ws';
@@ -263,7 +270,7 @@
                 var timeStr = '';
                 if (log.logged_at) {
                     var date = new Date(log.logged_at);
-                    timeStr = date.toLocaleTimeString() + ' ';
+                    timeStr = logTimestampFormatter.format(date) + ' ';
                 }
                 var prefix = '';
                 if (log.task_name) {
