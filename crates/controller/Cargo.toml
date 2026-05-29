@@ -40,6 +40,7 @@ toml = { workspace = true }
 
 # AWS SDK
 aws-config = "1"
+aws-sdk-s3 = "1"
 aws-sdk-ecs = "1"
 aws-sdk-lambda = "1"
 aws-sdk-ssm = "1"

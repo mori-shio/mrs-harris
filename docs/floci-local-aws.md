@@ -28,6 +28,20 @@ docker run --rm -it \
 4. `job_logs` から当該 run の hot logs が削除されること
 5. 実行詳細画面からアーカイブログを再表示できること
 
+設定例:
+
+```toml
+[log_archive]
+store = "s3"
+s3_bucket = "mrs-harris-logs"
+s3_prefix = "dev"
+s3_region = "us-east-1"
+s3_endpoint_url = "http://localhost:4566"
+s3_force_path_style = true
+```
+
+`floci` / LocalStack 系の endpoint を使う場合は、`s3_force_path_style = true` を推奨する。
+
 ## Lambda worker 検証
 
 1. `floci` 上に callback 付き Lambda を定義する

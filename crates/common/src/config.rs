@@ -96,6 +96,12 @@ pub struct LogArchiveConfig {
     pub s3_bucket: Option<String>,
     #[serde(default)]
     pub s3_prefix: Option<String>,
+    #[serde(default)]
+    pub s3_region: Option<String>,
+    #[serde(default)]
+    pub s3_endpoint_url: Option<String>,
+    #[serde(default)]
+    pub s3_force_path_style: Option<bool>,
 }
 
 fn default_log_archive_store() -> LogArchiveStore {
@@ -113,6 +119,9 @@ impl Default for LogArchiveConfig {
             local_file_base_dir: default_local_file_base_dir(),
             s3_bucket: None,
             s3_prefix: None,
+            s3_region: None,
+            s3_endpoint_url: None,
+            s3_force_path_style: None,
         }
     }
 }

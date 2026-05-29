@@ -1,12 +1,12 @@
 use crate::app::AppState;
-use crate::log_archive::{LogArchiveStore, local_store_from_config};
+use crate::log_archive::{LogArchiveStore, archive_store_from_config};
 
 pub async fn archive_terminal_runs(state: &AppState) -> anyhow::Result<()> {
-    let store = local_store_from_config(&state.config);
+    let store = archive_store_from_config(&state.config)?;
     let mut processed = 0usize;
 
     while let Some(run) = crate::db::runs::claim_terminal_run_for_archival(&state.db).await? {
-        archive_claimed_run(state, &store, run).await?;
+        archive_claimed_run(state, store.as_ref(), run).await?;
         processed += 1;
     }
 
@@ -17,7 +17,7 @@ pub async fn archive_terminal_runs(state: &AppState) -> anyhow::Result<()> {
 
 async fn archive_claimed_run(
     state: &AppState,
-    store: &impl LogArchiveStore,
+    store: &dyn LogArchiveStore,
     run: mrs_harris_common::models::run::JobRun,
 ) -> anyhow::Result<()> {
     tracing::info!(run_id = run.id, "Claimed terminal run for archival");
@@ -214,8 +214,8 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        let store = crate::log_archive::local_store_from_config(&config);
-        archive_claimed_run(&state, &store, claimed_run)
+        let store = crate::log_archive::archive_store_from_config(&config).unwrap();
+        archive_claimed_run(&state, store.as_ref(), claimed_run)
             .await
             .unwrap();
 
