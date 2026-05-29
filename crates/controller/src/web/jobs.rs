@@ -153,7 +153,7 @@ struct JobDetailTemplate {
     empty_runs: Vec<()>,
     is_dag: bool,
     command_preview: String,
-    env_vars_list: Vec<(String, String)>,
+    env_vars_text: String,
     ssm_region: String,
     ssm_path: String,
     ssm_recursive: bool,
@@ -1050,6 +1050,11 @@ async fn job_detail_page(
     }
 
     env_vars_list.sort_by(|a, b| a.0.cmp(&b.0));
+    let env_vars_text = env_vars_list
+        .iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect::<Vec<_>>()
+        .join("\n");
 
     let timeout_minutes = job.timeout_sec / 60;
 
@@ -1134,7 +1139,7 @@ async fn job_detail_page(
         empty_runs,
         is_dag,
         command_preview,
-        env_vars_list,
+        env_vars_text,
         ssm_region,
         ssm_path,
         ssm_recursive,

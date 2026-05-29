@@ -425,24 +425,12 @@
                 直接設定された環境変数
             </h4>
 
-            {% if env_vars_list.is_empty() %}
+            {% if env_vars_text.is_empty() %}
             <div style="text-align:center;padding:40px 0;border:1px dashed rgba(255,255,255,0.06);border-radius:var(--radius-md);color:var(--text-muted);">
                 設定なし
             </div>
             {% else %}
-            <div class="table-container">
-                <table class="data-table" style="font-size:0.85rem;">
-                    <thead><tr><th>変数名</th><th>値</th></tr></thead>
-                    <tbody>
-                        {% for pair in env_vars_list %}
-                        <tr>
-                            <td style="font-family:'JetBrains Mono',monospace;font-weight:600;">{{ pair.0 }}</td>
-                            <td style="font-family:'JetBrains Mono',monospace;color:var(--color-primary-light);">{{ pair.1 }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+            <textarea class="form-control" readonly style="min-height: 140px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; white-space: pre; overflow-wrap: normal;">{{ env_vars_text }}</textarea>
             {% endif %}
         </div>
 
