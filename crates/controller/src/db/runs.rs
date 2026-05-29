@@ -495,15 +495,15 @@ pub async fn claim_terminal_run_for_archival(pool: &MySqlPool) -> anyhow::Result
     let mut tx = pool.begin().await?;
 
     let row = sqlx::query(
-        r#"SELECT r.*, h.version as config_version, \
-                  COALESCE(w.worker_definition_id, j.worker_definition_id) as worker_definition_id, \
-                  COALESCE(wd.worker_type, jd.worker_type) as worker_type \
-           FROM job_runs r \
-           LEFT JOIN job_history h ON r.job_history_id = h.id \
-           LEFT JOIN jobs j ON r.job_id = j.id \
-           LEFT JOIN workers w ON r.worker_id = w.id \
-           LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id \
-           LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id \
+        r#"SELECT r.*, h.version as config_version,
+                  COALESCE(w.worker_definition_id, j.worker_definition_id) as worker_definition_id,
+                  COALESCE(wd.worker_type, jd.worker_type) as worker_type
+           FROM job_runs r
+           LEFT JOIN job_history h ON r.job_history_id = h.id
+           LEFT JOIN jobs j ON r.job_id = j.id
+           LEFT JOIN workers w ON r.worker_id = w.id
+           LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id
+           LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id
            WHERE r.status IN ('succeeded', 'failed', 'cancelled', 'dead_letter')
              AND (r.log_archive_status IS NULL OR r.log_archive_status IN ('pending', 'failed'))
            ORDER BY COALESCE(r.finished_at, r.updated_at) ASC
