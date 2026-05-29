@@ -15,6 +15,8 @@
 ## ステータス表示
  - [x] **実行ステータス表記の統一**:
   実行詳細画面のステータス表示が、ジョブ詳細の実行履歴と同じ文言・同じバッジルールで表示されること。
+- [x] **終端状態の終了日時・実行時間表示**:
+  実行詳細画面では、`running` 以外の終端状態（`succeeded / failed / cancelled / dead_letter`）であれば、終了日時と実行時間が `-` ではなく表示されること。
 - [x] **終端状態での live polling 停止**:
   実行詳細画面では、`succeeded / failed / cancelled / dead_letter` など終端状態の run に対して `/runs/:id/live` への継続 polling を行わないこと。非終端状態の run では従来どおり live 更新が継続すること。
 

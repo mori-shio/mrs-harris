@@ -10,6 +10,25 @@ fn require_job_history_id(job_id: i64, job_history_id: Option<i64>) -> anyhow::R
     job_history_id.ok_or_else(|| anyhow::anyhow!("job {} has no job_history record", job_id))
 }
 
+async fn infer_terminal_duration_ms(
+    pool: &MySqlPool,
+    id: &i64,
+    finished_at: DateTime<Utc>,
+    duration_ms: Option<i64>,
+) -> anyhow::Result<Option<i64>> {
+    if duration_ms.is_some() {
+        return Ok(duration_ms);
+    }
+
+    let started_at: Option<DateTime<Utc>> =
+        sqlx::query_scalar("SELECT started_at FROM job_runs WHERE id = ?")
+            .bind(id)
+            .fetch_one(pool)
+            .await?;
+
+    Ok(started_at.map(|started| (finished_at - started).num_milliseconds().max(0)))
+}
+
 fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
     let id: i64 = row.try_get("id")?;
 
@@ -248,6 +267,11 @@ pub async fn update_run_status(
 ) -> anyhow::Result<()> {
     let status_str = status.to_string();
     let now = Utc::now();
+    let terminal_duration_ms = if status.is_terminal() {
+        infer_terminal_duration_ms(pool, id, now, duration_ms).await?
+    } else {
+        duration_ms
+    };
 
     let mut query_str = "UPDATE job_runs SET status = ?".to_string();
     if status == RunStatus::Running {
@@ -273,7 +297,7 @@ pub async fn update_run_status(
     if status == RunStatus::Running {
         query = query.bind(now);
     } else if status.is_terminal() {
-        query = query.bind(now).bind(duration_ms);
+        query = query.bind(now).bind(terminal_duration_ms);
     }
 
     if let Some(w_id) = worker_id {
@@ -422,12 +446,16 @@ pub async fn move_to_dead_letter(
     id: &i64,
     error: Option<&str>,
 ) -> anyhow::Result<()> {
+    let finished_at = Utc::now();
+    let duration_ms = infer_terminal_duration_ms(pool, id, finished_at, None).await?;
     let result = sqlx::query(
         r#"UPDATE job_runs 
-           SET status = 'dead_letter', error = ?
+           SET status = 'dead_letter', error = ?, finished_at = ?, duration_ms = ?
            WHERE id = ?"#,
     )
     .bind(error)
+    .bind(finished_at)
+    .bind(duration_ms)
     .bind(id)
     .execute(pool)
     .await?;
