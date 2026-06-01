@@ -27,9 +27,6 @@
                     <td>
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                             <span class="badge badge-{{ run.status_badge_class }}">{{ run.status_ja }}</span>
-                            {% if run.has_archive_state %}
-                            <span class="archive-state-pill archive-state-pill-{{ run.archive_badge_class }}">{{ run.archive_label }}</span>
-                            {% endif %}
                         </div>
                     </td>
                     <td>{{ run.trigger_ja }}</td>

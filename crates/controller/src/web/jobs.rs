@@ -35,9 +35,6 @@ pub struct JobRenderItem {
 pub struct JobRunRenderItem {
     pub status_badge_class: &'static str,
     pub status_ja: &'static str,
-    pub has_archive_state: bool,
-    pub archive_badge_class: &'static str,
-    pub archive_label: String,
     pub run_number: i64,
     pub trigger_ja: &'static str,
     pub duration_str: String,
@@ -68,34 +65,28 @@ fn job_run_render_item_from_run(run: &JobRun) -> JobRunRenderItem {
         None => "-".to_string(),
     };
 
-    let (has_archive_state, archive_badge_class, archive_label) =
-        if let Some(status) = run.log_archive_status.as_ref() {
-            let store_suffix = run
-                .log_archive_store
-                .as_ref()
-                .map(|store| format!(" ({})", store.label_ja()))
-                .unwrap_or_default();
-            (
-                true,
-                status.badge_class(),
-                format!("{}{}", status.label_ja(), store_suffix),
-            )
-        } else {
-            (false, "info", String::new())
-        };
-
     JobRunRenderItem {
         status_badge_class: run.status.badge_class(),
         status_ja,
-        has_archive_state,
-        archive_badge_class,
-        archive_label,
         run_number: run.run_number,
         trigger_ja,
         duration_str,
         started_at_str,
         config_version_str,
     }
+}
+
+fn display_shell_command(shell: &ShellPayload) -> String {
+    if shell.command == "sh" && shell.args.len() >= 2 && shell.args[0] == "-c" {
+        return shell.args[1..].join(" ");
+    }
+
+    let mut cmd = shell.command.clone();
+    if !shell.args.is_empty() {
+        cmd.push(' ');
+        cmd.push_str(&shell.args.join(" "));
+    }
+    cmd
 }
 
 #[derive(Clone)]
@@ -1053,18 +1044,7 @@ async fn job_detail_page(
     } else {
         // Parse payload as shell command
         if let Ok(shell) = serde_json::from_value::<ShellPayload>(job.payload.clone()) {
-            let mut cmd = String::new();
-            if shell.command == "sh" && shell.args.len() >= 2 && shell.args[0] == "-c" {
-                // Unwrap "sh -c"
-                cmd.push_str(&shell.args[1..].join(" "));
-            } else {
-                cmd = shell.command;
-                if !shell.args.is_empty() {
-                    cmd.push(' ');
-                    cmd.push_str(&shell.args.join(" "));
-                }
-            }
-            command_preview = cmd;
+            command_preview = display_shell_command(&shell);
 
             if !shell.env.is_empty() {
                 for (k, v) in &shell.env {
@@ -1873,12 +1853,7 @@ async fn build_job_snapshot(pool: &MySqlPool, job: &Job) -> serde_json::Value {
             .unwrap_or(false);
     } else {
         if let Ok(shell) = serde_json::from_value::<ShellPayload>(job.payload.clone()) {
-            let mut cmd = shell.command;
-            if !shell.args.is_empty() {
-                cmd.push(' ');
-                cmd.push_str(&shell.args.join(" "));
-            }
-            script_or_dag = serde_json::Value::String(cmd);
+            script_or_dag = serde_json::Value::String(display_shell_command(&shell));
 
             for (k, v) in &shell.env {
                 env_vars.insert(k.clone(), v.clone());
