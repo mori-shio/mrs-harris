@@ -75,10 +75,28 @@ pub fn local_store_from_config(config: &ControllerConfig) -> LocalFileLogArchive
     LocalFileLogArchiveStore::new(&config.log_archive.local_file_base_dir)
 }
 
+pub fn s3_store_from_config(config: &ControllerConfig) -> Result<S3LogArchiveStore> {
+    S3LogArchiveStore::from_config(config)
+}
+
 pub fn archive_store_from_config(config: &ControllerConfig) -> Result<DynLogArchiveStore> {
     match config.log_archive.store {
         LogArchiveStoreKind::LocalFile => Ok(Arc::new(local_store_from_config(config))),
-        LogArchiveStoreKind::S3 => Ok(Arc::new(S3LogArchiveStore::from_config(config)?)),
+        LogArchiveStoreKind::S3 => Ok(Arc::new(s3_store_from_config(config)?)),
+    }
+}
+
+pub fn archive_store_for_run(
+    config: &ControllerConfig,
+    run: &JobRun,
+) -> Result<DynLogArchiveStore> {
+    match run
+        .log_archive_store
+        .as_ref()
+        .unwrap_or(&config.log_archive.store)
+    {
+        LogArchiveStoreKind::LocalFile => Ok(Arc::new(local_store_from_config(config))),
+        LogArchiveStoreKind::S3 => Ok(Arc::new(s3_store_from_config(config)?)),
     }
 }
 
@@ -519,6 +537,52 @@ mod tests {
         };
 
         assert!(archive_store_from_config(&config).is_ok());
+    }
+
+    #[test]
+    fn archive_store_for_run_uses_run_metadata_store_before_config_default() {
+        let mut run = sample_run();
+        run.log_archive_store = Some(LogArchiveStoreKind::S3);
+        run.log_archive_status = Some(mrs_harris_common::models::run::LogArchiveStatus::Archived);
+
+        let config = ControllerConfig {
+            server: mrs_harris_common::config::ServerConfig {
+                host: "127.0.0.1".to_string(),
+                port: 8080,
+                external_url: "http://localhost:8080".to_string(),
+            },
+            database: mrs_harris_common::config::DatabaseConfig {
+                url: "mysql://example".to_string(),
+                max_connections: 5,
+            },
+            scheduler: Default::default(),
+            fargate: mrs_harris_common::config::FargateConfig {
+                cluster_arn: "cluster".to_string(),
+                task_definition: "task".to_string(),
+                subnets: vec![],
+                security_groups: vec![],
+                container_name: "container".to_string(),
+                assign_public_ip: None,
+            },
+            lambda: mrs_harris_common::config::LambdaConfig {
+                function_name: "function".to_string(),
+                qualifier: None,
+            },
+            log_archive: LogArchiveConfig {
+                store: LogArchiveStoreKind::LocalFile,
+                local_file_base_dir: "data/log-archives".to_string(),
+                s3_bucket: Some("archive-bucket".to_string()),
+                s3_prefix: Some("prod".to_string()),
+                s3_region: Some("us-east-1".to_string()),
+                s3_endpoint_url: Some("http://localhost:4566".to_string()),
+                s3_force_path_style: Some(true),
+            },
+            controller_worker: Default::default(),
+            notification: Default::default(),
+            auth: Default::default(),
+        };
+
+        assert!(archive_store_for_run(&config, &run).is_ok());
     }
 
     #[tokio::test]

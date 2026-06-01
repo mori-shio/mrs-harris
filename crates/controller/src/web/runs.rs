@@ -542,7 +542,6 @@ fn map_row_to_log(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<LogLine> {
 
 async fn handle_socket(mut socket: WebSocket, state: AppState, run_id: i64) {
     let mut last_log_id: u64 = 0;
-    let archive_store = crate::log_archive::archive_store_from_config(&state.config).ok();
     let initial_run = match crate::db::runs::get_run(&state.db, &run_id).await {
         Ok(run) => run,
         Err(e) => {
@@ -558,18 +557,19 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, run_id: i64) {
     // 1. Fetch initial logs
     let initial_logs = match &initial_run {
         Some(run) if run.log_archive_status == Some(LogArchiveStatus::Archived) => {
-            match archive_store.as_ref() {
-                Some(store) => match store.get_run_logs(run).await {
+            match crate::log_archive::archive_store_for_run(&state.config, run) {
+                Ok(store) => match store.get_run_logs(run).await {
                     Ok(logs) => Ok(logs),
                     Err(e) => {
                         tracing::error!("Failed to get archived logs for run {}: {}", run_id, e);
                         crate::db::logs::get_logs(&state.db, &run_id).await
                     }
                 },
-                None => {
+                Err(e) => {
                     tracing::error!(
-                        "Failed to build archive store for run {}. Falling back to hot logs.",
-                        run_id
+                        "Failed to resolve archive store for run {}: {}. Falling back to hot logs.",
+                        run_id,
+                        e
                     );
                     crate::db::logs::get_logs(&state.db, &run_id).await
                 }
