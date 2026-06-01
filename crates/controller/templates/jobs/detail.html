@@ -989,8 +989,8 @@ function compareVersions() {
     var hasDiff = false;
     
     allKeys.forEach(function(key) {
-        var valA = payloadA[key];
-        var valB = payloadB[key];
+        var valA = normalizeHistoryDisplayValue(key, payloadA[key]);
+        var valB = normalizeHistoryDisplayValue(key, payloadB[key]);
         
         var strA = typeof valA === 'object' ? JSON.stringify(valA, null, 2) : String(valA !== undefined ? valA : '—');
         var strB = typeof valB === 'object' ? JSON.stringify(valB, null, 2) : String(valB !== undefined ? valB : '—');
@@ -1262,6 +1262,31 @@ window.closeDiffModal = closeDiffModal;
 </div>
 
 <script>
+function unwrapShellCommandDisplay(value) {
+    if (typeof value !== 'string' || !value.startsWith('sh -c ')) {
+        return value;
+    }
+
+    var unwrapped = value.slice(6);
+    if (unwrapped.length >= 2) {
+        var first = unwrapped[0];
+        var last = unwrapped[unwrapped.length - 1];
+        if ((first === '\'' || first === '"') && first === last) {
+            return unwrapped.slice(1, -1);
+        }
+    }
+
+    return unwrapped;
+}
+
+function normalizeHistoryDisplayValue(key, value) {
+    if (key === 'スクリプト / DAG構成') {
+        return unwrapShellCommandDisplay(value);
+    }
+
+    return value;
+}
+
 function showVersionDetail(version, encodedPayload) {
     var payloadStr = decodeURIComponent(encodedPayload);
     var snapshot = JSON.parse(payloadStr);
@@ -1332,7 +1357,7 @@ function showVersionDetail(version, encodedPayload) {
     if (scriptOrDag) {
         if (typeof scriptOrDag === 'string') {
             document.getElementById('vd-payload-label').textContent = '実行するシェルスクリプト';
-            document.getElementById('vd-script').value = scriptOrDag;
+            document.getElementById('vd-script').value = normalizeHistoryDisplayValue('スクリプト / DAG構成', scriptOrDag);
         } else {
             document.getElementById('vd-payload-label').textContent = 'DAG タスク構成 (JSON)';
             document.getElementById('vd-script').value = JSON.stringify(scriptOrDag, null, 2);
