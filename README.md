@@ -1,125 +1,175 @@
-# Mrs. Harris (ミセス・ハリス) — サーバーレス分散ジョブスケジューラ
+<p align="center">
+  <h1 align="center">Mrs. Harris</h1>
+  <p align="center">
+    A serverless distributed job scheduler built in Rust — designed to replace Jenkins for modern cloud-native teams.
+  </p>
+</p>
 
-Mrs. Harris は、従来の Jenkins を代替することを目指して開発された、**Rust製のサーバーレス分散ジョブスケジューラシステム**です。
-単一バイナリによるシンプルな構成でありながら、コントローラーとワーカーの協調による分散実行、AWS Fargate / AWS Lambda を活用したサーバーレスジョブのスケジューリングを強みとしています。
-
----
-
-## 主な機能
-
-- **単一バイナリ統合**: コントローラーとワーカーを1つのバイナリに統合。起動引数（サブコマンド）の切り替えのみで動作します。
-- **サーバーレスワーカー**: ジョブ実行のバックエンドとして AWS Fargate および AWS Lambda をサポートし、リソースの動的な起動と自動シャットダウンを実現。
-- **MySQLによる永続化**: 全てのジョブ定義、実行履歴、タスク実行結果、詳細ログを MySQL に一元化し永続化します。
-- **DAG実行エンジン**: 依存関係を持つ複雑なタスク群を解析し、並列実行と順序制御をインテリジェントに行います。
-- **高機能通知システム**: Slack Webhook や Email (SMTP) を通じて、ジョブの成功・失敗・デッドレター移行といったイベントをリアルタイムに美しく通知。
-- **プレミアム Web UI**:
-  - HSL調整されたダーク・グラスモーフィズムデザイン。
-  - HTMXによる10秒間隔の自動ステータス更新。
-  - **カレンダー画面 (`/calendar`)**: FullCalendar.jsを統合し、ヒートマップ風のジョブ履歴を表示。
-  - **リアルタイムログ表示**: WebSocketを用いた自動スクロール付きのストリーミングログビューア。
+<p align="center">
+  <a href="#features">Features</a> &middot;
+  <a href="#quick-start">Quick Start</a> &middot;
+  <a href="#architecture">Architecture</a> &middot;
+  <a href="#roadmap">Roadmap</a> &middot;
+  <a href="#contributing">Contributing</a> &middot;
+  <a href="#license">License</a>
+</p>
 
 ---
 
-## ディレクトリ構成
+## What is Mrs. Harris?
 
-```text
-mrs-harris/
-├── Cargo.toml               # ワークスペース定義
-├── Dockerfile               # マルチステージビルドDockerfile
-├── docker-compose.yml       # ローカル動作検証環境 (MySQL + Web + Scheduler)
-├── config/                  # 設定ディレクトリ
-│   ├── controller.toml.example      # ローカル用設定サンプル
-│   └── controller-docker.toml.example # コンテナ用設定サンプル
-├── crates/
-│   ├── common/              # 共有型定義、設定、エラー型
-│   ├── controller/          # スケジューラ本体、APIサーバー、Web UI
-│   └── worker/              # シェルコマンド実行、ログキャプチャ、コールバック処理
-├── static/                  # 静的アセット (CSS/JS)
-└── crates/controller/templates/ # Askama テンプレート (HTML)
-```
+**Mrs. Harris** is an open-source job scheduler that runs your batch jobs, cron tasks, and multi-step pipelines on **AWS Fargate** and **AWS Lambda** — without managing any long-running worker servers.
+
+### The Problem
+
+Jenkins remains the de facto standard for job scheduling, but it comes with real operational pain:
+
+- **Always-on infrastructure** — Jenkins workers sit idle most of the time, yet you pay for them 24/7.
+- **Plugin sprawl** — Hundreds of plugins with varying quality, security posture, and compatibility.
+- **Fragile state** — Job configs live on disk; a single node failure can take down your entire CI/CD.
+- **Dated UI** — The web interface hasn't aged well, making it hard to observe and debug jobs at a glance.
+
+### How Mrs. Harris Solves This
+
+| Jenkins pain | Mrs. Harris approach |
+|---|---|
+| Always-on workers | **Serverless** — Fargate tasks and Lambda functions spin up on demand and shut down automatically. You pay only for the seconds your jobs actually run. |
+| Plugin sprawl | **Single binary** — Controller and worker ship as one binary. No plugins to install or update. |
+| Fragile file-based state | **MySQL-backed** — All job definitions, run history, and logs are stored in a durable relational database. |
+| Dated UI | **Modern Web UI** — Dark glassmorphism design, real-time log streaming via WebSocket, and a calendar heatmap for job history. |
 
 ---
 
-## クイックスタート (ローカル開発環境の立ち上げ)
+## Features
 
-もっとも簡単に Mrs. Harris を試すには、Docker Compose を使用します。ローカル標準構成は `web` と `scheduler` の 2 サービスです。
+- **Single binary** — One `mrs-harris` binary contains both the controller (API + scheduler) and the worker. Subcommands select the mode.
+- **Serverless workers** — First-class support for AWS Fargate and AWS Lambda as execution backends.
+- **DAG execution engine** — Define multi-step pipelines with task dependencies. Mrs. Harris resolves the graph, parallelizes independent tasks, and respects ordering constraints.
+- **Cron scheduling** — Standard cron expressions with automatic retry (fixed / exponential backoff) and dead-letter handling.
+- **Real-time log streaming** — WebSocket-based log viewer with auto-scroll. Logs are archived to local disk or S3 after completion.
+- **Notifications** — Slack and Email (SMTP) alerts on job success, failure, and dead-letter events.
+- **Web UI** — Built with Askama + HTMX. Includes a dashboard, job editor, run detail view, calendar heatmap (FullCalendar.js), worker management, and settings panel.
+- **Multi-replica safe** — Designed for horizontal scaling on Fargate with DB-based lease acquisition, row-level locking for run numbering, and claim-based task dispatch.
+- **TOML job definitions** — Import and export job configurations as TOML files for version-controlled job-as-code workflows.
 
-### 1. 設定ファイルの準備
+---
 
-まず、サンプル設定ファイルをコピーして環境に合わせて編集してください。
+## Quick Start
+
+The fastest way to try Mrs. Harris is with Docker Compose.
+
+### Prerequisites
+
+- Docker and Docker Compose
+- (Optional) Rust toolchain if building from source
+
+### 1. Clone and configure
 
 ```bash
+git clone https://github.com/YOUR_USERNAME/mrs-harris.git
+cd mrs-harris
+
 cp config/controller-docker.toml.example config/controller-docker.toml
 cp .env.example .env
 ```
 
-`.env` ファイルを開き、MySQL のパスワードを設定してください。設定したパスワードを `config/controller-docker.toml` の `database.url` にも反映してください。
+Edit `.env` to set your MySQL passwords, then update `config/controller-docker.toml` to match.
 
-### 2. リポジトリのビルドと起動
-以下のコマンドで、MySQLデータベースと Mrs. Harris の `web` / `scheduler` サービスが自動的にビルドされ、立ち上がります。
+### 2. Start the services
 
 ```bash
 docker-compose up --build
 ```
 
-起動サービス:
-- `web`: Web UI / API / WebSocket
-- `scheduler`: cron / retry / reaper / dispatcher / archive worker
+This starts three containers:
+- **mysql** — MySQL 8.0 database
+- **web** — Web UI, API server, and WebSocket endpoint
+- **scheduler** — Cron trigger, retry, reaper, dispatcher, and log archiver
 
-起動後、ブラウザで以下のアドレスにアクセスしてください：
-- **Web UI URL**: `http://localhost:8080`
-- **初期ログインアカウント**: ユーザーテーブルが空の場合、`admin` / `admin` で初期管理者が自動作成されます。
+### 3. Open the UI
 
-> **Warning**: 初期パスワードは必ずログイン後に変更してください。本番環境では `init-admin` サブコマンドで安全なパスワードを指定して作成することを推奨します。
+Navigate to **http://localhost:8080**. A default admin account (`admin` / `admin`) is created automatically on first launch.
 
-### 3. 単一プロセスの互換起動モード
+> **Warning** — Change the default password immediately. For production, use `mrs-harris init-admin --password <secure-password>` instead.
 
-`controller` サブコマンドは互換モードとして残っています。単一 EC2 インスタンスなどで `web + scheduler` を 1 プロセスにまとめたい場合は、以下で起動できます。
+### Building from source
 
 ```bash
 cp config/controller.toml.example config/controller.toml
-# config/controller.toml を編集してDB接続情報等を設定
+# Edit config/controller.toml with your database URL and settings
+
 cargo run --bin mrs-harris -- controller --config config/controller.toml
 ```
 
-通常のローカル検証と今後の運用前提は、`web` / `scheduler` の分離構成です。
+See `mrs-harris --help` for all available subcommands (`web`, `scheduler`, `controller`, `migrate`, `init-admin`, `worker`).
 
 ---
 
-## ジョブ定義 TOML ファイルの書き方
+## Architecture
 
-Mrs. Harris は、TOML ファイル形式でのジョブ定義インポートをサポートしています。
-
-### 例1: 定期実行ジョブ (`cron_backup.toml`)
-```toml
-[job]
-name = "Daily DB Backup"
-description = "毎日深夜にデータベースのバックアップを実行するジョブ"
-job_type = "cron"
-schedule = "0 0 2 * * *"
-worker_type = "fargate"
-payload = { command = "mysqldump", args = ["-u", "mrs_harris", "-p", "mrs_harris", ">", "/backup/db.sql"] }
-
-[job.retry]
-max_retries = 3
-backoff = "exponential"
-base_delay_sec = 10
-
-[job.timeout]
-seconds = 3600
-
-[job.notifications]
-channels = ["Slack Alert", "Admin Email"]
-on_events = ["failed", "dead_letter"]
+```text
+mrs-harris/
+├── Cargo.toml                          # Workspace root
+├── Dockerfile                          # Multi-stage build
+├── docker-compose.yml                  # Local dev environment
+├── config/
+│   ├── controller.toml.example         # Local config template
+│   └── controller-docker.toml.example  # Docker config template
+├── crates/
+│   ├── common/                         # Shared types, config, error types
+│   ├── controller/                     # Scheduler, API server, Web UI
+│   │   ├── migrations/                 # SQL migrations (sqlx)
+│   │   └── templates/                  # Askama HTML templates
+│   └── worker/                         # Shell execution, log capture, callbacks
+└── static/                             # CSS and JS assets
 ```
 
-### 例2: DAG（依存タスク）ジョブ (`etl_pipeline.toml`)
-複数のタスクを順序立てて実行し、依存解決を行います。
+**Key design decisions:**
+
+- **Askama** for server-rendered HTML — no JavaScript framework, just HTMX for interactivity.
+- **sqlx** with compile-time checked queries against MySQL.
+- **tokio** async runtime throughout.
+- **Controller / Worker separation** — the same binary, different entry points. Workers call back to the controller API on completion.
+
+---
+
+## Roadmap
+
+Mrs. Harris is in **alpha**. The core scheduling loop, DAG engine, Web UI, and Fargate/Lambda integration are functional and under active development. It is **not yet recommended for production use**.
+
+### Planned
+
+- [ ] **RBAC & multi-tenancy** — Role-based access control and workspace isolation
+- [ ] **GitHub / GitLab integration** — Trigger jobs from webhooks, report status back to commits
+- [ ] **Terraform / IaC bootstrap** — One-command infrastructure provisioning
+- [ ] **Plugin system** — Extensible worker types beyond Fargate and Lambda
+- [ ] **REST API stabilization** — Versioned public API with OpenAPI spec
+- [ ] **Comprehensive test suite** — Integration tests with testcontainers
+- [ ] **Observability** — Prometheus metrics endpoint and structured JSON logging
+- [ ] **Documentation site** — Guides, tutorials, and API reference
+
+### Completed
+
+- [x] Cron scheduling with retry and dead-letter
+- [x] DAG execution engine with parallel task dispatch
+- [x] AWS Fargate and Lambda worker backends
+- [x] Real-time WebSocket log streaming
+- [x] Web UI with dashboard, calendar, job editor, and run detail views
+- [x] Slack and Email notifications
+- [x] TOML-based job import/export
+- [x] Multi-replica safe scheduling (DB leases, row locking)
+- [x] Log archiving (local disk and S3)
+
+---
+
+## Job Definition Example
+
+Mrs. Harris uses TOML files for declarative job configuration:
 
 ```toml
 [job]
 name = "Daily ETL Pipeline"
-description = "データの抽出・変換・ロードを行うパイプライン"
+description = "Extract, transform, and load data from multiple sources"
 job_type = "dag"
 worker_type = "fargate"
 
@@ -134,38 +184,52 @@ worker_type = "lambda"
 payload = { command = "python3", args = ["extract.py", "--type=orders"] }
 
 [[job.tasks]]
-name = "transform_data"
-worker_type = "fargate"
+name = "transform"
 depends_on = ["extract_users", "extract_orders"]
 payload = { command = "spark-submit", args = ["transform.py"] }
 
 [[job.tasks]]
-name = "load_warehouse"
-worker_type = "fargate"
-depends_on = ["transform_data"]
+name = "load"
+depends_on = ["transform"]
 payload = { command = "spark-submit", args = ["load.py"] }
 ```
 
-### ジョブのインポート方法
-起動中のコントローラーコンテナ、またはローカルビルドされたバイナリから直接インポートできます。
+Import with:
 
 ```bash
-# ローカルバイナリで実行する場合
-cargo run --bin mrs-harris -- import --file config/examples/cron_backup.toml
+cargo run --bin mrs-harris -- import --file jobs/etl_pipeline.toml
 ```
-同名のジョブが存在する場合は、自動的に上書き（カスケード削除の後に再作成）されます。
 
 ---
 
-## 開発とテスト
+## Development
 
-### ユニットテスト・統合テストの実行
 ```bash
+# Run tests
 cargo test --workspace
-```
 
-### コード品質チェック
-```bash
+# Lint
 cargo clippy --workspace -- -D warnings
+
+# Format check
 cargo fmt --check --all
 ```
+
+---
+
+## Contributing
+
+Contributions are welcome! Mrs. Harris is in its early stages, and there are many ways to help:
+
+- **Bug reports** — Open an issue if something doesn't work as expected.
+- **Feature requests** — Suggest improvements or new capabilities.
+- **Code contributions** — Pick up an open issue or propose a change via pull request.
+- **Documentation** — Help improve the README, add examples, or write guides.
+
+Please open an issue before starting large changes so we can discuss the approach.
+
+---
+
+## License
+
+[MIT](LICENSE)
