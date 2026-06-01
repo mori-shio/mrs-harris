@@ -391,7 +391,7 @@ mod tests {
             job_id: 202,
             run_number: 3,
             status: RunStatus::Succeeded,
-            worker_type: WorkerType::Controller,
+            worker_type: WorkerType::Lambda,
             worker_id: None,
             trigger_type: TriggerType::Manual,
             attempt: 1,
@@ -531,7 +531,6 @@ mod tests {
                 s3_endpoint_url: Some("http://localhost:4566".to_string()),
                 s3_force_path_style: Some(true),
             },
-            controller_worker: Default::default(),
             notification: Default::default(),
             auth: Default::default(),
         };
@@ -577,7 +576,6 @@ mod tests {
                 s3_endpoint_url: Some("http://localhost:4566".to_string()),
                 s3_force_path_style: Some(true),
             },
-            controller_worker: Default::default(),
             notification: Default::default(),
             auth: Default::default(),
         };
@@ -621,7 +619,6 @@ mod tests {
                 s3_endpoint_url: Some("http://127.0.0.1:4566".to_string()),
                 s3_force_path_style: Some(true),
             },
-            controller_worker: Default::default(),
             notification: Default::default(),
             auth: Default::default(),
         };

@@ -112,8 +112,10 @@
             <select id="worker_type" name="worker_type" class="form-control" onchange="updateConfigPlaceholder()">
                 <option value="fargate" {% if worker_type == "fargate" %}selected{% endif %}>AWS Fargate (サーバーレスコンテナ)</option>
                 <option value="lambda" {% if worker_type == "lambda" %}selected{% endif %}>AWS Lambda (サーバーレス関数)</option>
-                <option value="controller" {% if worker_type == "controller" %}selected{% endif %}>Controller (Harris本体でのバックグラウンド実行)</option>
             </select>
+            <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 8px;">
+                ローカル検証では `lambda.function_name = "local"` または `fargate.cluster_arn = "local"` を使うと、AWS 呼び出しの代わりにローカル fallback 実行へ切り替わります。
+            </span>
         </div>
 
         <!-- Connection Config JSON -->
@@ -151,20 +153,16 @@
   "qualifier": "LATEST"
 }`;
 
-    const controllerPlaceholder = `{}`;
-
     function updateConfigPlaceholder() {
         const type = document.getElementById('worker_type').value;
         const configTextarea = document.getElementById('config_json');
         
         // 編集画面でない（新規作成）場合、デフォルト値に差し替える
-        if (!configTextarea.value.trim() || configTextarea.value === fargatePlaceholder || configTextarea.value === lambdaPlaceholder || configTextarea.value === controllerPlaceholder) {
+        if (!configTextarea.value.trim() || configTextarea.value === fargatePlaceholder || configTextarea.value === lambdaPlaceholder) {
             if (type === 'fargate') {
                 configTextarea.value = fargatePlaceholder;
-            } else if (type === 'lambda') {
-                configTextarea.value = lambdaPlaceholder;
             } else {
-                configTextarea.value = controllerPlaceholder;
+                configTextarea.value = lambdaPlaceholder;
             }
         }
     }

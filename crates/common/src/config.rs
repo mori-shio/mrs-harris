@@ -14,8 +14,6 @@ pub struct ControllerConfig {
     #[serde(default)]
     pub log_archive: LogArchiveConfig,
     #[serde(default)]
-    pub controller_worker: ControllerWorkerConfig,
-    #[serde(default)]
     pub notification: NotificationConfig,
     #[serde(default)]
     pub auth: AuthConfig,
@@ -122,24 +120,6 @@ impl Default for LogArchiveConfig {
             s3_region: None,
             s3_endpoint_url: None,
             s3_force_path_style: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ControllerWorkerConfig {
-    #[serde(default = "default_controller_worker_enabled")]
-    pub enabled: bool,
-}
-
-fn default_controller_worker_enabled() -> bool {
-    true
-}
-
-impl Default for ControllerWorkerConfig {
-    fn default() -> Self {
-        Self {
-            enabled: default_controller_worker_enabled(),
         }
     }
 }

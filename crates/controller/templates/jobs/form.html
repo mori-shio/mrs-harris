@@ -160,7 +160,7 @@
                 <select id="worker_definition_id" name="worker_definition_id" class="form-control" required>
                     {% for def in worker_defs %}
                     <option value="{{ def.id.to_string() }}" {% if def.id.to_string() == worker_definition_id %}selected{% endif %}>
-                        {{ def.name }} ({% if def.worker_type.to_string() == "fargate" %}Fargate{% else %}Lambda{% endif %}) {% if let Some(desc) = def.description.as_ref() %}- {{ desc }}{% endif %}
+                        {{ def.name }} ({% if def.worker_type.to_string() == "fargate" %}Fargate{% else if def.worker_type.to_string() == "lambda" %}Lambda{% else %}不明{% endif %}) {% if let Some(desc) = def.description.as_ref() %}- {{ desc }}{% endif %}
                     </option>
                     {% endfor %}
                 </select>

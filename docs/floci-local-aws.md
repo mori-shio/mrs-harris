@@ -69,10 +69,10 @@ aws --endpoint-url http://127.0.0.1:4566 s3api create-bucket --bucket mrs-harris
 2. Worker Definition を `fargate` で作成する
 3. callback と実行ログ収集が機能すること
 
-## controller worker の扱い
+## ローカル fallback の扱い
 
-- `controller_worker.enabled = true`
-  - ローカル開発用
-- `controller_worker.enabled = false`
-  - 本番寄り構成
-  - `controller` worker type の起動を拒否し、`lambda / fargate` のみ許可する
+- `controller` worker type は廃止し、使わない
+- ローカル開発では worker definition 側で以下を使う
+  - Lambda: `{"function_name": "local"}`
+  - Fargate: `{"cluster_arn": "local"}`
+- これらの設定では AWS 呼び出しの代わりに Controller 内の local fallback 実行へ切り替わる

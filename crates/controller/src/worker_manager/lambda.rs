@@ -92,28 +92,5 @@ async fn launch_aws_lambda(state: &AppState, run: &JobRun) -> anyhow::Result<Str
 }
 
 async fn launch_local_process(state: &AppState, run: &JobRun) -> anyhow::Result<String> {
-    let current_exe = std::env::current_exe()?;
-    let callback_url = format!("{}/api/internal/callback", state.config.server.external_url);
-    let task_id = run.id.to_string();
-
-    tracing::info!(
-        "Launching local worker process as Lambda fallback: {:?} worker --task-id {} --callback-url {}",
-        current_exe,
-        task_id,
-        callback_url
-    );
-
-    let mut child = tokio::process::Command::new(current_exe)
-        .arg("worker")
-        .arg("--task-id")
-        .arg(&task_id)
-        .arg("--callback-url")
-        .arg(&callback_url)
-        .spawn()?;
-
-    tokio::spawn(async move {
-        let _ = child.wait().await;
-    });
-
-    Ok(format!("local-process-{}", task_id))
+    crate::worker_manager::local_fallback::launch(state, run, "local-lambda").await
 }

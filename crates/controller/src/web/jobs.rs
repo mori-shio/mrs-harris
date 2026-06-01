@@ -250,7 +250,7 @@ mod tests {
             job_id: 20,
             run_number,
             status: RunStatus::Succeeded,
-            worker_type: WorkerType::Controller,
+            worker_type: WorkerType::Lambda,
             worker_id: None,
             trigger_type: TriggerType::Manual,
             attempt: 1,

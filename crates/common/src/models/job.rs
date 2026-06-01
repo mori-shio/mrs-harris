@@ -23,7 +23,19 @@ pub enum WorkerType {
     #[default]
     Fargate,
     Lambda,
-    Controller,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WorkerType;
+    use std::str::FromStr;
+
+    #[test]
+    fn worker_type_does_not_include_controller_variant() {
+        assert_eq!(WorkerType::Fargate.to_string(), "fargate");
+        assert_eq!(WorkerType::Lambda.to_string(), "lambda");
+        assert!(WorkerType::from_str("controller").is_err());
+    }
 }
 
 /// シェルコマンドのペイロード

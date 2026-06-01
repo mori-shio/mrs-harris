@@ -108,12 +108,10 @@ async fn create_def_submit(
                 "security_groups": [],
                 "container_name": "mrs-harris-worker"
             })
-        } else if worker_type == WorkerType::Lambda {
+        } else {
             serde_json::json!({
                 "function_name": ""
             })
-        } else {
-            serde_json::json!({})
         }
     });
 
