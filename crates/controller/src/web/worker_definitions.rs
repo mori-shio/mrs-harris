@@ -83,8 +83,8 @@ async fn new_def_page(_claims: WebClaims) -> impl IntoResponse {
         config_json: r#"{
   "cluster_arn": "arn:aws:ecs:ap-northeast-1:ACCOUNT_ID:cluster/mrs-harris",
   "task_definition": "mrs-harris-worker:1",
-  "subnets": ["subnet-12345678", "subnet-87654321"],
-  "security_groups": ["sg-12345678"],
+  "subnets": ["subnet-xxxxxxxx", "subnet-xxxxxxxx"],
+  "security_groups": ["sg-xxxxxxxx"],
   "container_name": "mrs-harris-worker",
   "assign_public_ip": true
 }"#

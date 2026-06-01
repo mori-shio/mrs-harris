@@ -28,8 +28,8 @@ mrs-harris/
 ├── Dockerfile               # マルチステージビルドDockerfile
 ├── docker-compose.yml       # ローカル動作検証環境 (MySQL + Web + Scheduler)
 ├── config/                  # 設定ディレクトリ
-│   ├── controller.toml      # ローカル用設定サンプル
-│   └── controller-docker.toml # コンテナ用設定
+│   ├── controller.toml.example      # ローカル用設定サンプル
+│   └── controller-docker.toml.example # コンテナ用設定サンプル
 ├── crates/
 │   ├── common/              # 共有型定義、設定、エラー型
 │   ├── controller/          # スケジューラ本体、APIサーバー、Web UI
@@ -44,7 +44,18 @@ mrs-harris/
 
 もっとも簡単に Mrs. Harris を試すには、Docker Compose を使用します。ローカル標準構成は `web` と `scheduler` の 2 サービスです。
 
-### 1. リポジトリのビルドと起動
+### 1. 設定ファイルの準備
+
+まず、サンプル設定ファイルをコピーして環境に合わせて編集してください。
+
+```bash
+cp config/controller-docker.toml.example config/controller-docker.toml
+cp .env.example .env
+```
+
+`.env` ファイルを開き、MySQL のパスワードを設定してください。設定したパスワードを `config/controller-docker.toml` の `database.url` にも反映してください。
+
+### 2. リポジトリのビルドと起動
 以下のコマンドで、MySQLデータベースと Mrs. Harris の `web` / `scheduler` サービスが自動的にビルドされ、立ち上がります。
 
 ```bash
@@ -57,15 +68,17 @@ docker-compose up --build
 
 起動後、ブラウザで以下のアドレスにアクセスしてください：
 - **Web UI URL**: `http://localhost:8080`
-- **初期ログインアカウント**:
-  - **ユーザー名**: `admin`
-  - **パスワード**: `admin` (ローカル検証用)
+- **初期ログインアカウント**: ユーザーテーブルが空の場合、`admin` / `admin` で初期管理者が自動作成されます。
 
-### 2. 単一プロセスの互換起動モード
+> **Warning**: 初期パスワードは必ずログイン後に変更してください。本番環境では `init-admin` サブコマンドで安全なパスワードを指定して作成することを推奨します。
+
+### 3. 単一プロセスの互換起動モード
 
 `controller` サブコマンドは互換モードとして残っています。単一 EC2 インスタンスなどで `web + scheduler` を 1 プロセスにまとめたい場合は、以下で起動できます。
 
 ```bash
+cp config/controller.toml.example config/controller.toml
+# config/controller.toml を編集してDB接続情報等を設定
 cargo run --bin mrs-harris -- controller --config config/controller.toml
 ```
 

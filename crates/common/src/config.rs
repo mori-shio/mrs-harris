@@ -212,6 +212,18 @@ impl ControllerConfig {
     pub fn from_file(path: &PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         let content = std::fs::read_to_string(path)?;
         let config: Self = toml::from_str(&content)?;
+        config.warn_insecure_defaults();
         Ok(config)
+    }
+
+    fn warn_insecure_defaults(&self) {
+        if self.auth.jwt_secret == "change-me-in-production"
+            || self.auth.jwt_secret == "change-me-in-production-use-a-long-random-string"
+            || self.auth.jwt_secret == "REPLACE_WITH_A_LONG_RANDOM_STRING"
+        {
+            eprintln!(
+                "WARNING: JWT secret がデフォルト値のままです。本番環境では必ず安全なランダム文字列に変更してください。"
+            );
+        }
     }
 }

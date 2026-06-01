@@ -1,0 +1,44 @@
+# Mrs. Harris Controller 設定
+#
+# このファイルをコピーして controller.toml として使用してください:
+#   cp config/controller.toml.example config/controller.toml
+#
+# 環境変数でも上書き可能です。
+
+[server]
+host = "0.0.0.0"
+port = 8080
+external_url = "http://localhost:8080"
+
+[database]
+url = "mysql://mrs_harris:YOUR_DB_PASSWORD@localhost:3306/mrs_harris"
+max_connections = 20
+
+[scheduler]
+poll_interval_sec = 5
+reaper_interval_sec = 30
+worker_timeout_sec = 3600
+
+[fargate]
+cluster_arn = "arn:aws:ecs:ap-northeast-1:YOUR_ACCOUNT_ID:cluster/mrs-harris"
+task_definition = "mrs-harris-worker:1"
+subnets = ["subnet-xxxxxxxx"]
+security_groups = ["sg-xxxxxxxx"]
+container_name = "mrs-harris-worker"
+
+[lambda]
+function_name = "mrs-harris-worker"
+
+[auth]
+jwt_secret = "REPLACE_WITH_A_LONG_RANDOM_STRING"
+jwt_expiry_hours = 24
+
+[notification]
+
+[notification.slack]
+default_webhook_url = ""
+
+[notification.email]
+smtp_host = "smtp.example.com"
+smtp_port = 587
+from_address = "mrs-harris@example.com"

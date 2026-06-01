@@ -17,10 +17,13 @@ Thumbs.db
 .env.local
 
 # Config secrets (keep examples)
-config/controller.toml
-!config/examples/
+config/*.toml
+!config/*.toml.example
 
-# Temporary and local debug files
+# Temporary and local debug/test files
+tmp/
+
+# Local debug files
 cookie.txt
 *.png
 data/log-archives/

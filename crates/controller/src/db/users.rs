@@ -79,7 +79,9 @@ pub async fn seed_default_admin_if_needed(pool: &MySqlPool) -> anyhow::Result<()
     if count == 0 {
         tracing::info!("ユーザーテーブルが空です。初期管理者ユーザー 'admin' を作成します...");
         create_admin_user(pool, "admin", "admin").await?;
-        tracing::info!("初期管理者ユーザー 'admin' （パスワード: 'admin'）を作成しました。");
+        tracing::warn!(
+            "初期管理者ユーザー 'admin' をデフォルトパスワードで作成しました。本番環境では速やかにパスワードを変更してください。"
+        );
     }
 
     Ok(())
