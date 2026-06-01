@@ -19,6 +19,64 @@ use mrs_harris_common::models::run::{JobRun, LogArchiveStatus, LogLine, LogStrea
 use super::auth::WebClaims;
 use crate::app::AppState;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+    use mrs_harris_common::models::job::WorkerType;
+    use mrs_harris_common::models::run::{LogArchiveStatus, RunStatus, TriggerType};
+
+    fn sample_run(status: RunStatus, log_archive_status: Option<LogArchiveStatus>) -> JobRun {
+        let now = Utc.with_ymd_and_hms(2026, 6, 1, 12, 0, 0).unwrap();
+        JobRun {
+            id: 1,
+            job_id: 2,
+            run_number: 3,
+            status,
+            worker_type: WorkerType::Lambda,
+            worker_id: None,
+            trigger_type: TriggerType::Manual,
+            attempt: 1,
+            scheduled_at: None,
+            started_at: Some(now),
+            finished_at: None,
+            next_retry_at: None,
+            duration_ms: None,
+            log_archive_status,
+            log_archive_store: None,
+            log_archive_key: None,
+            log_line_count: None,
+            log_archive_bytes: None,
+            log_archived_at: None,
+            output: None,
+            error: None,
+            job_history_id: Some(1),
+            worker_definition_id: Some(2),
+            config_version: Some(1),
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    #[test]
+    fn live_polling_continues_until_archive_state_set_for_terminal_runs() {
+        assert!(should_live_polling(&sample_run(RunStatus::Running, None)));
+        assert!(should_live_polling(&sample_run(RunStatus::Succeeded, None)));
+        assert!(should_live_polling(&sample_run(
+            RunStatus::Failed,
+            Some(LogArchiveStatus::Pending)
+        )));
+        assert!(!should_live_polling(&sample_run(
+            RunStatus::Succeeded,
+            Some(LogArchiveStatus::Archived)
+        )));
+        assert!(!should_live_polling(&sample_run(
+            RunStatus::Cancelled,
+            Some(LogArchiveStatus::Failed)
+        )));
+    }
+}
+
 #[derive(Clone)]
 pub struct TaskRunItem {
     pub task_name: String,
@@ -50,6 +108,7 @@ struct RunDetailTemplate {
     dag_edges_json: String,
     task_runs_json: String,
     config_payload_json: String,
+    is_live_partial: bool,
 }
 crate::impl_into_response!(RunDetailTemplate);
 
@@ -73,8 +132,20 @@ struct RunDetailLiveTemplate {
     dag_edges_json: String,
     task_runs_json: String,
     config_payload_json: String,
+    is_live_partial: bool,
 }
 crate::impl_into_response!(RunDetailLiveTemplate);
+
+fn should_live_polling(run: &JobRun) -> bool {
+    if !run.status.is_terminal() {
+        return true;
+    }
+
+    matches!(
+        run.log_archive_status,
+        None | Some(LogArchiveStatus::Pending) | Some(LogArchiveStatus::Exporting)
+    )
+}
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -320,7 +391,7 @@ async fn run_detail_page(
 ) -> impl IntoResponse {
     match fetch_run_detail_data(&state.db, id).await {
         Ok(data) => RunDetailTemplate {
-            is_live_polling: !data.0.status.is_terminal(),
+            is_live_polling: should_live_polling(&data.0),
             run: data.0,
             job_name: data.1,
             run_number: data.2,
@@ -337,6 +408,7 @@ async fn run_detail_page(
             dag_edges_json: data.14,
             task_runs_json: data.15,
             config_payload_json: data.16,
+            is_live_partial: false,
         }
         .into_response(),
         Err(e) => {
@@ -357,7 +429,7 @@ async fn run_detail_live(
 ) -> impl IntoResponse {
     match fetch_run_detail_data(&state.db, id).await {
         Ok(data) => RunDetailLiveTemplate {
-            is_live_polling: !data.0.status.is_terminal(),
+            is_live_polling: should_live_polling(&data.0),
             run: data.0,
             job_name: data.1,
             run_number: data.2,
@@ -374,6 +446,7 @@ async fn run_detail_live(
             dag_edges_json: data.14,
             task_runs_json: data.15,
             config_payload_json: data.16,
+            is_live_partial: true,
         }
         .into_response(),
         Err(e) => {
@@ -432,7 +505,7 @@ async fn run_detail_by_number(
 
     match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
         Ok(data) => RunDetailTemplate {
-            is_live_polling: !data.0.status.is_terminal(),
+            is_live_polling: should_live_polling(&data.0),
             run: data.0,
             job_name: data.1,
             run_number: data.2,
@@ -449,6 +522,7 @@ async fn run_detail_by_number(
             dag_edges_json: data.14,
             task_runs_json: data.15,
             config_payload_json: data.16,
+            is_live_partial: false,
         }
         .into_response(),
         Err(e) => {
@@ -477,7 +551,7 @@ async fn run_detail_by_number_live(
 
     match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
         Ok(data) => RunDetailLiveTemplate {
-            is_live_polling: !data.0.status.is_terminal(),
+            is_live_polling: should_live_polling(&data.0),
             run: data.0,
             job_name: data.1,
             run_number: data.2,
@@ -494,6 +568,7 @@ async fn run_detail_by_number_live(
             dag_edges_json: data.14,
             task_runs_json: data.15,
             config_payload_json: data.16,
+            is_live_partial: true,
         }
         .into_response(),
         Err(e) => {
