@@ -150,6 +150,16 @@ aside.sidebar {
     color: var(--text-muted);
 }
 
+.breadcrumbs a {
+    transition: color 0.18s ease, text-decoration-color 0.18s ease;
+}
+
+.breadcrumbs a:hover {
+    color: var(--color-primary) !important;
+    text-decoration: underline !important;
+    text-underline-offset: 2px;
+}
+
 /* Main Content Area */
 main.main-content {
     margin-left: 260px;
