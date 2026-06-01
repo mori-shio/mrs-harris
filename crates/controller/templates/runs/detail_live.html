@@ -389,19 +389,12 @@
         return entries;
     }
 
-    var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    var wsUrl = protocol + '//' + window.location.host + '/runs/' + runId + '/logs/ws';
+    function renderLogs(logs, resetBeforeRender) {
+        if (resetBeforeRender) {
+            logBody.innerHTML = '';
+        }
 
-    var ws = new WebSocket(wsUrl);
-
-    ws.onopen = function() {
-        logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--color-success); box-shadow: 0 0 6px var(--color-success);" id="log-indicator"></span> リアルタイム接続中';
-        logBody.innerHTML = '';
-    };
-
-    ws.onmessage = function(event) {
         try {
-            var logs = JSON.parse(event.data);
             buildDisplayEntries(logs).forEach(function(entry) {
                 var log = entry.log;
                 var lineDiv = document.createElement('div');
@@ -421,6 +414,25 @@
             });
             logBody.scrollTop = logBody.scrollHeight;
         } catch (e) {
+            console.error('Error rendering logs:', e);
+        }
+    }
+
+    {% if use_log_websocket %}
+    var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var wsUrl = protocol + '//' + window.location.host + '/runs/' + runId + '/logs/ws';
+
+    var ws = new WebSocket(wsUrl);
+
+    ws.onopen = function() {
+        logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--color-success); box-shadow: 0 0 6px var(--color-success);" id="log-indicator"></span> リアルタイム接続中';
+        logBody.innerHTML = '';
+    };
+
+    ws.onmessage = function(event) {
+        try {
+            renderLogs(JSON.parse(event.data), false);
+        } catch (e) {
             console.error('Error parsing WS message:', e);
         }
     };
@@ -433,5 +445,21 @@
         console.error('WS Error:', err);
         logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--color-danger);" id="log-indicator"></span> 接続エラー';
     };
+    {% else %}
+    fetch('/runs/' + runId + '/logs', { credentials: 'same-origin' })
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            return response.json();
+        })
+        .then(function(logs) {
+            renderLogs(logs, true);
+        })
+        .catch(function(err) {
+            console.error('Failed to load logs:', err);
+            logStatus.innerHTML = '<span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: var(--color-danger);" id="log-indicator"></span> ログ取得失敗';
+        });
+    {% endif %}
 })();
 </script>

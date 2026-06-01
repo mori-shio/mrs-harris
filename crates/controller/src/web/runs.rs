@@ -5,6 +5,7 @@ use axum::{
         Path, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
+    Json,
     response::{IntoResponse, Redirect},
     routing::get,
 };
@@ -75,6 +76,21 @@ mod tests {
             Some(LogArchiveStatus::Failed)
         )));
     }
+
+    #[test]
+    fn websocket_is_used_only_for_non_terminal_runs() {
+        assert!(should_use_log_websocket(&sample_run(RunStatus::Running, None)));
+        assert!(should_use_log_websocket(&sample_run(RunStatus::Queued, None)));
+        assert!(!should_use_log_websocket(&sample_run(RunStatus::Succeeded, None)));
+        assert!(!should_use_log_websocket(&sample_run(
+            RunStatus::Succeeded,
+            Some(LogArchiveStatus::Pending)
+        )));
+        assert!(!should_use_log_websocket(&sample_run(
+            RunStatus::DeadLetter,
+            Some(LogArchiveStatus::Archived)
+        )));
+    }
 }
 
 #[derive(Clone)]
@@ -95,6 +111,7 @@ struct RunDetailTemplate {
     job_name: String,
     run_number: i64,
     is_live_polling: bool,
+    use_log_websocket: bool,
     is_dag: bool,
     task_runs: Vec<TaskRunItem>,
     status_ja: String,
@@ -119,6 +136,7 @@ struct RunDetailLiveTemplate {
     job_name: String,
     run_number: i64,
     is_live_polling: bool,
+    use_log_websocket: bool,
     is_dag: bool,
     task_runs: Vec<TaskRunItem>,
     status_ja: String,
@@ -147,10 +165,15 @@ fn should_live_polling(run: &JobRun) -> bool {
     )
 }
 
+fn should_use_log_websocket(run: &JobRun) -> bool {
+    !run.status.is_terminal()
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/runs/{id}", get(run_detail_page))
         .route("/runs/{id}/live", get(run_detail_live))
+        .route("/runs/{id}/logs", get(run_logs_json))
         .route("/runs/{id}/logs/ws", get(run_logs_ws_upgrade))
         .route(
             "/jobs/{job_name}/runs/{run_number}",
@@ -392,6 +415,7 @@ async fn run_detail_page(
     match fetch_run_detail_data(&state.db, id).await {
         Ok(data) => RunDetailTemplate {
             is_live_polling: should_live_polling(&data.0),
+            use_log_websocket: should_use_log_websocket(&data.0),
             run: data.0,
             job_name: data.1,
             run_number: data.2,
@@ -430,6 +454,7 @@ async fn run_detail_live(
     match fetch_run_detail_data(&state.db, id).await {
         Ok(data) => RunDetailLiveTemplate {
             is_live_polling: should_live_polling(&data.0),
+            use_log_websocket: should_use_log_websocket(&data.0),
             run: data.0,
             job_name: data.1,
             run_number: data.2,
@@ -506,6 +531,7 @@ async fn run_detail_by_number(
     match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
         Ok(data) => RunDetailTemplate {
             is_live_polling: should_live_polling(&data.0),
+            use_log_websocket: should_use_log_websocket(&data.0),
             run: data.0,
             job_name: data.1,
             run_number: data.2,
@@ -552,6 +578,7 @@ async fn run_detail_by_number_live(
     match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
         Ok(data) => RunDetailLiveTemplate {
             is_live_polling: should_live_polling(&data.0),
+            use_log_websocket: should_use_log_websocket(&data.0),
             run: data.0,
             job_name: data.1,
             run_number: data.2,
@@ -593,6 +620,65 @@ async fn run_logs_ws_upgrade(
     ws.on_upgrade(move |socket| handle_socket(socket, state, id))
 }
 
+async fn load_initial_run_logs(state: &AppState, run: &JobRun) -> anyhow::Result<Vec<LogLine>> {
+    if run.log_archive_status == Some(LogArchiveStatus::Archived) {
+        match crate::log_archive::archive_store_for_run(&state.config, run) {
+            Ok(store) => match store.get_run_logs(run).await {
+                Ok(logs) => return Ok(logs),
+                Err(e) => {
+                    tracing::error!("Failed to get archived logs for run {}: {}", run.id, e);
+                }
+            },
+            Err(e) => {
+                tracing::error!(
+                    "Failed to resolve archive store for run {}: {}. Falling back to hot logs.",
+                    run.id,
+                    e
+                );
+            }
+        }
+    }
+
+    crate::db::logs::get_logs(&state.db, &run.id).await
+}
+
+async fn run_logs_json(
+    _claims: WebClaims,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    let run = match crate::db::runs::get_run(&state.db, &id).await {
+        Ok(Some(run)) => run,
+        Ok(None) => {
+            return (
+                axum::http::StatusCode::NOT_FOUND,
+                Json(Vec::<LogLine>::new()),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            tracing::error!("Failed to get run {} for log json: {}", id, e);
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(Vec::<LogLine>::new()),
+            )
+                .into_response();
+        }
+    };
+
+    match load_initial_run_logs(&state, &run).await {
+        Ok(logs) => Json(logs).into_response(),
+        Err(e) => {
+            tracing::error!("Failed to load initial logs for run {}: {}", id, e);
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                Json(Vec::<LogLine>::new()),
+            )
+                .into_response()
+        }
+    }
+}
+
 fn map_row_to_log(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<LogLine> {
     let id_u64: u64 = row.try_get("id")?;
     let id = id_u64 as i64;
@@ -631,26 +717,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState, run_id: i64) {
 
     // 1. Fetch initial logs
     let initial_logs = match &initial_run {
-        Some(run) if run.log_archive_status == Some(LogArchiveStatus::Archived) => {
-            match crate::log_archive::archive_store_for_run(&state.config, run) {
-                Ok(store) => match store.get_run_logs(run).await {
-                    Ok(logs) => Ok(logs),
-                    Err(e) => {
-                        tracing::error!("Failed to get archived logs for run {}: {}", run_id, e);
-                        crate::db::logs::get_logs(&state.db, &run_id).await
-                    }
-                },
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to resolve archive store for run {}: {}. Falling back to hot logs.",
-                        run_id,
-                        e
-                    );
-                    crate::db::logs::get_logs(&state.db, &run_id).await
-                }
-            }
-        }
-        _ => crate::db::logs::get_logs(&state.db, &run_id).await,
+        Some(run) => load_initial_run_logs(&state, run).await,
+        None => crate::db::logs::get_logs(&state.db, &run_id).await,
     };
 
     match initial_logs {
