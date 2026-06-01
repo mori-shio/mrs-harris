@@ -68,7 +68,7 @@
 <div class="page-header">
     <div class="page-title">
         <div style="display: flex; align-items: center; gap: 12px;">
-            <a href="{% if is_edit %}/worker-definitions/{{ def_id.unwrap() }}{% else %}/worker-definitions{% endif %}" style="color: var(--text-muted); display: inline-flex; align-items: center;" hx-boost="true">
+            <a href="{% if is_edit %}/worker-definitions/{{ def_id.unwrap() }}{% else %}/worker-definitions{% endif %}" class="title-back-link" hx-boost="true">
                 <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
             </a>
             <h2>{% if is_edit %}ワーカー定義編集{% else %}新規ワーカー定義作成{% endif %}</h2>

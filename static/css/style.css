@@ -160,6 +160,18 @@ aside.sidebar {
     text-underline-offset: 2px;
 }
 
+.title-back-link {
+    color: var(--text-muted) !important;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none !important;
+    transition: color 0.18s ease;
+}
+
+.title-back-link:hover {
+    color: var(--color-primary) !important;
+}
+
 /* Main Content Area */
 main.main-content {
     margin-left: 260px;
