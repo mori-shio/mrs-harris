@@ -42,6 +42,20 @@ s3_force_path_style = true
 
 `floci` / LocalStack 系の endpoint を使う場合は、`s3_force_path_style = true` を推奨する。
 
+起動前に最低限のダミー認証情報を環境変数で渡す。
+
+```bash
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+export AWS_REGION=us-east-1
+```
+
+bucket 作成例:
+
+```bash
+aws --endpoint-url http://127.0.0.1:4566 s3api create-bucket --bucket mrs-harris-logs
+```
+
 ## Lambda worker 検証
 
 1. `floci` 上に callback 付き Lambda を定義する

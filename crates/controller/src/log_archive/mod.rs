@@ -520,4 +520,74 @@ mod tests {
 
         assert!(archive_store_from_config(&config).is_ok());
     }
+
+    #[tokio::test]
+    #[ignore = "requires floci/localstack-compatible S3 plus AWS credentials env"]
+    async fn s3_archive_store_round_trips_logs_against_floci() {
+        let bucket = format!("mrs-harris-archive-{}", Uuid::new_v4().simple());
+        let config = ControllerConfig {
+            server: mrs_harris_common::config::ServerConfig {
+                host: "127.0.0.1".to_string(),
+                port: 8080,
+                external_url: "http://localhost:8080".to_string(),
+            },
+            database: mrs_harris_common::config::DatabaseConfig {
+                url: "mysql://example".to_string(),
+                max_connections: 5,
+            },
+            scheduler: Default::default(),
+            fargate: mrs_harris_common::config::FargateConfig {
+                cluster_arn: "cluster".to_string(),
+                task_definition: "task".to_string(),
+                subnets: vec![],
+                security_groups: vec![],
+                container_name: "container".to_string(),
+                assign_public_ip: None,
+            },
+            lambda: mrs_harris_common::config::LambdaConfig {
+                function_name: "function".to_string(),
+                qualifier: None,
+            },
+            log_archive: LogArchiveConfig {
+                store: LogArchiveStoreKind::S3,
+                local_file_base_dir: "data/log-archives".to_string(),
+                s3_bucket: Some(bucket.clone()),
+                s3_prefix: Some("itest".to_string()),
+                s3_region: Some("us-east-1".to_string()),
+                s3_endpoint_url: Some("http://127.0.0.1:4566".to_string()),
+                s3_force_path_style: Some(true),
+            },
+            controller_worker: Default::default(),
+            notification: Default::default(),
+            auth: Default::default(),
+        };
+
+        let run = sample_run();
+        let logs = sample_logs();
+        let store = S3LogArchiveStore::from_config(&config).unwrap();
+        let client = store.client().await.unwrap();
+
+        client.create_bucket().bucket(&bucket).send().await.unwrap();
+
+        let put = store.put_run_logs(&run, &logs).await.unwrap();
+        assert_eq!(put.store, LogArchiveStoreKind::S3);
+        assert_eq!(put.key, "itest/job-runs/202/101.jsonl");
+
+        let restored = store.get_run_logs(&run).await.unwrap();
+        assert_eq!(restored.len(), logs.len());
+        assert_eq!(restored[0].line, "hello");
+
+        store.delete_run_logs(&run).await.unwrap();
+
+        let listed = client
+            .list_objects_v2()
+            .bucket(&bucket)
+            .prefix("itest/job-runs/202/101.jsonl")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(listed.key_count(), Some(0));
+
+        client.delete_bucket().bucket(&bucket).send().await.unwrap();
+    }
 }
