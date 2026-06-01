@@ -164,6 +164,9 @@ aside.sidebar {
     color: var(--text-muted) !important;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    padding: 4px;
+    margin: -4px;
     text-decoration: none !important;
     transition: color 0.18s ease;
 }
