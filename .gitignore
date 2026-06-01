@@ -25,3 +25,4 @@ cookie.txt
 *.png
 data/log-archives/
 crates/controller/data/log-archives/
+.playwright-cli/

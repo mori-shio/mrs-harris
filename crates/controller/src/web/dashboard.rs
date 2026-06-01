@@ -109,13 +109,20 @@ async fn fetch_dashboard_data(pool: &MySqlPool) -> anyhow::Result<DashboardLiveT
 
     // 8. 直近の実行履歴（10件）
     let rows = sqlx::query(
-        r#"SELECT r.id, r.status, wd.worker_type, r.trigger_type, r.started_at, r.duration_ms, j.name as job_name
+        r#"SELECT r.id,
+                  r.status,
+                  COALESCE(wd.worker_type, jd.worker_type) AS worker_type,
+                  r.trigger_type,
+                  r.started_at,
+                  r.duration_ms,
+                  j.name as job_name
            FROM job_runs r
            JOIN jobs j ON r.job_id = j.id
            LEFT JOIN workers w ON r.worker_id = w.id
            LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id
+           LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id
            ORDER BY r.created_at DESC
-           LIMIT 10"#
+           LIMIT 10"#,
     )
     .fetch_all(pool)
     .await?;
@@ -128,8 +135,10 @@ async fn fetch_dashboard_data(pool: &MySqlPool) -> anyhow::Result<DashboardLiveT
         let status_str: String = r.try_get("status")?;
         let status = RunStatus::from_str(&status_str)?;
 
-        let worker_type_str: String = r.try_get("worker_type")?;
-        let worker_type = WorkerType::from_str(&worker_type_str)?;
+        let worker_type = match r.try_get::<Option<String>, _>("worker_type")? {
+            Some(worker_type_str) => WorkerType::from_str(&worker_type_str)?,
+            None => WorkerType::Fargate,
+        };
 
         let trigger_type_str: String = r.try_get("trigger_type")?;
         let trigger_type = TriggerType::from_str(&trigger_type_str)?;
