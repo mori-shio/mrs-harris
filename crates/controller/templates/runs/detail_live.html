@@ -144,9 +144,9 @@
                         </div>
                     </div>
 
-                    <!-- Version -->
+                    <!-- Job Version -->
                     <div class="summary-item" style="display: flex; flex-direction: column; gap: 6px;">
-                        <span class="summary-label" style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500;">バージョン</span>
+                        <span class="summary-label" style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500;">ジョブバージョン</span>
                         <div class="summary-value" style="font-size: 0.88rem; font-weight: 600; font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; gap: 6px; line-height: 1.5;">
                             {% if let Some(v) = run.config_version %}
                                 <a href="javascript:void(0)" class="vd-link" onclick="showVersionDetail('{{ v }}', '{{ config_payload_json|urlencode }}')" style="color: var(--color-primary); text-decoration: none;">v{{ v }}</a>
@@ -239,6 +239,434 @@
         <div class="log-viewer-body" id="log-body" style="height: 400px; max-height: 400px; scroll-behavior: smooth;"></div>
     </div>
 </div>
+
+{% if !is_live_partial %}
+<style>
+    #version-detail-modal .form-control[readonly],
+    #version-detail-modal .form-control[disabled],
+    #version-detail-modal select[disabled] {
+        background: rgba(255, 255, 255, 0.02) !important;
+        color: var(--text-primary) !important;
+        border-color: rgba(255, 255, 255, 0.06) !important;
+        opacity: 1 !important;
+        cursor: default !important;
+    }
+    #version-detail-modal .switch input[disabled] + .slider {
+        opacity: 0.8 !important;
+        cursor: default !important;
+    }
+    #version-detail-modal .section-title {
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: var(--color-primary);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding-bottom: 10px;
+    }
+    #version-detail-modal .vd-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+    #version-detail-modal .vd-scroll-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding-right: 6px;
+        font-size: 0.84rem;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    #version-detail-modal .vd-scroll-body > * {
+        flex: 0 0 auto;
+    }
+    #version-detail-modal .vd-grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+    }
+    #version-detail-modal .vd-check-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    #version-detail-modal .vd-check-row input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: default;
+        accent-color: var(--color-primary);
+    }
+    #version-detail-modal .vd-status-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 18px;
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: var(--radius-sm);
+        background: rgba(255,255,255,0.02);
+    }
+    #version-detail-modal .vd-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 600;
+    }
+    #version-detail-modal .vd-status-pill[data-active="true"] {
+        color: var(--color-success);
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.24);
+    }
+    #version-detail-modal .vd-status-pill[data-active="false"] {
+        color: var(--text-muted);
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+    #version-detail-modal .vd-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+    #version-detail-modal .vd-helptext {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        display: block;
+        margin-top: 8px;
+        line-height: 1.5;
+    }
+    .vd-link:hover {
+        text-decoration: underline !important;
+    }
+    @media (max-width: 760px) {
+        #version-detail-modal .vd-grid-2,
+        #version-detail-modal .vd-grid-3 {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div id="version-detail-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center;" hx-boost="false">
+    <div class="card" style="width:90%; max-width:850px; max-height:85vh; display:flex; flex-direction:column; padding:24px; border:1px solid rgba(255,255,255,0.08); background:rgba(15,23,42,0.95); box-shadow:0 20px 40px rgba(0,0,0,0.6); overflow:hidden; animation: modalFadeIn 0.22s ease-out;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:12px;">
+            <h3 style="font-family:'Outfit',sans-serif; font-size:1.05rem; display:flex; align-items:center; gap:8px; margin:0;">
+                <i data-lucide="scroll-text" style="color:var(--color-primary); width:18px; height:18px;"></i>
+                ジョブ設定詳細 <span id="vdetail-title-version" style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--color-primary);margin-left:6px;"></span>
+            </h3>
+            <button onclick="closeVersionDetailModal()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.4rem; padding:0; display:flex; align-items:center; justify-content:center; line-height:1;">&times;</button>
+        </div>
+
+        <div class="vd-scroll-body">
+            <div class="vd-status-banner">
+                <div>
+                    <div style="font-size:0.76rem; color:var(--text-muted); margin-bottom:6px;">バージョンの状態</div>
+                    <div id="vd-status-pill" class="vd-status-pill" data-active="false">
+                        <span class="vd-status-dot"></span>
+                        <span id="vd-active-text">無効</span>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:0.76rem; color:var(--text-muted); margin-bottom:6px;">履歴バージョン</div>
+                    <div style="font-family:'JetBrains Mono', monospace; font-size:0.92rem; font-weight:600; color:var(--text-primary);" id="vd-version-banner">v1</div>
+                </div>
+            </div>
+
+            <div class="card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
+                <h3 class="section-title">
+                    <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+                    基本情報
+                </h3>
+
+                <div class="form-group">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">所属スペース</label>
+                    <input type="text" id="vd-space" class="form-control" readonly>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">ジョブ名</label>
+                    <input type="text" id="vd-name" class="form-control" readonly>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">説明</label>
+                    <textarea id="vd-description" class="form-control" readonly style="min-height: 60px;"></textarea>
+                </div>
+
+                <div class="vd-grid-2" style="margin-top: 16px;">
+                    <div class="form-group">
+                        <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">実行ワーカー</label>
+                        <input type="text" id="vd-worker" class="form-control" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">ジョブタイプ</label>
+                        <input type="text" id="vd-jobtype" class="form-control" readonly>
+                    </div>
+                </div>
+
+                <div class="form-group" id="vd-cron-group" style="margin-top: 16px; display: none;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">Cron スケジュール式</label>
+                    <input type="text" id="vd-cron" class="form-control" readonly style="font-family: 'JetBrains Mono', monospace;">
+                </div>
+            </div>
+
+            <div class="card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
+                <h3 class="section-title">
+                    <i data-lucide="layers" style="width: 16px; height: 16px;"></i>
+                    環境変数
+                </h3>
+                <div class="form-group">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">直接入力 (KEY=VALUE 形式、改行区切り)</label>
+                    <textarea id="vd-env" class="form-control" readonly style="min-height: 100px; font-family: 'JetBrains Mono', monospace;"></textarea>
+                </div>
+                <div style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius-sm); padding: 14px; margin-top: 16px;">
+                    <h4 style="font-size: 0.85rem; font-weight: 600; margin-bottom: 10px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
+                        <i data-lucide="shield-alert" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
+                        AWS SSM パラメータストアからインジェクト
+                    </h4>
+                    <div class="vd-grid-2">
+                        <div class="form-group">
+                            <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">AWS リージョン</label>
+                            <input type="text" id="vd-ssm-region" class="form-control" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">パラメータパス</label>
+                            <input type="text" id="vd-ssm-path" class="form-control" readonly>
+                        </div>
+                    </div>
+                    <div class="vd-check-row" style="margin-top: 12px;">
+                        <input type="checkbox" id="vd-ssm-recursive" disabled>
+                        <label for="vd-ssm-recursive" style="font-weight: 500; cursor: default; margin-bottom: 0; user-select: none; font-size: 0.85rem; color: var(--text-secondary);">再帰的に取得する (Recursive)</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
+                <h3 class="section-title">
+                    <i data-lucide="sliders" style="width: 16px; height: 16px;"></i>
+                    オプション設定
+                </h3>
+                <div class="form-group">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">タイムアウト (秒)</label>
+                    <input type="text" id="vd-timeout" class="form-control" readonly>
+                </div>
+
+                <div class="form-group" style="margin-top: 24px;">
+                    <div class="vd-check-row">
+                        <input type="checkbox" id="vd-has-retry" disabled>
+                        <label for="vd-has-retry" style="font-weight: 600; cursor: default; margin-bottom: 0; user-select: none;">リトライ</label>
+                    </div>
+                    <span class="vd-helptext">ジョブが異常終了した際、自動リトライを実行します。</span>
+                </div>
+
+                <div style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius-sm); padding: 14px; margin-top: 16px;">
+                    <h4 style="font-size: 0.85rem; font-weight: 600; margin-bottom: 10px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
+                        <i data-lucide="sliders" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
+                        自動リトライ設定
+                    </h4>
+                    <div class="vd-grid-2">
+                        <div class="form-group">
+                            <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">最大リトライ回数</label>
+                            <input type="text" id="vd-max-retries" class="form-control" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">初期リトライ遅延 (秒)</label>
+                            <input type="text" id="vd-retry-delay" class="form-control" readonly>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">リトライバックオフ戦略</label>
+                        <input type="text" id="vd-backoff" class="form-control" readonly>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 20px;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">タグ (カンマ区切り)</label>
+                    <input type="text" id="vd-tags" class="form-control" readonly>
+                </div>
+            </div>
+
+            <div class="card" id="vd-script-card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
+                <h3 class="section-title">
+                    <i data-lucide="terminal" style="width: 16px; height: 16px;"></i>
+                    シェルコマンド
+                </h3>
+                <div class="form-group">
+                    <label id="vd-payload-label" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">実行するシェルスクリプト (複数行可能)</label>
+                    <textarea id="vd-script" class="form-control" readonly style="min-height: 120px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;"></textarea>
+                    <span id="vd-script-help" class="vd-helptext">
+                        ※ コマンド、引数を1つのテキストボックスにそのまま記述できます。複数行のスクリプトも記述可能です
+                    </span>
+                </div>
+            </div>
+
+            <div class="card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
+                <h3 class="section-title">
+                    <i data-lucide="bell" style="width: 16px; height: 16px;"></i>
+                    Slack通知
+                </h3>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                    ジョブの実行ステータス変更時に Slack で通知を受け取るイベントです。
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div class="vd-check-row">
+                        <input type="checkbox" id="vd-slack-running" disabled>
+                        <label for="vd-slack-running" style="font-weight: 500; cursor: default; margin-bottom: 0; user-select: none; color: var(--text-secondary); font-size: 0.88rem;">実行時 (開始時)</label>
+                    </div>
+                    <div class="vd-check-row">
+                        <input type="checkbox" id="vd-slack-succeeded" disabled>
+                        <label for="vd-slack-succeeded" style="font-weight: 500; cursor: default; margin-bottom: 0; user-select: none; color: var(--text-secondary); font-size: 0.88rem;">成功時</label>
+                    </div>
+                    <div class="vd-check-row">
+                        <input type="checkbox" id="vd-slack-failed" disabled>
+                        <label for="vd-slack-failed" style="font-weight: 500; cursor: default; margin-bottom: 0; user-select: none; color: var(--text-secondary); font-size: 0.88rem;">失敗時 (リトライ失敗含む)</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" id="vd-dag-card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0; display: none;">
+                <h3 class="section-title">
+                    <i data-lucide="git-branch" style="width: 16px; height: 16px;"></i>
+                    DAG タスク定義
+                </h3>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                    タスク間の依存関係を含めたDAG構造です。
+                </p>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <textarea id="vd-dag-json" class="form-control" readonly style="min-height: 220px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex; justify-content:end; margin-top:20px; border-top:1px solid rgba(255,255,255,0.08); padding-top:16px; gap:10px;">
+            <button class="btn btn-secondary" onclick="closeVersionDetailModal()">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function showVersionDetail(version, encodedPayload) {
+    var payloadStr = decodeURIComponent(encodedPayload);
+    var snapshot = JSON.parse(payloadStr);
+
+    function textOrEmpty(value) {
+        if (value === undefined || value === null) return '';
+        return String(value);
+    }
+
+    function boolFromJa(value) {
+        return String(value || '').includes('有効');
+    }
+
+    function envObjectToText(value) {
+        if (!value || typeof value !== 'object') return '';
+        return Object.entries(value).map(function(entry) {
+            return entry[0] + '=' + String(entry[1] ?? '');
+        }).join('\n');
+    }
+
+    var versionText = 'v' + version;
+    var jobType = textOrEmpty(snapshot["ジョブタイプ"]);
+    var isDag = jobType.includes('DAG');
+    var isCron = jobType.includes('Cron');
+    var isActive = boolFromJa(snapshot["有効化状態"]);
+    var maxRetries = Number(snapshot["リトライ上限"] || 0);
+    var hasRetry = maxRetries > 0;
+
+    document.getElementById('vdetail-title-version').textContent = versionText;
+    document.getElementById('vd-version-banner').textContent = versionText;
+
+    var statusPill = document.getElementById('vd-status-pill');
+    statusPill.dataset.active = isActive ? 'true' : 'false';
+    document.getElementById('vd-active-text').textContent = isActive ? '有効' : '無効';
+
+    document.getElementById('vd-name').value = snapshot["ジョブ名"] || '';
+    document.getElementById('vd-space').value = snapshot["所属スペース"] || '未分類 (Unclassified)';
+    document.getElementById('vd-description').value = snapshot["説明"] || '';
+    document.getElementById('vd-worker').value = snapshot["ワーカー定義"] || '';
+
+    var mappedType = 'OneShot (単発/手動実行)';
+    if (isCron) {
+        mappedType = 'Cron (定期実行)';
+    } else if (isDag) {
+        mappedType = 'DAG (タスクパイプライン)';
+    }
+    document.getElementById('vd-jobtype').value = mappedType;
+
+    if (isCron) {
+        document.getElementById('vd-cron-group').style.display = 'block';
+        document.getElementById('vd-cron').value = snapshot["スケジュール (Cron)"] || '';
+    } else {
+        document.getElementById('vd-cron-group').style.display = 'none';
+        document.getElementById('vd-cron').value = '';
+    }
+
+    document.getElementById('vd-env').value = envObjectToText(snapshot["直接設定の環境変数"]);
+
+    if (snapshot["SSMパラメータ連携"]) {
+        var ssm = snapshot["SSMパラメータ連携"];
+        document.getElementById('vd-ssm-region').value = ssm["リージョン"] || '';
+        document.getElementById('vd-ssm-path').value = ssm["パス"] || '';
+        document.getElementById('vd-ssm-recursive').checked = boolFromJa(ssm["再帰取得"]);
+    } else {
+        document.getElementById('vd-ssm-region').value = '';
+        document.getElementById('vd-ssm-path').value = '';
+        document.getElementById('vd-ssm-recursive').checked = false;
+    }
+
+    document.getElementById('vd-timeout').value = snapshot["タイムアウト"] || '0 秒';
+    var tags = snapshot["タグ"] || [];
+    document.getElementById('vd-tags').value = Array.isArray(tags) ? tags.join(', ') : textOrEmpty(tags);
+
+    document.getElementById('vd-has-retry').checked = hasRetry;
+    document.getElementById('vd-max-retries').value = textOrEmpty(snapshot["リトライ上限"] || '0');
+    document.getElementById('vd-retry-delay').value = snapshot["初期遅延"] || '10 秒';
+    document.getElementById('vd-backoff').value = snapshot["バックオフ戦略"] || '指数';
+
+    var scriptOrDag = snapshot["スクリプト / DAG構成"];
+    if (isDag) {
+        document.getElementById('vd-script-card').style.display = 'none';
+        document.getElementById('vd-dag-card').style.display = 'block';
+        document.getElementById('vd-dag-json').value = scriptOrDag ? JSON.stringify(scriptOrDag, null, 2) : '';
+        document.getElementById('vd-script').value = '';
+    } else {
+        document.getElementById('vd-script-card').style.display = 'block';
+        document.getElementById('vd-dag-card').style.display = 'none';
+        document.getElementById('vd-script').value = typeof scriptOrDag === 'string' ? scriptOrDag : '';
+        document.getElementById('vd-dag-json').value = '';
+    }
+
+    if (snapshot["Slack通知"]) {
+        var slack = snapshot["Slack通知"];
+        document.getElementById('vd-slack-running').checked = boolFromJa(slack["ジョブ起動時"]);
+        document.getElementById('vd-slack-succeeded').checked = boolFromJa(slack["成功時"]);
+        document.getElementById('vd-slack-failed').checked = boolFromJa(slack["失敗時"]);
+    } else {
+        document.getElementById('vd-slack-running').checked = false;
+        document.getElementById('vd-slack-succeeded').checked = false;
+        document.getElementById('vd-slack-failed').checked = false;
+    }
+
+    document.getElementById('version-detail-modal').style.display = 'flex';
+    window.lockBodyScroll();
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+}
+
+function closeVersionDetailModal() {
+    document.getElementById('version-detail-modal').style.display = 'none';
+    window.unlockBodyScroll();
+}
+</script>
+{% endif %}
 
 <script>
 // WebSocket Log Streamer (self-contained, works both in detail.html include and standalone fetch)
