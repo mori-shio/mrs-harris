@@ -1,11 +1,10 @@
 use askama::Template;
 use axum::{
-    Router,
+    Json, Router,
     extract::{
         Path, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
-    Json,
     response::{IntoResponse, Redirect},
     routing::get,
 };
@@ -79,9 +78,18 @@ mod tests {
 
     #[test]
     fn websocket_is_used_only_for_non_terminal_runs() {
-        assert!(should_use_log_websocket(&sample_run(RunStatus::Running, None)));
-        assert!(should_use_log_websocket(&sample_run(RunStatus::Queued, None)));
-        assert!(!should_use_log_websocket(&sample_run(RunStatus::Succeeded, None)));
+        assert!(should_use_log_websocket(&sample_run(
+            RunStatus::Running,
+            None
+        )));
+        assert!(should_use_log_websocket(&sample_run(
+            RunStatus::Queued,
+            None
+        )));
+        assert!(!should_use_log_websocket(&sample_run(
+            RunStatus::Succeeded,
+            None
+        )));
         assert!(!should_use_log_websocket(&sample_run(
             RunStatus::Succeeded,
             Some(LogArchiveStatus::Pending)
@@ -377,12 +385,16 @@ async fn fetch_run_detail_data(
         None => "-".to_string(),
     };
 
-    let config_payload_json: String = match run.job_history_id {
-        Some(h_id) => sqlx::query_scalar("SELECT payload FROM job_history WHERE id = ?")
-            .bind(h_id)
-            .fetch_one(pool)
-            .await
-            .unwrap_or_else(|_| "{}".to_string()),
+    let config_payload_json = match run.job_history_id {
+        Some(h_id) => {
+            let payload_val: serde_json::Value =
+                sqlx::query_scalar("SELECT payload FROM job_history WHERE id = ?")
+                    .bind(h_id)
+                    .fetch_one(pool)
+                    .await
+                    .unwrap_or(serde_json::Value::Null);
+            serde_json::to_string(&payload_val).unwrap_or_else(|_| "{}".to_string())
+        }
         None => "{}".to_string(),
     };
 
