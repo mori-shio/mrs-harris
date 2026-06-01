@@ -27,7 +27,7 @@ Jenkins remains the de facto standard for job scheduling, but it comes with real
 - **Always-on infrastructure** — Jenkins workers sit idle most of the time, yet you pay for them 24/7.
 - **Plugin sprawl** — Hundreds of plugins with varying quality, security posture, and compatibility.
 - **Fragile state** — Job configs live on disk; a single node failure can take down your entire CI/CD.
-- **Dated UI** — The web interface hasn't aged well, making it hard to observe and debug jobs at a glance.
+- **UI complexity** — The feature-rich interface reflects years of accumulated functionality, which can make quick observability and debugging harder for focused use cases.
 
 ### How Mrs. Harris Solves This
 
@@ -36,7 +36,7 @@ Jenkins remains the de facto standard for job scheduling, but it comes with real
 | Always-on workers | **Serverless** — Fargate tasks and Lambda functions spin up on demand and shut down automatically. You pay only for the seconds your jobs actually run. |
 | Plugin sprawl | **Single binary** — Controller and worker ship as one binary. No plugins to install or update. |
 | Fragile file-based state | **MySQL-backed** — All job definitions, run history, and logs are stored in a durable relational database. |
-| Dated UI | **Modern Web UI** — Dark glassmorphism design, real-time log streaming via WebSocket, and a calendar heatmap for job history. |
+| UI complexity | **Purpose-built Web UI** — A focused interface designed for job scheduling, with real-time log streaming via WebSocket and a calendar heatmap for job history. |
 
 ---
 
@@ -66,7 +66,7 @@ The fastest way to try Mrs. Harris is with Docker Compose.
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/mrs-harris.git
+git clone https://github.com/mori-shio/mrs-harris.git
 cd mrs-harris
 
 cp config/controller-docker.toml.example config/controller-docker.toml
