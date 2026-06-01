@@ -1090,11 +1090,74 @@ window.closeDiffModal = closeDiffModal;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         padding-bottom: 10px;
     }
-    .vd-link {
-        text-decoration: none !important;
+    #version-detail-modal .vd-grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
     }
-    .vd-link:hover {
-        text-decoration: underline !important;
+    #version-detail-modal .vd-grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+    }
+    #version-detail-modal .vd-check-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    #version-detail-modal .vd-check-row input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: default;
+        accent-color: var(--color-primary);
+    }
+    #version-detail-modal .vd-status-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 18px;
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: var(--radius-sm);
+        background: rgba(255,255,255,0.02);
+    }
+    #version-detail-modal .vd-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 600;
+    }
+    #version-detail-modal .vd-status-pill[data-active="true"] {
+        color: var(--color-success);
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.24);
+    }
+    #version-detail-modal .vd-status-pill[data-active="false"] {
+        color: var(--text-muted);
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+    #version-detail-modal .vd-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+    #version-detail-modal .vd-helptext {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        display: block;
+        margin-top: 8px;
+        line-height: 1.5;
+    }
+    @media (max-width: 760px) {
+        #version-detail-modal .vd-grid-2,
+        #version-detail-modal .vd-grid-3 {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 
@@ -1109,22 +1172,34 @@ window.closeDiffModal = closeDiffModal;
         </div>
         
         <div style="flex:1; overflow-y:auto; padding-right:6px; font-size:0.84rem; display:flex; flex-direction:column; gap:20px;">
-            <!-- 基本情報 (form.htmlと揃えた独立カード) -->
+            <div class="vd-status-banner">
+                <div>
+                    <div style="font-size:0.76rem; color:var(--text-muted); margin-bottom:6px;">バージョンの状態</div>
+                    <div id="vd-status-pill" class="vd-status-pill" data-active="false">
+                        <span class="vd-status-dot"></span>
+                        <span id="vd-active-text">無効</span>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:0.76rem; color:var(--text-muted); margin-bottom:6px;">履歴バージョン</div>
+                    <div style="font-family:'JetBrains Mono', monospace; font-size:0.92rem; font-weight:600; color:var(--text-primary);" id="vd-version-banner">v1</div>
+                </div>
+            </div>
+
             <div class="card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
                 <h3 class="section-title">
                     <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
                     基本情報
                 </h3>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">有効化状態</label>
-                        <input type="text" id="vd-active" class="form-control" readonly>
-                    </div>
-                    <div class="form-group">
-                        <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">ジョブ名</label>
-                        <input type="text" id="vd-name" class="form-control" readonly>
-                    </div>
+
+                <div class="form-group">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">所属スペース</label>
+                    <input type="text" id="vd-space" class="form-control" readonly>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">ジョブ名</label>
+                    <input type="text" id="vd-name" class="form-control" readonly>
                 </div>
                 
                 <div class="form-group" style="margin-top: 16px;">
@@ -1132,7 +1207,7 @@ window.closeDiffModal = closeDiffModal;
                     <textarea id="vd-description" class="form-control" readonly style="min-height: 60px;"></textarea>
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+                <div class="vd-grid-2" style="margin-top: 16px;">
                     <div class="form-group">
                         <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">実行ワーカー</label>
                         <input type="text" id="vd-worker" class="form-control" readonly>
@@ -1156,15 +1231,15 @@ window.closeDiffModal = closeDiffModal;
                     環境変数
                 </h3>
                 <div class="form-group">
-                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">直接入力</label>
-                    <textarea id="vd-env" class="form-control" readonly style="min-height: 80px; font-family: 'JetBrains Mono', monospace;"></textarea>
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">直接入力 (KEY=VALUE 形式、改行区切り)</label>
+                    <textarea id="vd-env" class="form-control" readonly style="min-height: 100px; font-family: 'JetBrains Mono', monospace;"></textarea>
                 </div>
                 <div style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius-sm); padding: 14px; margin-top: 16px;">
                     <h4 style="font-size: 0.85rem; font-weight: 600; margin-bottom: 10px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
                         <i data-lucide="shield-alert" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
                         AWS SSM パラメータストアからインジェクト
                     </h4>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="vd-grid-2">
                         <div class="form-group">
                             <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">AWS リージョン</label>
                             <input type="text" id="vd-ssm-region" class="form-control" readonly>
@@ -1174,9 +1249,9 @@ window.closeDiffModal = closeDiffModal;
                             <input type="text" id="vd-ssm-path" class="form-control" readonly>
                         </div>
                     </div>
-                    <div class="form-group" style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
-                        <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0;">再帰的に取得する (Recursive):</label>
-                        <input type="text" id="vd-ssm-recursive" class="form-control" readonly style="width: 80px; text-align: center; height: 28px; padding: 2px;">
+                    <div class="vd-check-row" style="margin-top: 12px;">
+                        <input type="checkbox" id="vd-ssm-recursive" disabled>
+                        <label for="vd-ssm-recursive" style="font-weight: 500; cursor: default; margin-bottom: 0; user-select: none; font-size: 0.85rem; color: var(--text-secondary);">再帰的に取得する (Recursive)</label>
                     </div>
                 </div>
             </div>
@@ -1187,23 +1262,25 @@ window.closeDiffModal = closeDiffModal;
                     <i data-lucide="sliders" style="width: 16px; height: 16px;"></i>
                     オプション設定
                 </h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">タイムアウト (秒)</label>
-                        <input type="text" id="vd-timeout" class="form-control" readonly>
-                    </div>
-                    <div class="form-group">
-                        <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">タグ</label>
-                        <input type="text" id="vd-tags" class="form-control" readonly>
-                    </div>
+                <div class="form-group">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">タイムアウト (秒)</label>
+                    <input type="text" id="vd-timeout" class="form-control" readonly>
                 </div>
-                
+
+                <div class="form-group" style="margin-top: 24px;">
+                    <div class="vd-check-row">
+                        <input type="checkbox" id="vd-has-retry" disabled>
+                        <label for="vd-has-retry" style="font-weight: 600; cursor: default; margin-bottom: 0; user-select: none;">リトライ</label>
+                    </div>
+                    <span class="vd-helptext">ジョブが異常終了した際、自動リトライを実行します。</span>
+                </div>
+
                 <div style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.03); border-radius: var(--radius-sm); padding: 14px; margin-top: 16px;">
                     <h4 style="font-size: 0.85rem; font-weight: 600; margin-bottom: 10px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
                         <i data-lucide="sliders" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
                         自動リトライ設定
                     </h4>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="vd-grid-2">
                         <div class="form-group">
                             <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">最大リトライ回数</label>
                             <input type="text" id="vd-max-retries" class="form-control" readonly>
@@ -1218,39 +1295,64 @@ window.closeDiffModal = closeDiffModal;
                         <input type="text" id="vd-backoff" class="form-control" readonly>
                     </div>
                 </div>
-            </div>
 
-            <!-- シェルコマンド / DAG定義 (form.htmlと揃えた独立カード) -->
-            <div class="card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
-                <h3 class="section-title">
-                    <i data-lucide="terminal" style="width: 16px; height: 16px;"></i>
-                    シェルコマンド / DAG定義
-                </h3>
-                <div class="form-group">
-                    <label id="vd-payload-label" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">実行スクリプト</label>
-                    <textarea id="vd-script" class="form-control" readonly style="min-height: 120px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;"></textarea>
+                <div class="form-group" style="margin-top: 20px;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">タグ (カンマ区切り)</label>
+                    <input type="text" id="vd-tags" class="form-control" readonly>
                 </div>
             </div>
 
-            <!-- Slack通知 (form.htmlと揃えた独立カード) -->
+            <!-- シェルコマンド -->
+            <div class="card" id="vd-script-card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
+                <h3 class="section-title">
+                    <i data-lucide="terminal" style="width: 16px; height: 16px;"></i>
+                    シェルコマンド
+                </h3>
+                <div class="form-group">
+                    <label id="vd-payload-label" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">実行するシェルスクリプト (複数行可能)</label>
+                    <textarea id="vd-script" class="form-control" readonly style="min-height: 120px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;"></textarea>
+                    <span id="vd-script-help" class="vd-helptext">
+                        ※ コマンド、引数を1つのテキストボックスにそのまま記述できます。複数行のスクリプトも記述可能です
+                    </span>
+                </div>
+            </div>
+
+            <!-- Slack通知 -->
             <div class="card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
                 <h3 class="section-title">
                     <i data-lucide="bell" style="width: 16px; height: 16px;"></i>
-                    Slack通知設定
+                    Slack通知
                 </h3>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">実行時 (開始時)</label>
-                        <input type="text" id="vd-slack-running" class="form-control" readonly style="text-align: center;">
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                    ジョブの実行ステータス変更時に Slack で通知を受け取るイベントです。
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div class="vd-check-row">
+                        <input type="checkbox" id="vd-slack-running" disabled>
+                        <label for="vd-slack-running" style="font-weight: 500; cursor: default; margin-bottom: 0; user-select: none; color: var(--text-secondary); font-size: 0.88rem;">実行時 (開始時)</label>
                     </div>
-                    <div class="form-group">
-                        <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">成功時</label>
-                        <input type="text" id="vd-slack-succeeded" class="form-control" readonly style="text-align: center;">
+                    <div class="vd-check-row">
+                        <input type="checkbox" id="vd-slack-succeeded" disabled>
+                        <label for="vd-slack-succeeded" style="font-weight: 500; cursor: default; margin-bottom: 0; user-select: none; color: var(--text-secondary); font-size: 0.88rem;">成功時</label>
                     </div>
-                    <div class="form-group">
-                        <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; display: block;">失敗時</label>
-                        <input type="text" id="vd-slack-failed" class="form-control" readonly style="text-align: center;">
+                    <div class="vd-check-row">
+                        <input type="checkbox" id="vd-slack-failed" disabled>
+                        <label for="vd-slack-failed" style="font-weight: 500; cursor: default; margin-bottom: 0; user-select: none; color: var(--text-secondary); font-size: 0.88rem;">失敗時 (リトライ失敗含む)</label>
                     </div>
+                </div>
+            </div>
+
+            <!-- DAG Task List Setup -->
+            <div class="card" id="vd-dag-card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0; display: none;">
+                <h3 class="section-title">
+                    <i data-lucide="git-branch" style="width: 16px; height: 16px;"></i>
+                    DAG タスク定義
+                </h3>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                    タスク間の依存関係を含めたDAG構造です。
+                </p>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <textarea id="vd-dag-json" class="form-control" readonly style="min-height: 220px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;"></textarea>
                 </div>
             </div>
         </div>
@@ -1265,94 +1367,105 @@ window.closeDiffModal = closeDiffModal;
 function showVersionDetail(version, encodedPayload) {
     var payloadStr = decodeURIComponent(encodedPayload);
     var snapshot = JSON.parse(payloadStr);
-    
-    document.getElementById('vdetail-title-version').textContent = 'v' + version;
-    
-    // 値のマッピング
+
+    function textOrEmpty(value) {
+        if (value === undefined || value === null) return '';
+        return String(value);
+    }
+
+    function boolFromJa(value) {
+        return String(value || '').includes('有効');
+    }
+
+    function envObjectToText(value) {
+        if (!value || typeof value !== 'object') return '';
+        return Object.entries(value).map(function(entry) {
+            return entry[0] + '=' + String(entry[1] ?? '');
+        }).join('\n');
+    }
+
+    var versionText = 'v' + version;
+    var jobType = textOrEmpty(snapshot["ジョブタイプ"]);
+    var isDag = jobType.includes('DAG');
+    var isCron = jobType.includes('Cron');
+    var isActive = boolFromJa(snapshot["有効化状態"]);
+    var maxRetries = Number(snapshot["リトライ上限"] || 0);
+    var hasRetry = maxRetries > 0;
+
+    document.getElementById('vdetail-title-version').textContent = versionText;
+    document.getElementById('vd-version-banner').textContent = versionText;
+
+    var statusPill = document.getElementById('vd-status-pill');
+    statusPill.dataset.active = isActive ? 'true' : 'false';
+    document.getElementById('vd-active-text').textContent = isActive ? '有効' : '無効';
+
     document.getElementById('vd-name').value = snapshot["ジョブ名"] || '';
-    document.getElementById('vd-active').value = snapshot["有効化状態"] || '無効';
+    document.getElementById('vd-space').value = snapshot["所属スペース"] || '未分類 (Unclassified)';
     document.getElementById('vd-description').value = snapshot["説明"] || '';
     document.getElementById('vd-worker').value = snapshot["ワーカー定義"] || '';
-    
-    // 日本語キーによるジョブタイプ判別バグ修正
-    var jobType = snapshot["ジョブタイプ"] || '';
+
     var mappedType = 'OneShot (単発/手動実行)';
-    if (jobType.includes('Cron')) {
+    if (isCron) {
         mappedType = 'Cron (定期実行)';
-    } else if (jobType.includes('DAG')) {
+    } else if (isDag) {
         mappedType = 'DAG (タスクパイプライン)';
     }
     document.getElementById('vd-jobtype').value = mappedType;
-    
-    if (jobType.includes('Cron')) {
+
+    if (isCron) {
         document.getElementById('vd-cron-group').style.display = 'block';
         document.getElementById('vd-cron').value = snapshot["スケジュール (Cron)"] || '';
     } else {
         document.getElementById('vd-cron-group').style.display = 'none';
         document.getElementById('vd-cron').value = '';
     }
-    
-    // 環境変数
-    var envText = '';
-    if (snapshot["直接設定の環境変数"]) {
-        var envObj = snapshot["直接設定の環境変数"];
-        for (var k in envObj) {
-            if (envObj.hasOwnProperty(k)) {
-                envText += k + '=' + envObj[k] + '\n';
-            }
-        }
-    }
-    document.getElementById('vd-env').value = envText;
-    
-    // AWS SSM
+
+    document.getElementById('vd-env').value = envObjectToText(snapshot["直接設定の環境変数"]);
+
     if (snapshot["SSMパラメータ連携"]) {
         var ssm = snapshot["SSMパラメータ連携"];
         document.getElementById('vd-ssm-region').value = ssm["リージョン"] || '';
         document.getElementById('vd-ssm-path').value = ssm["パス"] || '';
-        document.getElementById('vd-ssm-recursive').value = ssm["再帰取得"] || '無効';
+        document.getElementById('vd-ssm-recursive').checked = boolFromJa(ssm["再帰取得"]);
     } else {
         document.getElementById('vd-ssm-region').value = '';
         document.getElementById('vd-ssm-path').value = '';
-        document.getElementById('vd-ssm-recursive').value = '無効';
+        document.getElementById('vd-ssm-recursive').checked = false;
     }
-    
-    // オプション
+
     document.getElementById('vd-timeout').value = snapshot["タイムアウト"] || '0 秒';
-    
     var tags = snapshot["タグ"] || [];
-    document.getElementById('vd-tags').value = tags.join(', ');
-    
-    // リトライ
-    document.getElementById('vd-max-retries').value = snapshot["リトライ上限"] || '0';
+    document.getElementById('vd-tags').value = Array.isArray(tags) ? tags.join(', ') : textOrEmpty(tags);
+
+    document.getElementById('vd-has-retry').checked = hasRetry;
+    document.getElementById('vd-max-retries').value = textOrEmpty(snapshot["リトライ上限"] || '0');
     document.getElementById('vd-retry-delay').value = snapshot["初期遅延"] || '10 秒';
     document.getElementById('vd-backoff').value = snapshot["バックオフ戦略"] || '指数';
-    
-    // スクリプト / DAG
+
     var scriptOrDag = snapshot["スクリプト / DAG構成"];
-    if (scriptOrDag) {
-        if (typeof scriptOrDag === 'string') {
-            document.getElementById('vd-payload-label').textContent = '実行するシェルスクリプト';
-            document.getElementById('vd-script').value = scriptOrDag;
-        } else {
-            document.getElementById('vd-payload-label').textContent = 'DAG タスク構成 (JSON)';
-            document.getElementById('vd-script').value = JSON.stringify(scriptOrDag, null, 2);
-        }
-    } else {
+    if (isDag) {
+        document.getElementById('vd-script-card').style.display = 'none';
+        document.getElementById('vd-dag-card').style.display = 'block';
+        document.getElementById('vd-dag-json').value = scriptOrDag ? JSON.stringify(scriptOrDag, null, 2) : '';
         document.getElementById('vd-script').value = '';
+    } else {
+        document.getElementById('vd-script-card').style.display = 'block';
+        document.getElementById('vd-dag-card').style.display = 'none';
+        document.getElementById('vd-script').value = typeof scriptOrDag === 'string' ? scriptOrDag : '';
+        document.getElementById('vd-dag-json').value = '';
     }
-    
-    // Slack通知
+
     if (snapshot["Slack通知"]) {
         var slack = snapshot["Slack通知"];
-        document.getElementById('vd-slack-running').value = slack["ジョブ起動時"] || '無効';
-        document.getElementById('vd-slack-succeeded').value = slack["成功時"] || '無効';
-        document.getElementById('vd-slack-failed').value = slack["失敗時"] || '無効';
+        document.getElementById('vd-slack-running').checked = boolFromJa(slack["ジョブ起動時"]);
+        document.getElementById('vd-slack-succeeded').checked = boolFromJa(slack["成功時"]);
+        document.getElementById('vd-slack-failed').checked = boolFromJa(slack["失敗時"]);
     } else {
-        document.getElementById('vd-slack-running').value = '無効';
-        document.getElementById('vd-slack-succeeded').value = '無効';
-        document.getElementById('vd-slack-failed').value = '無効';
+        document.getElementById('vd-slack-running').checked = false;
+        document.getElementById('vd-slack-succeeded').checked = false;
+        document.getElementById('vd-slack-failed').checked = false;
     }
-    
+
     document.getElementById('version-detail-modal').style.display = 'flex';
     window.lockBodyScroll();
     if (window.lucide) {

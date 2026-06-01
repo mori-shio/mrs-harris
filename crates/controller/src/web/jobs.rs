@@ -1801,6 +1801,18 @@ async fn build_job_snapshot(pool: &MySqlPool, job: &Job) -> serde_json::Value {
         "デフォルト (起動タイプ設定)".to_string()
     };
 
+    let space_name = if let Some(space_id) = job.space_id {
+        sqlx::query_scalar::<_, String>("SELECT name FROM spaces WHERE id = ?")
+            .bind(space_id)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "未分類 (Unclassified)".to_string())
+    } else {
+        "未分類 (Unclassified)".to_string()
+    };
+
     let mut env_vars = HashMap::new();
     let mut script_or_dag = serde_json::Value::Null;
     let mut ssm_region = String::new();
@@ -1894,6 +1906,7 @@ async fn build_job_snapshot(pool: &MySqlPool, job: &Job) -> serde_json::Value {
 
     serde_json::json!({
         "ジョブ名": job.name,
+        "所属スペース": space_name,
         "説明": job.description.as_deref().unwrap_or(""),
         "ジョブタイプ": job_type_str,
         "スケジュール (Cron)": job.schedule_expr.as_deref().unwrap_or("未設定"),
