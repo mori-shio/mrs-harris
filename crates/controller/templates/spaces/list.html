@@ -17,10 +17,10 @@
         <h2>スペース</h2>
         <p>ジョブをプロジェクト、チーム、実行環境ごとに論理分割するワークスペースの管理</p>
     </div>
-    <a href="/spaces/new" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px;">
+    <button type="button" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;" onclick="openSpaceModal()">
         <i data-lucide="plus" style="width: 18px; height: 18px;"></i>
         新規スペース作成
-    </a>
+    </button>
 </div>
 
 <!-- Unclassified jobs stats card -->
@@ -67,7 +67,7 @@
                             <i data-lucide="grip-vertical" style="width: 16px; height: 16px;"></i>
                         </td>
                         <td style="font-weight: 600; vertical-align: middle;">
-                            <a href="/spaces/{{ space.id }}" style="color: var(--text-primary); font-size: 0.95rem; text-decoration: none; font-weight: 600;" hx-boost="true">{{ space.name }}</a>
+                            <a href="/jobs?space={{ space.id }}" style="color: var(--text-primary); font-size: 0.95rem; text-decoration: none; font-weight: 600;" hx-boost="false">{{ space.name }}</a>
                         </td>
                         <td style="text-align: center; vertical-align: middle;">
                             <span class="badge" style="background-color: rgba(14,165,233,0.1); color: var(--color-primary); border-color: rgba(14,165,233,0.2); font-weight: 700; font-size: 0.8rem; padding: 2px 10px; border-radius: 20px;">
@@ -82,10 +82,13 @@
                         </td>
                         <td style="text-align: right; vertical-align: middle;">
                             <div style="display: inline-flex; gap: 8px; align-items: center;">
-                                <a href="/spaces/{{ space.id }}/edit" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px;">
+                                <button type="button"
+                                        class="btn btn-secondary"
+                                        style="padding: 6px 12px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;"
+                                        onclick="openSpaceModal('{{ space.id }}')">
                                     <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i>
                                     編集
-                                </a>
+                                </button>
                                 <form action="/spaces/{{ space.id }}/delete"
                                       method="POST"
                                       style="margin: 0;"
@@ -112,6 +115,50 @@
 
 {% block scripts %}
 <script>
+    const spacesForModal = {{ spaces_json|safe }};
+
+    function findSpaceForModal(spaceId) {
+        return spacesForModal.find(function(space) {
+            return String(space.id) === String(spaceId);
+        }) || null;
+    }
+
+    function openSpaceModal(spaceId) {
+        const modal = document.getElementById('space-modal');
+        const title = document.getElementById('space-modal-title');
+        const form = document.getElementById('space-modal-form');
+        const name = document.getElementById('space-modal-name');
+        const description = document.getElementById('space-modal-description');
+        const submitLabel = document.getElementById('space-modal-submit-label');
+        if (!modal || !title || !form || !name || !description || !submitLabel) return;
+
+        const space = spaceId ? findSpaceForModal(spaceId) : null;
+        if (space) {
+            title.textContent = 'スペース編集';
+            form.action = '/spaces/' + encodeURIComponent(space.id) + '/edit';
+            name.value = space.name || '';
+            description.value = space.description || '';
+            submitLabel.textContent = '更新する';
+        } else {
+            title.textContent = '新規スペース作成';
+            form.action = '/spaces/new';
+            name.value = '';
+            description.value = '';
+            submitLabel.textContent = '保存する';
+        }
+
+        modal.classList.add('active');
+        window.requestAnimationFrame(function() {
+            name.focus();
+        });
+    }
+
+    function closeSpaceModal() {
+        const modal = document.getElementById('space-modal');
+        if (!modal) return;
+        modal.classList.remove('active');
+    }
+
     function initSortableSpaces() {
         const tbody = document.querySelector('table.data-table tbody');
         if (!tbody) return;
@@ -192,5 +239,38 @@
         initSortableSpaces();
     });
 </script>
+
+<div class="modal-overlay" id="space-modal" style="padding-left: 260px;">
+    <div class="modal-content" style="max-width: 550px;">
+        <div class="modal-header">
+            <h3 id="space-modal-title" style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700;">新規スペース作成</h3>
+            <button class="modal-close" onclick="closeSpaceModal()">&times;</button>
+        </div>
+        <form id="space-modal-form" action="/spaces/new" method="POST" hx-boost="false">
+            <input type="hidden" name="redirect_to" value="/spaces">
+
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="space-modal-name" style="display: block; font-weight: 600; margin-bottom: 8px;">スペース名 <span style="color: var(--color-danger);">*</span></label>
+                <input type="text" id="space-modal-name" name="name" class="form-control" placeholder="hoge" required style="width: 100%; box-sizing: border-box;">
+                <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 6px;">
+                    スペースの名前（一意である必要があります）
+                </span>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="space-modal-description" style="display: block; font-weight: 600; margin-bottom: 8px;">説明</label>
+                <textarea id="space-modal-description" name="description" class="form-control" style="min-height: 80px; width: 100%; box-sizing: border-box;" placeholder="スペースの説明を入力してください..."></textarea>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeSpaceModal()">キャンセル</button>
+                <button type="submit" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <i data-lucide="save" style="width: 16px; height: 16px;"></i>
+                    <span id="space-modal-submit-label">保存する</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
 {% endblock %}
