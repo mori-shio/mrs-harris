@@ -165,9 +165,9 @@
             <select id="job_type" name="job_type" class="form-control" 
                     hx-get="/jobs" hx-trigger="change" hx-target="#jobs-list-container" hx-include="#filter-form" hx-push-url="true">
                 <option value="" {% if current_job_type.is_empty() %}selected{% endif %}>すべて</option>
-                <option value="cron" {% if current_job_type == "cron" %}selected{% endif %}>Cron (定期実行)</option>
-                <option value="dag" {% if current_job_type == "dag" %}selected{% endif %}>DAG (依存実行)</option>
-                <option value="one_shot" {% if current_job_type == "one_shot" %}selected{% endif %}>OneShot (単発実行)</option>
+                <option value="cron" {% if current_job_type == "cron" %}selected{% endif %}>Cron</option>
+                <option value="dag" {% if current_job_type == "dag" %}selected{% endif %}>DAG</option>
+                <option value="one_shot" {% if current_job_type == "one_shot" %}selected{% endif %}>OneShot</option>
             </select>
         </div>
         <div class="form-group" style="margin-bottom: 0;">
@@ -186,6 +186,18 @@
 <div id="jobs-list-container">
     {% include "jobs/list_partial.html" %}
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    applyCondensedJobTags(document);
+});
+
+document.body.addEventListener('htmx:afterSwap', function(event) {
+    if (event.target && event.target.id === 'jobs-list-container') {
+        applyCondensedJobTags(event.target);
+    }
+});
+</script>
 
 <!-- Create Space Modal -->
 <div class="modal-overlay" id="create-space-modal" style="padding-left: 260px;">

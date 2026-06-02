@@ -110,15 +110,11 @@
                     </td>
                     <td>
                         <span class="badge" style="background-color: rgba(255,255,255,0.05); color: var(--text-secondary); border-color: var(--border-color);">
-                            {{ job.job_type_ja }}
+                            {{ job.job_type_label }}
                         </span>
                     </td>
                     <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
-                        {% if job.schedule_expr.is_some() %}
-                        {{ job.schedule_expr.as_ref().unwrap() }}
-                        {% else %}
-                        <span style="color: var(--text-muted); font-size: 0.8rem;">なし (手動/DAGのみ)</span>
-                        {% endif %}
+                        {{ job.schedule_display }}
                     </td>
                     <td>
                         <span style="font-size: 0.85rem; display: flex; align-items: center; gap: 6px; color: var(--text-secondary);">

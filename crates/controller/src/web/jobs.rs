@@ -24,9 +24,9 @@ use crate::app::AppState;
 pub struct JobRenderItem {
     pub id: i64,
     pub name: String,
-    pub job_type_ja: &'static str,
+    pub job_type_label: &'static str,
     pub worker_name: String,
-    pub schedule_expr: Option<String>,
+    pub schedule_display: String,
     pub is_active: bool,
     pub tags: Vec<String>,
 }
@@ -87,6 +87,21 @@ fn display_shell_command(shell: &ShellPayload) -> String {
         cmd.push_str(&shell.args.join(" "));
     }
     cmd
+}
+
+fn job_type_label(job_type: &JobType) -> &'static str {
+    match job_type {
+        JobType::Cron => "Cron",
+        JobType::Dag => "DAG",
+        JobType::OneShot => "OneShot",
+    }
+}
+
+fn schedule_display(schedule_expr: Option<&str>) -> String {
+    match schedule_expr.map(str::trim).filter(|expr| !expr.is_empty()) {
+        Some(expr) => expr.to_string(),
+        None => "-".to_string(),
+    }
 }
 
 #[derive(Clone)]
@@ -230,7 +245,7 @@ crate::impl_into_response!(JobFormTemplate);
 mod tests {
     use super::*;
     use chrono::TimeZone;
-    use mrs_harris_common::models::job::WorkerType;
+    use mrs_harris_common::models::job::{JobType, WorkerType};
     use mrs_harris_common::models::run::{RunStatus, TriggerType};
 
     fn sample_run(run_number: i64) -> JobRun {
@@ -271,6 +286,21 @@ mod tests {
         let item = job_run_render_item_from_run(&sample_run(42));
 
         assert_eq!(item.run_number, 42);
+    }
+
+    #[test]
+    fn job_type_label_uses_english_only() {
+        assert_eq!(job_type_label(&JobType::Cron), "Cron");
+        assert_eq!(job_type_label(&JobType::Dag), "DAG");
+        assert_eq!(job_type_label(&JobType::OneShot), "OneShot");
+    }
+
+    #[test]
+    fn schedule_display_uses_dash_when_empty() {
+        assert_eq!(schedule_display(None), "-");
+        assert_eq!(schedule_display(Some("")), "-");
+        assert_eq!(schedule_display(Some("   ")), "-");
+        assert_eq!(schedule_display(Some("0 0 * * *")), "0 0 * * *");
     }
 }
 
@@ -322,12 +352,6 @@ pub fn map_job_to_render(
     job: &Job,
     worker_name_map: &std::collections::HashMap<i64, String>,
 ) -> JobRenderItem {
-    let job_type_ja = match job.job_type {
-        JobType::Cron => "Cron (定期)",
-        JobType::Dag => "DAG (連結)",
-        JobType::OneShot => "OneShot (単発)",
-    };
-
     let worker_name = job
         .worker_definition_id
         .and_then(|id| worker_name_map.get(&id).cloned())
@@ -336,9 +360,9 @@ pub fn map_job_to_render(
     JobRenderItem {
         id: job.id,
         name: job.name.clone(),
-        job_type_ja,
+        job_type_label: job_type_label(&job.job_type),
         worker_name,
-        schedule_expr: job.schedule_expr.clone(),
+        schedule_display: schedule_display(job.schedule_expr.as_deref()),
         is_active: job.is_active,
         tags: job.tags.clone(),
     }
@@ -892,11 +916,7 @@ async fn job_detail_page(
     };
     let id = job.id;
 
-    let job_type_str = match job.job_type {
-        JobType::Cron => "Cron (定期)",
-        JobType::Dag => "DAG (連結)",
-        JobType::OneShot => "OneShot (単発)",
-    };
+    let job_type_str = job_type_label(&job.job_type);
 
     let retry_backoff_str = match job.retry_policy.backoff {
         BackoffStrategy::Fixed => "固定時間",
@@ -1785,11 +1805,7 @@ async fn edit_job_submit(
 }
 
 async fn build_job_snapshot(pool: &MySqlPool, job: &Job) -> serde_json::Value {
-    let job_type_str = match job.job_type {
-        JobType::Cron => "Cron (定期)",
-        JobType::Dag => "DAG (連結)",
-        JobType::OneShot => "OneShot (単発)",
-    };
+    let job_type_str = job_type_label(&job.job_type);
 
     let worker_definition_name = if let Some(def_id) = job.worker_definition_id {
         if let Ok(Some(def)) = crate::db::workers::get_worker_definition(pool, &def_id).await {
@@ -1909,7 +1925,7 @@ async fn build_job_snapshot(pool: &MySqlPool, job: &Job) -> serde_json::Value {
         "所属スペース": space_name,
         "説明": job.description.as_deref().unwrap_or(""),
         "ジョブタイプ": job_type_str,
-        "スケジュール (Cron)": job.schedule_expr.as_deref().unwrap_or("未設定"),
+        "スケジュール (Cron)": schedule_display(job.schedule_expr.as_deref()),
         "有効化状態": if job.is_active { "有効" } else { "無効" },
         "ワーカー定義": worker_definition_name,
         "タイムアウト": format!("{} 秒", job.timeout_sec),

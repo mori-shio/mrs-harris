@@ -171,9 +171,9 @@
             <div class="form-group" style="margin-top: 20px;">
                 <label for="job_type">ジョブタイプ</label>
                 <select id="job_type" name="job_type" class="form-control" onchange="toggleJobTypeFields()">
-                    <option value="one_shot" {% if job_type == "one_shot" %}selected{% endif %}>OneShot (単発/手動実行)</option>
-                    <option value="cron" {% if job_type == "cron" %}selected{% endif %}>Cron (定期実行)</option>
-                    <option value="dag" {% if job_type == "dag" %}selected{% endif %}>DAG (タスクパイプライン)</option>
+                    <option value="one_shot" {% if job_type == "one_shot" %}selected{% endif %}>OneShot</option>
+                    <option value="cron" {% if job_type == "cron" %}selected{% endif %}>Cron</option>
+                    <option value="dag" {% if job_type == "dag" %}selected{% endif %}>DAG</option>
                 </select>
             </div>
 

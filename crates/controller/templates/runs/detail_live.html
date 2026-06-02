@@ -592,11 +592,11 @@ function showVersionDetail(version, encodedPayload) {
     document.getElementById('vd-description').value = snapshot["説明"] || '';
     document.getElementById('vd-worker').value = snapshot["ワーカー定義"] || '';
 
-    var mappedType = 'OneShot (単発/手動実行)';
+    var mappedType = 'OneShot';
     if (isCron) {
-        mappedType = 'Cron (定期実行)';
+        mappedType = 'Cron';
     } else if (isDag) {
-        mappedType = 'DAG (タスクパイプライン)';
+        mappedType = 'DAG';
     }
     document.getElementById('vd-jobtype').value = mappedType;
 

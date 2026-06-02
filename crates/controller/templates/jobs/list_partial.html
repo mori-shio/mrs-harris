@@ -7,6 +7,34 @@
     .data-table tbody tr .job-link:hover {
         text-decoration: underline !important;
     }
+
+    .job-tags-list {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .job-tags-list[data-condensed="true"] {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .job-tags-summary {
+        font-size: 0.75rem;
+        color: #38bdf8;
+    }
+
+    .job-tag-chip {
+        font-size: 0.75rem;
+        background-color: rgba(56, 189, 248, 0.05);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.15);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
 </style>
 <div class="card" style="padding: 20px 24px;">
     <div class="table-container" style="margin-top: 0;">
@@ -39,15 +67,11 @@
                     </td>
                     <td>
                         <span class="badge" style="background-color: rgba(255,255,255,0.05); color: var(--text-secondary); border-color: var(--border-color);">
-                            {{ job.job_type_ja }}
+                            {{ job.job_type_label }}
                         </span>
                     </td>
                     <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">
-                        {% if job.schedule_expr.is_some() %}
-                        {{ job.schedule_expr.as_ref().unwrap() }}
-                        {% else %}
-                        <span style="color: var(--text-muted); font-size: 0.8rem;">なし (手動/DAGのみ)</span>
-                        {% endif %}
+                        {{ job.schedule_display }}
                     </td>
                     <td>
                         <span style="font-size: 0.85rem; display: flex; align-items: center; gap: 6px; color: var(--text-secondary);">
@@ -67,12 +91,16 @@
                         {% endif %}
                     </td>
                     <td>
-                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                        <div class="job-tags-list" title="{% for tag in job.tags %}({{ tag }}){% if !loop.last %} {% endif %}{% endfor %}">
+                            {% if job.tags.is_empty() %}
+                            <span style="color: var(--text-muted); font-size: 0.8rem;">-</span>
+                            {% else %}
                             {% for tag in job.tags %}
-                            <span style="font-size: 0.75rem; background-color: rgba(56, 189, 248, 0.05); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 4px;">
+                            <span class="job-tag-chip" data-tag-text="({{ tag }})">
                                 {{ tag }}
                             </span>
                             {% endfor %}
+                            {% endif %}
                         </div>
                     </td>
                     <td style="text-align: right;">
@@ -102,3 +130,37 @@
         </table>
     </div>
 </div>
+<script>
+function applyCondensedJobTags(root) {
+    var scope = root || document;
+    scope.querySelectorAll('.job-tags-list').forEach(function(list) {
+        if (list.dataset.originalHtml === undefined) {
+            list.dataset.originalHtml = list.innerHTML;
+        } else {
+            list.innerHTML = list.dataset.originalHtml;
+        }
+
+        list.removeAttribute('data-condensed');
+
+        var chips = Array.from(list.querySelectorAll('.job-tag-chip'));
+        if (chips.length === 0) {
+            return;
+        }
+
+        var firstTop = chips[0].offsetTop;
+        var wrapped = chips.some(function(chip) { return chip.offsetTop > firstTop; });
+        if (!wrapped) {
+            return;
+        }
+
+        var summaryTags = chips.slice(0, 2).map(function(chip) {
+            return chip.dataset.tagText || chip.textContent.trim();
+        });
+        var summaryText = summaryTags.join(' ') + ' ⋯';
+        list.innerHTML = '<span class="job-tags-summary">' + summaryText + '</span>';
+        list.dataset.condensed = 'true';
+    });
+}
+
+applyCondensedJobTags(document);
+</script>
