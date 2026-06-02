@@ -189,12 +189,12 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    applyCondensedJobTags(document);
+    scheduleCondensedJobTags(document);
 });
 
 document.body.addEventListener('htmx:afterSwap', function(event) {
     if (event.target && event.target.id === 'jobs-list-container') {
-        applyCondensedJobTags(event.target);
+        scheduleCondensedJobTags(event.target);
     }
 });
 </script>

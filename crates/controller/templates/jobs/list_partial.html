@@ -158,5 +158,26 @@ function applyCondensedJobTags(root) {
     });
 }
 
-applyCondensedJobTags(document);
+function scheduleCondensedJobTags(root) {
+    var scope = root || document;
+    window.requestAnimationFrame(function() {
+        applyCondensedJobTags(scope);
+    });
+}
+
+scheduleCondensedJobTags(document);
+
+window.addEventListener('load', function() {
+    scheduleCondensedJobTags(document);
+});
+
+window.addEventListener('resize', function() {
+    scheduleCondensedJobTags(document);
+});
+
+if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function() {
+        scheduleCondensedJobTags(document);
+    });
+}
 </script>
