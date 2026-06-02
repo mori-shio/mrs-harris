@@ -36,6 +36,30 @@
         color: #38bdf8;
         padding: 2px 0;
     }
+
+    .job-tags-tooltip {
+        position: fixed;
+        z-index: 1200;
+        max-width: 320px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.96);
+        color: var(--text-primary);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+        font-size: 0.75rem;
+        line-height: 1.45;
+        pointer-events: none;
+        white-space: normal;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 0.12s ease, transform 0.12s ease;
+    }
+
+    .job-tags-tooltip[data-visible="true"] {
+        opacity: 1;
+        transform: translateY(0);
+    }
 </style>
 <div class="card" style="padding: 20px 24px;">
     <div class="table-container" style="margin-top: 0;">
@@ -92,7 +116,7 @@
                         {% endif %}
                     </td>
                     <td>
-                        <div class="job-tags-list" title="{% for tag in job.tags %}{{ tag }}{% if !loop.last %}, {% endif %}{% endfor %}">
+                        <div class="job-tags-list" data-tags-tooltip="{% for tag in job.tags %}{{ tag }}{% if !loop.last %}, {% endif %}{% endfor %}">
                             {% if job.tags.is_empty() %}
                             <span style="color: var(--text-muted); font-size: 0.8rem;">-</span>
                             {% else %}
@@ -131,6 +155,7 @@
         </table>
     </div>
 </div>
+<div id="job-tags-tooltip" class="job-tags-tooltip" aria-hidden="true"></div>
 <script>
 function applyCondensedJobTags(root) {
     var scope = root || document;
@@ -164,10 +189,58 @@ function applyCondensedJobTags(root) {
     });
 }
 
+function bindJobTagsTooltip(root) {
+    var scope = root || document;
+    var tooltip = document.getElementById('job-tags-tooltip');
+    if (!tooltip) {
+        return;
+    }
+
+    function hideTooltip() {
+        tooltip.dataset.visible = 'false';
+        tooltip.setAttribute('aria-hidden', 'true');
+    }
+
+    function positionTooltip(event) {
+        var offset = 14;
+        var left = event.clientX + offset;
+        var top = event.clientY + offset;
+        var maxLeft = window.innerWidth - tooltip.offsetWidth - 12;
+        var maxTop = window.innerHeight - tooltip.offsetHeight - 12;
+        tooltip.style.left = Math.max(12, Math.min(left, maxLeft)) + 'px';
+        tooltip.style.top = Math.max(12, Math.min(top, maxTop)) + 'px';
+    }
+
+    scope.querySelectorAll('.job-tags-list').forEach(function(list) {
+        list.onmouseenter = function(event) {
+            var text = list.dataset.tagsTooltip || '';
+            if (!text.trim()) {
+                return;
+            }
+            tooltip.textContent = text;
+            tooltip.dataset.visible = 'true';
+            tooltip.setAttribute('aria-hidden', 'false');
+            positionTooltip(event);
+        };
+
+        list.onmousemove = function(event) {
+            if (tooltip.dataset.visible === 'true') {
+                positionTooltip(event);
+            }
+        };
+
+        list.onmouseleave = hideTooltip;
+        list.onblur = hideTooltip;
+    });
+
+    document.addEventListener('scroll', hideTooltip, { passive: true });
+}
+
 function scheduleCondensedJobTags(root) {
     var scope = root || document;
     window.requestAnimationFrame(function() {
         applyCondensedJobTags(scope);
+        bindJobTagsTooltip(scope);
     });
 }
 
