@@ -41,10 +41,42 @@
         padding-bottom: 1px;
         -ms-overflow-style: none;
         scrollbar-width: none;
+        position: relative;
     }
 
     .space-tabs-nav::-webkit-scrollbar {
         display: none;
+    }
+
+    .space-tabs-nav::before,
+    .space-tabs-nav::after {
+        content: '';
+        position: sticky;
+        top: 0;
+        width: 24px;
+        height: 100%;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.18s ease;
+        z-index: 1;
+        flex: 0 0 auto;
+    }
+
+    .space-tabs-nav::before {
+        left: 0;
+        margin-right: -24px;
+        background: linear-gradient(90deg, rgba(6, 10, 19, 0.92) 0%, rgba(6, 10, 19, 0) 100%);
+    }
+
+    .space-tabs-nav::after {
+        right: 0;
+        margin-left: -24px;
+        background: linear-gradient(270deg, rgba(6, 10, 19, 0.92) 0%, rgba(6, 10, 19, 0) 100%);
+    }
+
+    .space-tabs-nav.has-left-shadow::before,
+    .space-tabs-nav.has-right-shadow::after {
+        opacity: 1;
     }
     
     .space-tab {
@@ -187,6 +219,29 @@
 </div>
 
 <script>
+    function updateSpaceTabsScrollShadow(nav) {
+        if (!nav) return;
+        const maxScrollLeft = Math.max(0, nav.scrollWidth - nav.clientWidth);
+        const scrollLeft = nav.scrollLeft;
+        nav.classList.toggle('has-left-shadow', scrollLeft > 2);
+        nav.classList.toggle('has-right-shadow', scrollLeft < maxScrollLeft - 2);
+    }
+
+    function initSpaceTabsScrollShadow(root) {
+        const scope = root || document;
+        scope.querySelectorAll('.space-tabs-nav').forEach(function(nav) {
+            if (!nav.dataset.scrollShadowBound) {
+                nav.addEventListener('scroll', function() {
+                    updateSpaceTabsScrollShadow(nav);
+                }, { passive: true });
+                nav.dataset.scrollShadowBound = 'true';
+            }
+            window.requestAnimationFrame(function() {
+                updateSpaceTabsScrollShadow(nav);
+            });
+        });
+    }
+
     function selectSpaceTab(element, spaceName) {
         document.getElementById('space').value = spaceName;
         document.getElementById('search').value = '';
@@ -249,12 +304,18 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     scheduleCondensedJobTags(document);
+    initSpaceTabsScrollShadow(document);
 });
 
 document.body.addEventListener('htmx:afterSwap', function(event) {
     if (event.target && event.target.id === 'jobs-list-container') {
         scheduleCondensedJobTags(event.target);
     }
+    initSpaceTabsScrollShadow(document);
+});
+
+window.addEventListener('resize', function() {
+    initSpaceTabsScrollShadow(document);
 });
 
 const copyJobCandidates = {{ copy_candidates_json|safe }};
