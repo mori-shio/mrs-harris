@@ -3,6 +3,7 @@
 各画面のUI要件を確認するためのチェックリストへのリンク集です。
 
 ## 画面一覧
+- [共通レイアウト](file:///Users/shion.morikawa/private/mrs-harris/docs/ui_checklists/common_layout.md)
 - [ジョブ編集画面](file:///Users/shion.morikawa/private/mrs-harris/docs/ui_checklists/job_edit.md)
 - [ジョブ詳細画面](file:///Users/shion.morikawa/private/mrs-harris/docs/ui_checklists/job_detail.md)
 - [ジョブ一覧画面](file:///Users/shion.morikawa/private/mrs-harris/docs/ui_checklists/job_list.md)

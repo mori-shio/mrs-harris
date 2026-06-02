@@ -85,12 +85,21 @@
     <div class="glow-orb glow-orb-1"></div>
     <div class="glow-orb glow-orb-2"></div>
 
+    <header class="app-header">
+        <div class="app-header-left">
+            <button type="button" class="sidebar-toggle" aria-label="メニューペインを開閉" onclick="toggleSidebarVisibility()">
+                <i data-lucide="panel-left-close" style="width: 18px; height: 18px;"></i>
+            </button>
+            <a href="/" class="app-header-brand">
+                <i data-lucide="network" style="color: var(--color-primary); width: 22px; height: 22px;"></i>
+                <h1>Mrs. Harris</h1>
+            </a>
+        </div>
+        <div class="app-header-right"></div>
+    </header>
+
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
-        <div class="sidebar-brand">
-            <i data-lucide="network" style="color: var(--color-primary); width: 28px; height: 28px;"></i>
-            <h1>Mrs. Harris</h1>
-        </div>
         <ul class="sidebar-menu">
             <li class="sidebar-item {% block nav_dashboard %}{% endblock %}">
                 <a href="/">
@@ -208,7 +217,8 @@
             originalBodyPosition: "",
             originalBodyTop: "",
             originalBodyWidth: "",
-            scrollLockY: 0
+            scrollLockY: 0,
+            sidebarCollapsed: false
         };
 
         window.lockBodyScroll = function() {
@@ -539,6 +549,34 @@
                     if (chevron) chevron.style.transform = 'rotate(0deg)';
                 }
             });
+        }
+
+        function applySidebarVisibility(collapsed) {
+            window.appUi.sidebarCollapsed = Boolean(collapsed);
+            document.body.classList.toggle('sidebar-collapsed', window.appUi.sidebarCollapsed);
+
+            const toggleIcon = document.querySelector('.sidebar-toggle [data-lucide]');
+            if (toggleIcon) {
+                toggleIcon.setAttribute(
+                    'data-lucide',
+                    window.appUi.sidebarCollapsed ? 'panel-left-open' : 'panel-left-close'
+                );
+            }
+
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        }
+
+        function initSidebarVisibility() {
+            const saved = localStorage.getItem('sidebar-collapsed');
+            applySidebarVisibility(saved === 'true');
+        }
+
+        function toggleSidebarVisibility() {
+            const next = !window.appUi.sidebarCollapsed;
+            localStorage.setItem('sidebar-collapsed', next ? 'true' : 'false');
+            applySidebarVisibility(next);
         }
 
         function toggleSidebarGroup(header) {
@@ -875,6 +913,7 @@
         window.initJobHistoryCompare = initJobHistoryCompare;
 
         document.addEventListener("DOMContentLoaded", () => {
+            initSidebarVisibility();
             initIcons();
             initSidebarGroups();
             initTableSorting();
