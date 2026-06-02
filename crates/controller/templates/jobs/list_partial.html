@@ -30,6 +30,12 @@
         padding: 2px 6px;
         border-radius: 4px;
     }
+
+    .job-tag-ellipsis {
+        font-size: 0.75rem;
+        color: #38bdf8;
+        padding: 2px 0;
+    }
 </style>
 <div class="card" style="padding: 20px 24px;">
     <div class="table-container" style="margin-top: 0;">
@@ -153,7 +159,7 @@ function applyCondensedJobTags(root) {
         });
         list.innerHTML = summaryTags.map(function(tag) {
             return '<span class="job-tag-chip">' + tag + '</span>';
-        }).join('') + '<span class="job-tag-chip">…</span>';
+        }).join('') + '<span class="job-tag-ellipsis">…</span>';
         list.dataset.condensed = 'true';
     });
 }
