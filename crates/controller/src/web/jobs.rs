@@ -1446,9 +1446,35 @@ async fn job_detail_page(
 async fn job_runs_list(
     _claims: WebClaims,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(name_in_path): Path<String>,
     Query(query): Query<RunsQuery>,
 ) -> impl IntoResponse {
+    let is_hx_request = headers
+        .get("hx-request")
+        .map(|v| v == "true")
+        .unwrap_or(false);
+
+    if !is_hx_request {
+        let mut redirect_url = format!("/jobs/{name_in_path}?tab=runs");
+        let mut params = Vec::new();
+        if let Some(page) = query.page
+            && page > 1
+        {
+            params.push(format!("page={page}"));
+        }
+        if let Some(sort) = query.sort.as_deref()
+            && sort != "default"
+        {
+            params.push(format!("sort={sort}"));
+        }
+        if !params.is_empty() {
+            redirect_url.push('&');
+            redirect_url.push_str(&params.join("&"));
+        }
+        return axum::response::Redirect::to(&redirect_url).into_response();
+    }
+
     let job_opt = crate::db::jobs::get_job_by_name(&state.db, &name_in_path)
         .await
         .unwrap_or(None);
