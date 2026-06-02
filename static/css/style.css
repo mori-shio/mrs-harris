@@ -977,6 +977,11 @@ table.data-table tbody tr:last-child td {
     opacity: 1.0;
 }
 
+th.server-sort-th {
+    cursor: pointer;
+    user-select: none;
+}
+
 /* Hover effects for sort headers */
 th[data-sort-init="true"]:hover .th-sort-icon:not(.active),
 th.server-sort-th:hover .th-sort-icon:not(.active) {

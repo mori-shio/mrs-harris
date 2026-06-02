@@ -1,16 +1,16 @@
 {% macro sortable_th(label, current_sort, job_name, target, endpoint) %}
-<th class="no-sort server-sort-th" style="cursor: pointer; user-select: none;"
+<th class="no-sort server-sort-th"
     hx-get='{{ endpoint }}?page=1&sort={% if current_sort == "desc" %}asc{% else %}desc{% endif %}'
     hx-target="{{ target }}" hx-swap="outerHTML" hx-push-url="true">
-    <div class="th-sort-container" style="display: flex; align-items: center; gap: 4px; color: var(--text-secondary); transition: color 0.2s ease;">
-        <span class="th-sort-label" style="font-weight: 600;">{{ label }}</span>
-        <span class="th-sort-icon" style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; transition: all 0.2s ease; {% if current_sort == "desc" || current_sort == "asc" %}color: var(--color-primary); background: rgba(14, 165, 233, 0.1);{% else %}color: var(--text-muted); opacity: 0.5;{% endif %}">
+    <div class="th-sort-container">
+        <span class="th-sort-label">{{ label }}</span>
+        <span class="th-sort-icon{% if current_sort == "desc" || current_sort == "asc" %} active{% endif %}">
             {% if current_sort == "desc" %}
-            <i data-lucide="arrow-down" style="width: 14px; height: 14px;"></i>
+            <i data-lucide="arrow-down" style="width: 13px; height: 13px;"></i>
             {% elif current_sort == "asc" %}
-            <i data-lucide="arrow-up" style="width: 14px; height: 14px;"></i>
+            <i data-lucide="arrow-up" style="width: 13px; height: 13px;"></i>
             {% else %}
-            <i data-lucide="chevrons-up-down" style="width: 14px; height: 14px;"></i>
+            <i data-lucide="chevrons-up-down" style="width: 13px; height: 13px;"></i>
             {% endif %}
         </span>
     </div>
