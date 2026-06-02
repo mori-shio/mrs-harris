@@ -495,7 +495,7 @@ async fn jobs_page(
         JobsListPartialTemplate { jobs }.into_response()
     } else {
         // Fetch spaces for the dynamic space tabs filter
-        let spaces_rows = sqlx::query("SELECT id, name FROM spaces ORDER BY name ASC")
+        let spaces_rows = sqlx::query("SELECT id, name FROM spaces ORDER BY priority ASC, id ASC")
             .fetch_all(&state.db)
             .await
             .unwrap_or_default();
@@ -549,7 +549,7 @@ async fn jobs_page(
 
 async fn load_spaces(pool: &MySqlPool) -> Vec<mrs_harris_common::models::space::Space> {
     let spaces_rows = sqlx::query(
-        "SELECT id, name, description, created_at, updated_at FROM spaces ORDER BY name ASC",
+        "SELECT id, name, description, priority, created_at, updated_at FROM spaces ORDER BY priority ASC, id ASC",
     )
     .fetch_all(pool)
     .await
@@ -560,6 +560,7 @@ async fn load_spaces(pool: &MySqlPool) -> Vec<mrs_harris_common::models::space::
         let id: i64 = row.try_get("id").unwrap_or_default();
         let name: String = row.try_get("name").unwrap_or_default();
         let description: Option<String> = row.try_get("description").ok();
+        let priority: i32 = row.try_get("priority").unwrap_or_default();
         let created_at = row.try_get("created_at").unwrap_or_else(|_| Utc::now());
         let updated_at = row.try_get("updated_at").unwrap_or_else(|_| Utc::now());
 
@@ -567,6 +568,7 @@ async fn load_spaces(pool: &MySqlPool) -> Vec<mrs_harris_common::models::space::
             id,
             name,
             description,
+            priority,
             created_at,
             updated_at,
         });
@@ -992,7 +994,7 @@ async fn create_job_submit(
                     || db_err.message().contains("Duplicate"))
             {
                 let space_rows =
-                    sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces")
+                    sqlx::query("SELECT id, name, description, priority, created_at, updated_at FROM spaces ORDER BY priority ASC, id ASC")
                         .fetch_all(&state.db)
                         .await
                         .unwrap_or_default();
@@ -1001,6 +1003,7 @@ async fn create_job_submit(
                     let id: i64 = row.try_get("id").unwrap_or_default();
                     let name: String = row.try_get("name").unwrap_or_default();
                     let description: Option<String> = row.try_get("description").ok();
+                    let priority: i32 = row.try_get("priority").unwrap_or_default();
                     let created_at = row
                         .try_get("created_at")
                         .unwrap_or_else(|_| chrono::Utc::now());
@@ -1011,6 +1014,7 @@ async fn create_job_submit(
                         id,
                         name,
                         description,
+                        priority,
                         created_at,
                         updated_at,
                     });
@@ -1683,7 +1687,7 @@ async fn edit_job_submit(
                     || db_err.message().contains("Duplicate"))
             {
                 let space_rows =
-                    sqlx::query("SELECT id, name, description, created_at, updated_at FROM spaces")
+                    sqlx::query("SELECT id, name, description, priority, created_at, updated_at FROM spaces ORDER BY priority ASC, id ASC")
                         .fetch_all(&state.db)
                         .await
                         .unwrap_or_default();
@@ -1692,6 +1696,7 @@ async fn edit_job_submit(
                     let id: i64 = row.try_get("id").unwrap_or_default();
                     let name: String = row.try_get("name").unwrap_or_default();
                     let description: Option<String> = row.try_get("description").ok();
+                    let priority: i32 = row.try_get("priority").unwrap_or_default();
                     let created_at = row
                         .try_get("created_at")
                         .unwrap_or_else(|_| chrono::Utc::now());
@@ -1702,6 +1707,7 @@ async fn edit_job_submit(
                         id,
                         name,
                         description,
+                        priority,
                         created_at,
                         updated_at,
                     });

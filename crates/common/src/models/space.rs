@@ -7,6 +7,7 @@ pub struct Space {
     pub id: i64,
     pub name: String,
     pub description: Option<String>,
+    pub priority: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -16,4 +17,5 @@ pub struct Space {
 pub struct NewSpace {
     pub name: String,
     pub description: Option<String>,
+    pub priority: i32,
 }

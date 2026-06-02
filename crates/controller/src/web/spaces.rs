@@ -17,8 +17,8 @@ pub struct SpaceRenderItem {
     pub id: String,
     pub name: String,
     pub description: String,
+    pub priority: i32,
     pub job_count: i64,
-    pub created_at_str: String,
 }
 
 #[derive(Template)]
@@ -35,12 +35,14 @@ struct SpaceModalItem {
     id: i64,
     name: String,
     description: String,
+    priority: i32,
 }
 
 #[derive(serde::Deserialize, Debug)]
 pub struct SpaceFormData {
     name: String,
     description: Option<String>,
+    priority: i32,
     redirect_to: Option<String>,
 }
 
@@ -57,11 +59,11 @@ async fn list_spaces(_claims: WebClaims, State(state): State<AppState>) -> impl 
 
     // スペース一覧および各スペースのジョブ数を取得
     let rows = sqlx::query(
-        r#"SELECT s.id, s.name, s.description, s.created_at, COUNT(j.id) as job_count
+        r#"SELECT s.id, s.name, s.description, s.priority, COUNT(j.id) as job_count
            FROM spaces s
            LEFT JOIN jobs j ON j.space_id = s.id
            GROUP BY s.id
-           ORDER BY s.name ASC"#,
+           ORDER BY s.priority ASC, s.id ASC"#,
     )
     .fetch_all(pool)
     .await
@@ -74,25 +76,21 @@ async fn list_spaces(_claims: WebClaims, State(state): State<AppState>) -> impl 
         let name: String = row.try_get("name").unwrap_or_default();
         let description: Option<String> = row.try_get("description").ok();
         let description_text = description.unwrap_or_default();
-        let created_at: chrono::DateTime<chrono::Utc> = row
-            .try_get("created_at")
-            .unwrap_or_else(|_| chrono::Utc::now());
+        let priority: i32 = row.try_get("priority").unwrap_or_default();
         let job_count: i64 = row.try_get("job_count").unwrap_or(0);
 
         spaces.push(SpaceRenderItem {
             id: id.to_string(),
             name: name.clone(),
             description: description_text.clone(),
+            priority,
             job_count,
-            created_at_str: created_at
-                .with_timezone(&chrono::Local)
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string(),
         });
         spaces_modal.push(SpaceModalItem {
             id,
             name,
             description: description_text,
+            priority,
         });
     }
 
@@ -120,8 +118,8 @@ async fn create_space_submit(
     let pool = &state.db;
     let now = chrono::Utc::now();
     sqlx::query(
-        r#"INSERT INTO spaces (name, description, created_at, updated_at)
-           VALUES (?, ?, ?, ?)"#,
+        r#"INSERT INTO spaces (name, description, priority, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?)"#,
     )
     .bind(form.name.trim())
     .bind(
@@ -130,6 +128,7 @@ async fn create_space_submit(
             .map(|d| d.trim())
             .filter(|d| !d.is_empty()),
     )
+    .bind(form.priority.max(0))
     .bind(now)
     .bind(now)
     .execute(pool)
@@ -154,11 +153,12 @@ async fn edit_space_submit(
 
     sqlx::query(
         r#"UPDATE spaces
-           SET name = ?, description = ?, updated_at = ?
+           SET name = ?, description = ?, priority = ?, updated_at = ?
            WHERE id = ?"#,
     )
     .bind(form.name.trim())
     .bind(form.description.filter(|d| !d.trim().is_empty()))
+    .bind(form.priority.max(0))
     .bind(now)
     .bind(id)
     .execute(pool)

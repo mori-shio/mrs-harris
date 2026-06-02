@@ -84,7 +84,7 @@
                     <th>スペース名</th>
                     <th>ジョブ数</th>
                     <th>説明</th>
-                    <th>作成日時</th>
+                    <th>優先度</th>
                     <th style="text-align: right;"></th>
                 </tr>
             </thead>
@@ -113,7 +113,7 @@
                             {{ space.description }}
                         </td>
                         <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--text-secondary); vertical-align: middle;">
-                            {{ space.created_at_str }}
+                            {{ space.priority }}
                         </td>
                         <td style="text-align: right; vertical-align: middle;">
                             <div style="display: inline-flex; gap: 8px; align-items: center;">
@@ -165,7 +165,8 @@
         const name = document.getElementById('space-modal-name');
         const description = document.getElementById('space-modal-description');
         const submitLabel = document.getElementById('space-modal-submit-label');
-        if (!modal || !title || !form || !name || !description || !submitLabel) return;
+        const priority = document.getElementById('space-modal-priority');
+        if (!modal || !title || !form || !name || !description || !submitLabel || !priority) return;
 
         const space = spaceId ? findSpaceForModal(spaceId) : null;
         if (space) {
@@ -173,12 +174,14 @@
             form.action = '/spaces/' + encodeURIComponent(space.id) + '/edit';
             name.value = space.name || '';
             description.value = space.description || '';
+            priority.value = String(space.priority ?? 0);
             submitLabel.textContent = '更新する';
         } else {
             title.textContent = '新規スペース作成';
             form.action = '/spaces/new';
             name.value = '';
             description.value = '';
+            priority.value = '0';
             submitLabel.textContent = '保存する';
         }
 
@@ -215,6 +218,14 @@
             <div class="form-group" style="margin-bottom: 20px;">
                 <label for="space-modal-description" style="display: block; font-weight: 600; margin-bottom: 8px;">説明</label>
                 <textarea id="space-modal-description" name="description" class="form-control" style="min-height: 80px; width: 100%; box-sizing: border-box;" placeholder="スペースの説明を入力してください..."></textarea>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="space-modal-priority" style="display: block; font-weight: 600; margin-bottom: 8px;">優先度 <span style="color: var(--color-danger);">*</span></label>
+                <input type="number" id="space-modal-priority" name="priority" class="form-control" min="0" step="1" required value="0" style="width: 100%; box-sizing: border-box;">
+                <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 6px;">
+                    小さい値ほど一覧の上に表示されます。
+                </span>
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
