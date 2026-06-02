@@ -18,6 +18,10 @@
         <p>登録されているスケジュールジョブおよびDAGパイプラインの管理</p>
     </div>
     <div style="display: flex; gap: 12px;">
+        <button type="button" class="btn btn-secondary" onclick="openCopyJobModal()">
+            <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
+            コピーして作成
+        </button>
         <a href="/jobs/new" class="btn btn-primary">
             <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
             新規ジョブ作成
@@ -93,6 +97,35 @@
         background: rgba(14, 165, 233, 0.2);
         border-color: var(--color-primary);
         box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3);
+    }
+
+    .copy-job-result {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--text-primary);
+        text-align: left;
+        cursor: pointer;
+        transition: all 0.18s ease;
+    }
+
+    .copy-job-result:hover {
+        border-color: rgba(56, 189, 248, 0.28);
+        background: rgba(14, 165, 233, 0.08);
+    }
+
+    .copy-job-result-name {
+        font-weight: 600;
+    }
+
+    .copy-job-result-description {
+        font-size: 0.8rem;
+        color: var(--text-muted);
     }
 </style>
 
@@ -197,9 +230,83 @@ document.body.addEventListener('htmx:afterSwap', function(event) {
         scheduleCondensedJobTags(event.target);
     }
 });
+
+const copyJobCandidates = JSON.parse({{ copy_candidates_json|safe }});
+
+function renderCopyJobResults(query) {
+    const list = document.getElementById('copy-job-results');
+    if (!list) return;
+
+    const normalized = (query || '').trim().toLowerCase();
+    const matches = copyJobCandidates.filter(function(job) {
+        return normalized === '' || job.name.toLowerCase().startsWith(normalized);
+    });
+
+    if (matches.length === 0) {
+        list.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px 4px;">一致するジョブがありません</div>';
+        return;
+    }
+
+    list.innerHTML = matches.map(function(job) {
+        const description = job.description && job.description.trim() !== ''
+            ? '<span class="copy-job-result-description">' + escapeHtml(job.description) + '</span>'
+            : '';
+        return '<button type="button" class="copy-job-result" onclick="goToCopyJob(\\'' + encodeURIComponent(job.name) + '\\')">' +
+            '<span class="copy-job-result-name">' + escapeHtml(job.name) + '</span>' +
+            description +
+            '</button>';
+    }).join('');
+}
+
+function escapeHtml(text) {
+    return String(text)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}
+
+function goToCopyJob(encodedName) {
+    window.location.href = '/jobs/new?copy_from=' + encodedName;
+}
+
+function openCopyJobModal() {
+    const modal = document.getElementById('copy-job-modal');
+    const input = document.getElementById('copy-job-search');
+    if (!modal || !input) return;
+    modal.classList.add('active');
+    input.value = '';
+    renderCopyJobResults('');
+    window.requestAnimationFrame(function() {
+        input.focus();
+    });
+}
+
+function closeCopyJobModal() {
+    const modal = document.getElementById('copy-job-modal');
+    if (!modal) return;
+    modal.classList.remove('active');
+}
 </script>
 
 <!-- Create Space Modal -->
+<div class="modal-overlay" id="copy-job-modal" style="padding-left: 260px;">
+    <div class="modal-content" style="max-width: 620px;">
+        <div class="modal-header">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700;">既存ジョブをコピーして作成</h3>
+            <button class="modal-close" onclick="closeCopyJobModal()">&times;</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="copy-job-search">コピー元ジョブ</label>
+                <input type="text" id="copy-job-search" class="form-control" placeholder="ジョブ名で前方一致検索" oninput="renderCopyJobResults(this.value)">
+            </div>
+            <div id="copy-job-results" style="display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto;"></div>
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="create-space-modal" style="padding-left: 260px;">
     <div class="modal-content" style="max-width: 550px;">
         <div class="modal-header">

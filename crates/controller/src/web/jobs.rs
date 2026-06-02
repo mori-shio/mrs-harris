@@ -111,10 +111,17 @@ pub struct JobSpaceTab {
     pub is_active: bool,
 }
 
+#[derive(Clone, serde::Serialize)]
+pub struct JobCopyCandidate {
+    pub name: String,
+    pub description: String,
+}
+
 #[derive(Template)]
 #[template(path = "jobs/list.html")]
 struct JobsListTemplate {
     jobs: Vec<JobRenderItem>,
+    copy_candidates_json: String,
     spaces: Vec<JobSpaceTab>,
     current_space_name: String,
     current_search: String,
@@ -240,6 +247,11 @@ struct JobFormTemplate {
     error_message: Option<String>,
 }
 crate::impl_into_response!(JobFormTemplate);
+
+#[derive(Debug, serde::Deserialize, Default)]
+struct NewJobQuery {
+    copy_from: Option<String>,
+}
 
 #[cfg(test)]
 mod tests {
@@ -464,6 +476,15 @@ async fn jobs_page(
         .iter()
         .map(|j| map_job_to_render(j, &worker_name_map))
         .collect::<Vec<_>>();
+    let copy_candidates = jobs_db
+        .iter()
+        .map(|job| JobCopyCandidate {
+            name: job.name.clone(),
+            description: job.description.clone().unwrap_or_default(),
+        })
+        .collect::<Vec<_>>();
+    let copy_candidates_json =
+        serde_json::to_string(&copy_candidates).unwrap_or_else(|_| "[]".to_string());
 
     let is_partial = headers
         .get("hx-target")
@@ -515,6 +536,7 @@ async fn jobs_page(
 
         JobsListTemplate {
             jobs,
+            copy_candidates_json,
             spaces,
             current_space_name,
             current_search,
@@ -525,16 +547,11 @@ async fn jobs_page(
     }
 }
 
-async fn new_job_page(_claims: WebClaims, State(state): State<AppState>) -> impl IntoResponse {
-    let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db)
-        .await
-        .unwrap_or_default();
-
-    // Query spaces from DB manually
+async fn load_spaces(pool: &MySqlPool) -> Vec<mrs_harris_common::models::space::Space> {
     let spaces_rows = sqlx::query(
         "SELECT id, name, description, created_at, updated_at FROM spaces ORDER BY name ASC",
     )
-    .fetch_all(&state.db)
+    .fetch_all(pool)
     .await
     .unwrap_or_default();
 
@@ -553,6 +570,199 @@ async fn new_job_page(_claims: WebClaims, State(state): State<AppState>) -> impl
             created_at,
             updated_at,
         });
+    }
+
+    spaces
+}
+
+async fn build_job_form_template_from_job(
+    pool: &MySqlPool,
+    job: Option<&Job>,
+    original_name: Option<String>,
+    is_edit: bool,
+    copied_from_existing: bool,
+) -> JobFormTemplate {
+    let worker_defs = crate::db::workers::list_active_worker_definitions(pool)
+        .await
+        .unwrap_or_default();
+    let spaces = load_spaces(pool).await;
+
+    if let Some(job) = job {
+        let mut script = String::new();
+        let mut env = String::new();
+        let mut ssm_region = String::new();
+        let mut ssm_path = String::new();
+        let mut ssm_recursive = false;
+        let mut dag_tasks_json = String::new();
+
+        if job.job_type == JobType::Dag {
+            let rows = sqlx::query(
+                "SELECT id, name, worker_type, payload, retry_policy, timeout_sec FROM dag_tasks WHERE dag_id = ? ORDER BY id ASC",
+            )
+            .bind(job.id)
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
+
+            let mut defs = Vec::new();
+            for row in rows {
+                let id: i64 = row.try_get("id").unwrap();
+                let name: String = row.try_get("name").unwrap();
+                let wt: String = row.try_get("worker_type").unwrap();
+                let pl: serde_json::Value = row.try_get("payload").unwrap();
+                let rp_opt: Option<serde_json::Value> = row.try_get("retry_policy").ok();
+                let to_opt: Option<u32> = row.try_get("timeout_sec").ok();
+
+                let dep_rows =
+                    sqlx::query("SELECT from_task FROM dag_edges WHERE dag_id = ? AND to_task = ?")
+                        .bind(id)
+                        .bind(&name)
+                        .fetch_all(pool)
+                        .await
+                        .unwrap_or_default();
+
+                let mut depends_on = Vec::new();
+                for dep_row in dep_rows {
+                    let from: String = dep_row.try_get("from_task").unwrap();
+                    depends_on.push(from);
+                }
+
+                let rp = rp_opt.and_then(|v| serde_json::from_value::<RetryPolicy>(v).ok());
+
+                defs.push(serde_json::json!({
+                    "name": name,
+                    "worker_type": wt,
+                    "payload": pl,
+                    "retry_policy": rp,
+                    "timeout_sec": to_opt,
+                    "depends_on": depends_on
+                }));
+            }
+
+            dag_tasks_json = serde_json::to_string_pretty(&defs).unwrap_or_default();
+
+            if let Some(env_map) = job.payload.get("env").and_then(|v| v.as_object()) {
+                env = env_map
+                    .iter()
+                    .map(|(k, v)| format!("{}={}", k, v.as_str().unwrap_or_default()))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+            }
+            ssm_region = job
+                .payload
+                .get("ssm_region")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            ssm_path = job
+                .payload
+                .get("ssm_path")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            ssm_recursive = job
+                .payload
+                .get("ssm_recursive")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+        } else if let Ok(shell) = serde_json::from_value::<ShellPayload>(job.payload.clone()) {
+            if (shell.command == "sh"
+                || shell.command == "/bin/sh"
+                || shell.command == "bash"
+                || shell.command == "/bin/bash")
+                && shell.args.len() == 2
+                && shell.args[0] == "-c"
+            {
+                script = shell.args[1].clone();
+            } else {
+                let mut cmd = shell.command;
+                if !shell.args.is_empty() {
+                    cmd.push(' ');
+                    cmd.push_str(&shell.args.join(" "));
+                }
+                script = cmd;
+            }
+            env = shell
+                .env
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, v))
+                .collect::<Vec<_>>()
+                .join("\n");
+            ssm_region = shell.ssm_region.unwrap_or_default();
+            ssm_path = shell.ssm_path.unwrap_or_default();
+            ssm_recursive = shell.ssm_recursive.unwrap_or(false);
+        }
+
+        let tags_str = job.tags.join(", ");
+        let has_retry = job.retry_policy.max_retries > 0;
+
+        let noti_row = sqlx::query(
+            "SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 1",
+        )
+        .bind(job.id.to_string())
+        .fetch_optional(pool)
+        .await
+        .unwrap_or_default();
+
+        let mut slack_on_running = false;
+        let mut slack_on_succeeded = false;
+        let mut slack_on_failed = false;
+
+        if let Some(row) = noti_row
+            && let Ok(on_events_val) = row.try_get::<serde_json::Value, _>("on_events")
+            && let Ok(on_events) = serde_json::from_value::<Vec<String>>(on_events_val)
+        {
+            slack_on_running = on_events.contains(&"running".to_string());
+            slack_on_succeeded = on_events.contains(&"succeeded".to_string());
+            slack_on_failed = on_events.contains(&"failed".to_string())
+                || on_events.contains(&"dead_letter".to_string());
+        }
+
+        return JobFormTemplate {
+            error_message: None,
+            original_name,
+            is_edit,
+            job_id: if copied_from_existing {
+                None
+            } else {
+                Some(job.id)
+            },
+            name: if copied_from_existing {
+                String::new()
+            } else {
+                job.name.clone()
+            },
+            description: job.description.clone().unwrap_or_default(),
+            job_type: job.job_type.to_string(),
+            worker_definition_id: job
+                .worker_definition_id
+                .map(|id| id.to_string())
+                .unwrap_or_default(),
+            worker_defs,
+            spaces,
+            space_id: job.space_id,
+            schedule_expr: job.schedule_expr.clone().unwrap_or_default(),
+            script: if copied_from_existing && script.is_empty() {
+                "set -eux\n\n".to_string()
+            } else {
+                script
+            },
+            env,
+            ssm_region,
+            ssm_path,
+            ssm_recursive,
+            dag_tasks_json,
+            timeout_sec: job.timeout_sec,
+            has_retry,
+            max_retries: job.retry_policy.max_retries,
+            backoff: job.retry_policy.backoff.to_string(),
+            base_delay_sec: job.retry_policy.base_delay_sec,
+            tags_str,
+            is_active: job.is_active,
+            slack_on_running,
+            slack_on_succeeded,
+            slack_on_failed,
+        };
     }
 
     JobFormTemplate {
@@ -585,6 +795,38 @@ async fn new_job_page(_claims: WebClaims, State(state): State<AppState>) -> impl
         slack_on_succeeded: false,
         slack_on_failed: false,
     }
+}
+
+async fn new_job_page(
+    _claims: WebClaims,
+    State(state): State<AppState>,
+    Query(query): Query<NewJobQuery>,
+) -> impl IntoResponse {
+    if let Some(copy_from) = query.copy_from
+        && !copy_from.trim().is_empty()
+    {
+        let job_opt = crate::db::jobs::get_job_by_name(&state.db, &copy_from)
+            .await
+            .unwrap_or(None);
+        let job = match job_opt {
+            Some(job) => job,
+            None => {
+                return (
+                    axum::http::StatusCode::NOT_FOUND,
+                    "Copy source job not found",
+                )
+                    .into_response();
+            }
+        };
+
+        return build_job_form_template_from_job(&state.db, Some(&job), None, false, true)
+            .await
+            .into_response();
+    }
+
+    build_job_form_template_from_job(&state.db, None, None, false, false)
+        .await
+        .into_response()
 }
 
 async fn create_job_submit(
@@ -1282,205 +1524,9 @@ async fn edit_job_page(
         Some(j) => j,
         None => return (axum::http::StatusCode::NOT_FOUND, "Job not found").into_response(),
     };
-    let id = job.id;
-
-    let mut script = String::new();
-    let mut env = String::new();
-    let mut ssm_region = String::new();
-    let mut ssm_path = String::new();
-    let mut ssm_recursive = false;
-    let mut dag_tasks_json = String::new();
-
-    if job.job_type == JobType::Dag {
-        // Load DAG tasks and dependencies to reconstruct the JSON
-        let tasks_rows = sqlx::query(
-            "SELECT task_name, worker_type, payload, retry_policy, timeout_sec FROM dag_tasks WHERE dag_id = ?"
-        )
-        .bind(id)
-        .fetch_all(&state.db)
+    build_job_form_template_from_job(&state.db, Some(&job), Some(job.name.clone()), true, false)
         .await
-        .unwrap_or_default();
-
-        let mut defs = Vec::new();
-        for row in tasks_rows {
-            let name: String = row.try_get("task_name").unwrap();
-            let wt: String = row.try_get("worker_type").unwrap();
-            let pl: serde_json::Value = row.try_get("payload").unwrap();
-            let rp_opt: Option<serde_json::Value> = row.try_get("retry_policy").ok();
-            let to_opt: Option<u32> = row.try_get("timeout_sec").ok();
-
-            // Load dependencies
-            let dep_rows =
-                sqlx::query("SELECT from_task FROM dag_edges WHERE dag_id = ? AND to_task = ?")
-                    .bind(id)
-                    .bind(&name)
-                    .fetch_all(&state.db)
-                    .await
-                    .unwrap_or_default();
-
-            let mut depends_on = Vec::new();
-            for dep_row in dep_rows {
-                let from: String = dep_row.try_get("from_task").unwrap();
-                depends_on.push(from);
-            }
-
-            let rp = rp_opt.and_then(|v| serde_json::from_value::<RetryPolicy>(v).ok());
-
-            defs.push(serde_json::json!({
-                "name": name,
-                "worker_type": wt,
-                "payload": pl,
-                "retry_policy": rp,
-                "timeout_sec": to_opt,
-                "depends_on": depends_on
-            }));
-        }
-
-        dag_tasks_json = serde_json::to_string_pretty(&defs).unwrap_or_default();
-
-        // DAGでも環境変数/SSM設定を復元
-        if let Some(env_map) = job.payload.get("env").and_then(|v| v.as_object()) {
-            env = env_map
-                .iter()
-                .map(|(k, v)| format!("{}={}", k, v.as_str().unwrap_or_default()))
-                .collect::<Vec<_>>()
-                .join("\n");
-        }
-        ssm_region = job
-            .payload
-            .get("ssm_region")
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .to_string();
-        ssm_path = job
-            .payload
-            .get("ssm_path")
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .to_string();
-        ssm_recursive = job
-            .payload
-            .get("ssm_recursive")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-    } else {
-        if let Ok(shell) = serde_json::from_value::<ShellPayload>(job.payload.clone()) {
-            if (shell.command == "sh"
-                || shell.command == "/bin/sh"
-                || shell.command == "bash"
-                || shell.command == "/bin/bash")
-                && shell.args.len() == 2
-                && shell.args[0] == "-c"
-            {
-                script = shell.args[1].clone();
-            } else {
-                let mut cmd = shell.command;
-                if !shell.args.is_empty() {
-                    cmd.push(' ');
-                    cmd.push_str(&shell.args.join(" "));
-                }
-                script = cmd;
-            }
-            env = shell
-                .env
-                .iter()
-                .map(|(k, v)| format!("{}={}", k, v))
-                .collect::<Vec<_>>()
-                .join("\n");
-            ssm_region = shell.ssm_region.unwrap_or_default();
-            ssm_path = shell.ssm_path.unwrap_or_default();
-            ssm_recursive = shell.ssm_recursive.unwrap_or(false);
-        }
-    }
-
-    let tags_str = job.tags.join(", ");
-    let has_retry = job.retry_policy.max_retries > 0;
-
-    let worker_defs = crate::db::workers::list_active_worker_definitions(&state.db)
-        .await
-        .unwrap_or_default();
-
-    // Slack通知設定の復元取得
-    let noti_row =
-        sqlx::query("SELECT on_events FROM job_notifications WHERE job_id = ? AND channel_id = 1")
-            .bind(job.id.to_string())
-            .fetch_optional(&state.db)
-            .await
-            .unwrap_or_default();
-
-    let mut slack_on_running = false;
-    let mut slack_on_succeeded = false;
-    let mut slack_on_failed = false;
-
-    if let Some(row) = noti_row
-        && let Ok(on_events_val) = row.try_get::<serde_json::Value, _>("on_events")
-        && let Ok(on_events) = serde_json::from_value::<Vec<String>>(on_events_val)
-    {
-        slack_on_running = on_events.contains(&"running".to_string());
-        slack_on_succeeded = on_events.contains(&"succeeded".to_string());
-        slack_on_failed = on_events.contains(&"failed".to_string())
-            || on_events.contains(&"dead_letter".to_string());
-    }
-
-    // Query spaces from DB manually
-    let spaces_rows = sqlx::query(
-        "SELECT id, name, description, created_at, updated_at FROM spaces ORDER BY name ASC",
-    )
-    .fetch_all(&state.db)
-    .await
-    .unwrap_or_default();
-
-    let mut spaces = Vec::new();
-    for row in spaces_rows {
-        let id: i64 = row.try_get("id").unwrap_or_default();
-        let name: String = row.try_get("name").unwrap_or_default();
-        let description: Option<String> = row.try_get("description").ok();
-        let created_at = row.try_get("created_at").unwrap_or_else(|_| Utc::now());
-        let updated_at = row.try_get("updated_at").unwrap_or_else(|_| Utc::now());
-
-        spaces.push(mrs_harris_common::models::space::Space {
-            id,
-            name,
-            description,
-            created_at,
-            updated_at,
-        });
-    }
-
-    JobFormTemplate {
-        error_message: None,
-        original_name: Some(job.name.clone()),
-        is_edit: true,
-        job_id: Some(job.id),
-        name: job.name,
-        description: job.description.unwrap_or_default(),
-        job_type: job.job_type.to_string(),
-        worker_definition_id: job
-            .worker_definition_id
-            .map(|id| id.to_string())
-            .unwrap_or_default(),
-        worker_defs,
-        spaces,
-        space_id: job.space_id,
-        schedule_expr: job.schedule_expr.unwrap_or_default(),
-        script,
-        env,
-        ssm_region,
-        ssm_path,
-        ssm_recursive,
-        dag_tasks_json,
-        timeout_sec: job.timeout_sec,
-        has_retry,
-        max_retries: job.retry_policy.max_retries,
-        backoff: job.retry_policy.backoff.to_string(),
-        base_delay_sec: job.retry_policy.base_delay_sec,
-        tags_str,
-        is_active: job.is_active,
-        slack_on_running,
-        slack_on_succeeded,
-        slack_on_failed,
-    }
-    .into_response()
+        .into_response()
 }
 
 async fn edit_job_submit(
