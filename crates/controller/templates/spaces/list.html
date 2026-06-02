@@ -5,6 +5,34 @@
 {% block nav_spaces %}active{% endblock %}
 
 {% block content %}
+<style>
+    .space-jobs-link {
+        color: var(--text-primary);
+        font-size: 0.95rem;
+        text-decoration: none;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .space-jobs-link:hover {
+        color: var(--color-primary) !important;
+        text-decoration: underline !important;
+    }
+
+    .space-jobs-link-icon {
+        width: 13px;
+        height: 13px;
+        color: var(--text-muted);
+        flex-shrink: 0;
+        transition: color 0.18s ease;
+    }
+
+    .space-jobs-link:hover .space-jobs-link-icon {
+        color: var(--color-primary);
+    }
+</style>
 <!-- Breadcrumbs -->
 <nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
     <a href="/" style="color: var(--text-muted); text-decoration: none;">ホーム</a>
@@ -67,7 +95,10 @@
                             <i data-lucide="grip-vertical" style="width: 16px; height: 16px;"></i>
                         </td>
                         <td style="font-weight: 600; vertical-align: middle;">
-                            <a href="/jobs?space={{ space.id }}" style="color: var(--text-primary); font-size: 0.95rem; text-decoration: none; font-weight: 600;" hx-boost="false">{{ space.name }}</a>
+                            <a href="/jobs?space={{ space.id }}" class="space-jobs-link" hx-boost="false">
+                                <span>{{ space.name }}</span>
+                                <i data-lucide="square-arrow-out-up-right" class="space-jobs-link-icon"></i>
+                            </a>
                         </td>
                         <td style="text-align: center; vertical-align: middle;">
                             <span class="badge" style="background-color: rgba(14,165,233,0.1); color: var(--color-primary); border-color: rgba(14,165,233,0.2); font-weight: 700; font-size: 0.8rem; padding: 2px 10px; border-radius: 20px;">
