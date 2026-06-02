@@ -16,15 +16,10 @@
     }
 
     .job-tags-list[data-condensed="true"] {
-        display: block;
-        white-space: nowrap;
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
         overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .job-tags-summary {
-        font-size: 0.75rem;
-        color: #38bdf8;
     }
 
     .job-tag-chip {
@@ -91,12 +86,12 @@
                         {% endif %}
                     </td>
                     <td>
-                        <div class="job-tags-list" title="{% for tag in job.tags %}({{ tag }}){% if !loop.last %} {% endif %}{% endfor %}">
+                        <div class="job-tags-list" title="{% for tag in job.tags %}{{ tag }}{% if !loop.last %}, {% endif %}{% endfor %}">
                             {% if job.tags.is_empty() %}
                             <span style="color: var(--text-muted); font-size: 0.8rem;">-</span>
                             {% else %}
                             {% for tag in job.tags %}
-                            <span class="job-tag-chip" data-tag-text="({{ tag }})">
+                            <span class="job-tag-chip" data-tag-text="{{ tag }}">
                                 {{ tag }}
                             </span>
                             {% endfor %}
@@ -156,8 +151,9 @@ function applyCondensedJobTags(root) {
         var summaryTags = chips.slice(0, 2).map(function(chip) {
             return chip.dataset.tagText || chip.textContent.trim();
         });
-        var summaryText = summaryTags.join(' ') + ' ⋯';
-        list.innerHTML = '<span class="job-tags-summary">' + summaryText + '</span>';
+        list.innerHTML = summaryTags.map(function(tag) {
+            return '<span class="job-tag-chip">' + tag + '</span>';
+        }).join('') + '<span class="job-tag-chip">…</span>';
         list.dataset.condensed = 'true';
     });
 }
