@@ -215,7 +215,20 @@ body.sidebar-collapsed aside.sidebar {
 }
 
 .breadcrumbs a {
+    color: var(--text-muted);
+    text-decoration: none;
     transition: color 0.18s ease, text-decoration-color 0.18s ease;
+}
+
+.breadcrumbs a:hover {
+    color: var(--color-primary) !important;
+    text-decoration: underline !important;
+    text-decoration-color: var(--color-primary);
+}
+
+.breadcrumbs-separator {
+    margin: 0 8px;
+    opacity: 0.4;
 }
 
 .breadcrumbs a:hover {
