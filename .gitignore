@@ -24,6 +24,8 @@ config/*.toml
 tmp/
 
 # Local debug files
+server.log
+.agent/
 cookie.txt
 *.png
 data/log-archives/
