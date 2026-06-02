@@ -32,9 +32,12 @@
     }
 
     .job-tag-ellipsis {
+        display: inline-flex;
+        align-items: center;
         font-size: 0.75rem;
         color: #38bdf8;
         padding: 2px 0;
+        line-height: 1;
     }
 
     .job-tags-tooltip {
@@ -184,7 +187,7 @@ function applyCondensedJobTags(root) {
         });
         list.innerHTML = summaryTags.map(function(tag) {
             return '<span class="job-tag-chip">' + tag + '</span>';
-        }).join('') + '<span class="job-tag-ellipsis">…</span>';
+        }).join('') + '<span class="job-tag-ellipsis">⋯</span>';
         list.dataset.condensed = 'true';
     });
 }
@@ -213,6 +216,10 @@ function bindJobTagsTooltip(root) {
 
     scope.querySelectorAll('.job-tags-list').forEach(function(list) {
         list.onmouseenter = function(event) {
+            if (list.dataset.condensed !== 'true') {
+                hideTooltip();
+                return;
+            }
             var text = list.dataset.tagsTooltip || '';
             if (!text.trim()) {
                 return;
