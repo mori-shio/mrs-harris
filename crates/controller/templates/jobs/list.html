@@ -251,11 +251,17 @@ function renderCopyJobResults(query) {
         const description = job.description && job.description.trim() !== ''
             ? '<span class="copy-job-result-description">' + escapeHtml(job.description) + '</span>'
             : '';
-        return '<button type="button" class="copy-job-result" onclick="goToCopyJob(\\'' + encodeURIComponent(job.name) + '\\')">' +
+        return '<button type="button" class="copy-job-result" data-copy-job="' + encodeURIComponent(job.name) + '">' +
             '<span class="copy-job-result-name">' + escapeHtml(job.name) + '</span>' +
             description +
             '</button>';
     }).join('');
+
+    list.querySelectorAll('.copy-job-result').forEach(function(button) {
+        button.addEventListener('click', function() {
+            goToCopyJob(button.dataset.copyJob || '');
+        });
+    });
 }
 
 function escapeHtml(text) {
