@@ -30,53 +30,59 @@
 </div>
 
 <style>
+    .space-tabs-shell {
+        position: relative;
+        margin-top: 12px;
+        margin-bottom: 24px;
+    }
+
+    .space-tabs-shell::before,
+    .space-tabs-shell::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 1px;
+        width: 56px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.18s ease;
+        z-index: 2;
+    }
+
+    .space-tabs-shell::before {
+        left: 0;
+        background:
+            linear-gradient(90deg, rgba(6, 10, 19, 1) 0%, rgba(6, 10, 19, 0.92) 42%, rgba(6, 10, 19, 0) 100%);
+        box-shadow: inset 14px 0 18px rgba(6, 10, 19, 0.55);
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .space-tabs-shell::after {
+        right: 0;
+        background:
+            linear-gradient(270deg, rgba(6, 10, 19, 1) 0%, rgba(6, 10, 19, 0.92) 42%, rgba(6, 10, 19, 0) 100%);
+        box-shadow: inset -14px 0 18px rgba(6, 10, 19, 0.55);
+        border-left: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .space-tabs-shell.has-left-shadow::before,
+    .space-tabs-shell.has-right-shadow::after {
+        opacity: 1;
+    }
+
     .space-tabs-nav {
         display: flex;
         align-items: center;
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        margin-top: 12px;
-        margin-bottom: 24px;
         gap: 6px;
         overflow-x: auto;
         padding-bottom: 1px;
         -ms-overflow-style: none;
         scrollbar-width: none;
-        position: relative;
     }
 
     .space-tabs-nav::-webkit-scrollbar {
         display: none;
-    }
-
-    .space-tabs-nav::before,
-    .space-tabs-nav::after {
-        content: '';
-        position: sticky;
-        top: 0;
-        width: 40px;
-        height: 100%;
-        pointer-events: none;
-        opacity: 0;
-        transition: opacity 0.18s ease;
-        z-index: 1;
-        flex: 0 0 auto;
-    }
-
-    .space-tabs-nav::before {
-        left: 0;
-        margin-right: -40px;
-        background: linear-gradient(90deg, rgba(6, 10, 19, 0.98) 0%, rgba(6, 10, 19, 0.72) 38%, rgba(6, 10, 19, 0) 100%);
-    }
-
-    .space-tabs-nav::after {
-        right: 0;
-        margin-left: -40px;
-        background: linear-gradient(270deg, rgba(6, 10, 19, 0.98) 0%, rgba(6, 10, 19, 0.72) 38%, rgba(6, 10, 19, 0) 100%);
-    }
-
-    .space-tabs-nav.has-left-shadow::before,
-    .space-tabs-nav.has-right-shadow::after {
-        opacity: 1;
     }
     
     .space-tab {
@@ -188,43 +194,47 @@
 </style>
 
 <!-- Space Filter Tabs -->
-<div class="space-tabs-nav">
-    {% for tab in spaces %}
-        <button class="space-tab {% if tab.is_active %}active{% endif %}"
+<div class="space-tabs-shell">
+    <div class="space-tabs-nav">
+        {% for tab in spaces %}
+            <button class="space-tab {% if tab.is_active %}active{% endif %}"
+                    {% if tab.id.is_empty() %}
+                        hx-get="/jobs"
+                    {% elif tab.id == "unclassified" %}
+                        hx-get="/jobs?space=unclassified"
+                    {% else %}
+                        hx-get="/jobs?space={{ tab.id }}"
+                    {% endif %}
+                    hx-target="#jobs-list-container"
+                    hx-push-url="true"
+                    onclick="selectSpaceTab(this, '{% if tab.id.is_empty() %}{% elif tab.id == "unclassified" %}unclassified{% else %}{{ tab.id }}{% endif %}')">
                 {% if tab.id.is_empty() %}
-                    hx-get="/jobs"
+                    <i data-lucide="layers" style="width: 14px; height: 14px;"></i>
                 {% elif tab.id == "unclassified" %}
-                    hx-get="/jobs?space=unclassified"
+                    <i data-lucide="help-circle" style="width: 14px; height: 14px;"></i>
                 {% else %}
-                    hx-get="/jobs?space={{ tab.id }}"
+                    <i data-lucide="folder" style="width: 14px; height: 14px;"></i>
                 {% endif %}
-                hx-target="#jobs-list-container"
-                hx-push-url="true"
-                onclick="selectSpaceTab(this, '{% if tab.id.is_empty() %}{% elif tab.id == "unclassified" %}unclassified{% else %}{{ tab.id }}{% endif %}')">
-            {% if tab.id.is_empty() %}
-                <i data-lucide="layers" style="width: 14px; height: 14px;"></i>
-            {% elif tab.id == "unclassified" %}
-                <i data-lucide="help-circle" style="width: 14px; height: 14px;"></i>
-            {% else %}
-                <i data-lucide="folder" style="width: 14px; height: 14px;"></i>
-            {% endif %}
-            {{ tab.name }}
-        </button>
-        {% if tab.id == "unclassified" %}
-            <button type="button" class="space-tab-add-trigger" onclick="openCreateSpaceModal()" title="新規スペースを作成">
-                <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                {{ tab.name }}
             </button>
-        {% endif %}
-    {% endfor %}
+            {% if tab.id == "unclassified" %}
+                <button type="button" class="space-tab-add-trigger" onclick="openCreateSpaceModal()" title="新規スペースを作成">
+                    <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                </button>
+            {% endif %}
+        {% endfor %}
+    </div>
 </div>
 
 <script>
     function updateSpaceTabsScrollShadow(nav) {
         if (!nav) return;
+        const shell = nav.closest('.space-tabs-shell');
+        if (!shell) return;
         const maxScrollLeft = Math.max(0, nav.scrollWidth - nav.clientWidth);
         const scrollLeft = nav.scrollLeft;
-        nav.classList.toggle('has-left-shadow', scrollLeft > 2);
-        nav.classList.toggle('has-right-shadow', scrollLeft < maxScrollLeft - 2);
+        shell.classList.toggle('has-left-shadow', scrollLeft > 2);
+        shell.classList.toggle('has-right-shadow', scrollLeft < maxScrollLeft - 2);
     }
 
     function initSpaceTabsScrollShadow(root) {
