@@ -491,6 +491,22 @@
             }
         });
 
+        document.addEventListener("keydown", event => {
+            if (event.key !== "Enter" || event.defaultPrevented) return;
+
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+
+            const form = target.closest(".modal-overlay form");
+            if (!form) return;
+
+            if (target.tagName === "TEXTAREA") {
+                return;
+            }
+
+            event.preventDefault();
+        }, true);
+
         // Initialize Lucide icons on page load and after HTMX swaps
         function initIcons() {
             lucide.createIcons();
