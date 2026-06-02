@@ -231,7 +231,7 @@ document.body.addEventListener('htmx:afterSwap', function(event) {
     }
 });
 
-const copyJobCandidates = JSON.parse({{ copy_candidates_json|safe }});
+const copyJobCandidates = {{ copy_candidates_json|safe }};
 
 function renderCopyJobResults(query) {
     const list = document.getElementById('copy-job-results');
