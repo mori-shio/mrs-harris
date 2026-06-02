@@ -131,6 +131,22 @@
         font-size: 0.8rem;
         color: var(--text-muted);
     }
+
+    .copy-job-results {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 360px;
+        max-height: 360px;
+        overflow-y: auto;
+        box-sizing: border-box;
+    }
+
+    .copy-job-results-empty {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        padding: 12px 4px;
+    }
 </style>
 
 <!-- Space Filter Tabs -->
@@ -247,7 +263,7 @@ function renderCopyJobResults(query) {
     });
 
     if (matches.length === 0) {
-        list.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px 4px;">一致するジョブがありません</div>';
+        list.innerHTML = '<div class="copy-job-results-empty">一致するジョブがありません</div>';
         return;
     }
 
@@ -324,7 +340,7 @@ function closeCopyJobModal() {
                 <label for="copy-job-search">コピー元ジョブ</label>
                 <input type="text" id="copy-job-search" class="form-control" placeholder="ジョブ名で前方一致検索" oninput="renderCopyJobResults(this.value)">
             </div>
-            <div id="copy-job-results" style="display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto;"></div>
+            <div id="copy-job-results" class="copy-job-results"></div>
         </div>
     </div>
 </div>
