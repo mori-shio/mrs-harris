@@ -1,6 +1,6 @@
-{% macro sortable_th(label, current_sort, job_name, target) %}
+{% macro sortable_th(label, current_sort, job_name, target, endpoint) %}
 <th class="no-sort server-sort-th" style="cursor: pointer; user-select: none;"
-    hx-get='/jobs/{{ job_name }}?tab=runs&page=1&sort={% if current_sort == "desc" %}asc{% else %}desc{% endif %}'
+    hx-get='{{ endpoint }}?page=1&sort={% if current_sort == "desc" %}asc{% else %}desc{% endif %}'
     hx-target="{{ target }}" hx-swap="outerHTML" hx-push-url="true">
     <div class="th-sort-container" style="display: flex; align-items: center; gap: 4px; color: var(--text-secondary); transition: color 0.2s ease;">
         <span class="th-sort-label" style="font-weight: 600;">{{ label }}</span>

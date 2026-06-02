@@ -4,7 +4,7 @@
             <thead>
                 <tr>
 {% import "components/table.html" as table %}
-                    {% call table::sortable_th("実行", current_sort, job_name, "#runs-table-container") %}
+                    {% call table::sortable_th("実行", current_sort, job_name, "#runs-table-container", "/jobs/" ~ job_name ~ "/runs") %}
                     <th class="no-sort">ステータス</th>
                     <th class="no-sort">トリガー</th>
                     <th class="no-sort">バージョン</th>
@@ -62,9 +62,9 @@
             {% if current_page > 1 %}
             <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; cursor: pointer;"
                     {% if current_sort == "default" %}
-                    hx-get="/jobs/{{ job_name }}?tab=runs&page={{ current_page - 1 }}"
+                    hx-get="/jobs/{{ job_name }}/runs?page={{ current_page - 1 }}"
                     {% else %}
-                    hx-get="/jobs/{{ job_name }}?tab=runs&page={{ current_page - 1 }}&sort={{ current_sort }}"
+                    hx-get="/jobs/{{ job_name }}/runs?page={{ current_page - 1 }}&sort={{ current_sort }}"
                     {% endif %}
                     hx-target="#runs-table-container" hx-swap="outerHTML" hx-push-url="true">
                 <i data-lucide="chevron-left" style="width:14px; height:14px;"></i>
@@ -88,9 +88,9 @@
             {% else %}
             <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; min-width: 34px; text-align: center; cursor: pointer;"
                     {% if current_sort == "default" %}
-                    hx-get="/jobs/{{ job_name }}?tab=runs&page={{ p }}"
+                    hx-get="/jobs/{{ job_name }}/runs?page={{ p }}"
                     {% else %}
-                    hx-get="/jobs/{{ job_name }}?tab=runs&page={{ p }}&sort={{ current_sort }}"
+                    hx-get="/jobs/{{ job_name }}/runs?page={{ p }}&sort={{ current_sort }}"
                     {% endif %}
                     hx-target="#runs-table-container" hx-swap="outerHTML" hx-push-url="true">
                 {{ p }}
@@ -103,9 +103,9 @@
             {% if current_page < total_pages %}
             <button class="btn btn-secondary" style="padding:6px 12px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px; cursor:pointer;"
                     {% if current_sort == "default" %}
-                    hx-get="/jobs/{{ job_name }}?tab=runs&page={{ current_page + 1 }}"
+                    hx-get="/jobs/{{ job_name }}/runs?page={{ current_page + 1 }}"
                     {% else %}
-                    hx-get="/jobs/{{ job_name }}?tab=runs&page={{ current_page + 1 }}&sort={{ current_sort }}"
+                    hx-get="/jobs/{{ job_name }}/runs?page={{ current_page + 1 }}&sort={{ current_sort }}"
                     {% endif %}
                     hx-target="#runs-table-container" hx-swap="outerHTML" hx-push-url="true">
                 次へ
