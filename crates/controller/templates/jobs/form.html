@@ -85,7 +85,7 @@
     {% endif %}
 </nav>
 
-<div style="max-width: 850px; margin: 0 auto;">
+<div class="form-page-shell">
     <form action="{% if is_edit %}/jobs/{{ original_name.as_ref().unwrap() }}/edit{% else %}/jobs/new{% endif %}" method="POST" hx-boost="false">
         {% if is_edit %}
         <input type="hidden" name="current_job_id" value="{{ job_id.unwrap() }}">

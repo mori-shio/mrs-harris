@@ -128,6 +128,11 @@ body:not(.sidebar-collapsed) {
     align-items: center;
 }
 
+.form-page-shell {
+    max-width: 850px;
+    margin: 0 auto;
+}
+
 /* Background Glowing Orbs */
 .glow-orb {
     position: absolute;

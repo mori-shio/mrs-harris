@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{% if is_edit %}ワーカー定義編集{% else %}新規ワーカー定義作成{% endif %} | Mrs. Harris{% endblock %}
+{% block title %}{% if is_edit %}ワーカー定義編集{% else %}ワーカー定義 新規作成{% endif %} | Mrs. Harris{% endblock %}
 
 {% block nav_worker_defs %}active{% endblock %}
 
@@ -65,7 +65,7 @@
     <span style="color: var(--text-primary);">{% if is_edit %}編集{% else %}新規作成{% endif %}</span>
 </nav>
 
-<div style="max-width: 800px; margin: 0 auto;">
+<div class="form-page-shell">
     <div class="page-header" style="margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center;">
         <div class="page-title">
             <div style="display: flex; align-items: center; gap: 12px;">
@@ -74,7 +74,6 @@
                 </a>
                 <h2>{% if is_edit %}ワーカー定義編集{% else %}ワーカー定義 新規作成{% endif %}</h2>
             </div>
-            <p style="margin-left: 32px;">自作ワーカーノード（Node/Slave）のタイプ、起動パラメータ、AWS接続設定</p>
         </div>
 
         <div style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.03); padding: 10px 18px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.06); backdrop-filter: var(--glass-blur);">
@@ -86,20 +85,20 @@
         </div>
     </div>
 
-<div class="card" style="max-width: 800px; margin: 0 auto; padding: 32px;">
+<div class="card" style="padding: 32px;">
     <form id="worker-definition-form" action="{% if is_edit %}/worker-definitions/{{ def_id.unwrap() }}/edit{% else %}/worker-definitions/new{% endif %}" method="POST" hx-boost="false">
         <input type="hidden" name="is_active_present" value="true">
 
         <!-- Name & Description -->
         <div class="form-group">
-            <label for="name">ノード名 (一意) <span style="color: var(--color-danger);">*</span></label>
+            <label for="name">ワーカー名 (一意) <span style="color: var(--color-danger);">*</span></label>
             <input type="text" id="name" name="name" class="form-control" placeholder="fargate-tokio-prod" required value="{{ name }}" {% if is_edit %}disabled{% endif %}>
             <span style="font-size: 0.8rem; color: var(--text-muted);">ワーカーを識別するユニークな名前（スペースなし、スネークケースまたはハイフン接続）</span>
         </div>
 
         <div class="form-group">
-            <label for="description">ノードの説明</label>
-            <textarea id="description" name="description" class="form-control" style="min-height: 80px;" placeholder="本番用のFargateタスクで構成されたワーカーノード...">{{ description }}</textarea>
+            <label for="description">ワーカーの説明</label>
+            <textarea id="description" name="description" class="form-control" style="min-height: 80px;" placeholder="本番用のFargateタスクで構成されたワーカー...">{{ description }}</textarea>
         </div>
 
         <div class="form-group" style="margin-top: 20px;">
