@@ -193,6 +193,7 @@ async fn trigger_job(
         trigger_type: mrs_harris_common::models::run::TriggerType::Manual,
         scheduled_at: Some(chrono::Utc::now()),
         worker_definition_id: job.worker_definition_id,
+        worker_definition_history_id: None,
     };
 
     let run = crate::db::runs::create_run(&state.db, &new_run)

@@ -51,7 +51,7 @@ mod tests {
             output: None,
             error: None,
             job_history_id: Some(1),
-            worker_definition_id: Some(2),
+            worker_definition_history_id: Some(2),
             config_version: Some(1),
             created_at: now,
             updated_at: now,

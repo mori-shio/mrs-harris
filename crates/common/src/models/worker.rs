@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Worker {
     pub id: i64,
-    pub worker_definition_id: i64,
+    pub worker_definition_history_id: i64,
     pub worker_type: super::job::WorkerType,
     /// Fargate Task ARN または Lambda Request ID
     pub external_id: Option<String>,

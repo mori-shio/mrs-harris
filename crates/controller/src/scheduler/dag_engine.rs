@@ -329,7 +329,9 @@ async fn launch_task_worker(
         .await
         .ok()
         .flatten();
-    let worker_definition_id = parent_run.as_ref().and_then(|r| r.worker_definition_id);
+    let worker_definition_history_id = parent_run
+        .as_ref()
+        .and_then(|r| r.worker_definition_history_id);
     let job_history_id = parent_run.as_ref().and_then(|r| r.job_history_id);
     let config_version = parent_run.as_ref().and_then(|r| r.config_version);
 
@@ -358,7 +360,7 @@ async fn launch_task_worker(
         output: None,
         error: None,
         job_history_id,
-        worker_definition_id,
+        worker_definition_history_id,
         config_version,
         created_at: now,
         updated_at: now,

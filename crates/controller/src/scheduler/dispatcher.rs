@@ -58,10 +58,19 @@ pub async fn dispatch_pending_runs(state: &AppState) -> anyhow::Result<()> {
         }
 
         // ワーカーをデータベースに登録
-        let def_id = job.worker_definition_id.unwrap_or(1);
+        let history_id = match run.worker_definition_history_id {
+            Some(history_id) => history_id,
+            None => {
+                tracing::error!(
+                    "Run {} has no worker_definition_history_id; cannot register worker",
+                    run.id
+                );
+                continue;
+            }
+        };
         let worker_res = crate::db::workers::register_worker(
             &state.db,
-            &def_id,
+            &history_id,
             job.worker_type.clone(),
             None,
             &run.id,

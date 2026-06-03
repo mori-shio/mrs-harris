@@ -285,7 +285,7 @@ mod tests {
             output: None,
             error: None,
             job_history_id: Some(30),
-            worker_definition_id: Some(40),
+            worker_definition_history_id: Some(40),
             config_version: Some(3),
             created_at: now,
             updated_at: now,

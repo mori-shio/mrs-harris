@@ -200,7 +200,7 @@ pub struct JobRun {
     pub output: Option<serde_json::Value>,
     pub error: Option<String>,
     pub job_history_id: Option<i64>,
-    pub worker_definition_id: Option<i64>,
+    pub worker_definition_history_id: Option<i64>,
     pub config_version: Option<u32>, // Populated via JOIN with job_history
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -214,6 +214,7 @@ pub struct NewRun {
     pub trigger_type: TriggerType,
     pub scheduled_at: Option<DateTime<Utc>>,
     pub worker_definition_id: Option<i64>,
+    pub worker_definition_history_id: Option<i64>,
 }
 
 /// ログストリーム種別

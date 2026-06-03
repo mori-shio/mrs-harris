@@ -85,6 +85,7 @@ mod tests {
             trigger_type: TriggerType::Manual,
             scheduled_at: None,
             worker_definition_id: None,
+            worker_definition_history_id: None,
         };
         let run = crate::db::runs::create_run(&pool, &new_run).await.unwrap();
         crate::db::runs::update_run_status(
@@ -178,6 +179,7 @@ mod tests {
             trigger_type: TriggerType::Manual,
             scheduled_at: None,
             worker_definition_id: None,
+            worker_definition_history_id: None,
         };
         let run = crate::db::runs::create_run(&pool, &new_run).await.unwrap();
         crate::db::runs::update_run_status(

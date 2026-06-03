@@ -7,7 +7,7 @@ use std::str::FromStr;
 
 fn map_row_to_worker(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<Worker> {
     let id: i64 = row.try_get("id")?;
-    let worker_definition_id: i64 = row.try_get("worker_definition_id")?;
+    let worker_definition_history_id: i64 = row.try_get("worker_definition_history_id")?;
 
     let worker_type_str: String = row.try_get("worker_type")?;
     let worker_type = WorkerType::from_str(&worker_type_str)
@@ -27,7 +27,7 @@ fn map_row_to_worker(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<Worker> {
 
     Ok(Worker {
         id,
-        worker_definition_id,
+        worker_definition_history_id,
         worker_type,
         external_id,
         status,
@@ -41,7 +41,7 @@ fn map_row_to_worker(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<Worker> {
 /// ワーカーを登録
 pub async fn register_worker(
     pool: &MySqlPool,
-    worker_definition_id: &i64,
+    worker_definition_history_id: &i64,
     worker_type: WorkerType,
     external_id: Option<&str>,
     job_run_id: &i64,
@@ -52,10 +52,10 @@ pub async fn register_worker(
     let now = Utc::now();
 
     let result = sqlx::query(
-        r#"INSERT INTO workers (worker_definition_id, worker_type, external_id, status, job_run_id, started_at, last_heartbeat, metadata)
+        r#"INSERT INTO workers (worker_definition_history_id, worker_type, external_id, status, job_run_id, started_at, last_heartbeat, metadata)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)"#
     )
-    .bind(worker_definition_id)
+    .bind(worker_definition_history_id)
     .bind(worker_type_str)
     .bind(external_id)
     .bind(status_str)
@@ -237,6 +237,43 @@ pub async fn get_worker_definition_by_name(
         Some(r) => Ok(Some(map_row_to_worker_def(&r)?)),
         None => Ok(None),
     }
+}
+
+pub async fn get_worker_definition_history(
+    pool: &MySqlPool,
+    id: &i64,
+) -> anyhow::Result<Option<WorkerDefinitionHistoryEntry>> {
+    let row = sqlx::query(
+        "SELECT id, worker_definition_id, version, payload, changed_by, changed_at
+         FROM worker_definition_history
+         WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+
+    match row {
+        Some(r) => Ok(Some(map_row_to_worker_def_history(&r)?)),
+        None => Ok(None),
+    }
+}
+
+pub async fn get_latest_worker_definition_history_id(
+    pool: &MySqlPool,
+    worker_definition_id: &i64,
+) -> anyhow::Result<Option<i64>> {
+    let row = sqlx::query_scalar(
+        r#"SELECT id
+           FROM worker_definition_history
+           WHERE worker_definition_id = ?
+           ORDER BY version DESC
+           LIMIT 1"#,
+    )
+    .bind(worker_definition_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row)
 }
 
 /// ワーカー定義を新規作成

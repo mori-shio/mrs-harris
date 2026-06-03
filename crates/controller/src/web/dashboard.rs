@@ -111,15 +111,14 @@ async fn fetch_dashboard_data(pool: &MySqlPool) -> anyhow::Result<DashboardLiveT
     let rows = sqlx::query(
         r#"SELECT r.id,
                   r.status,
-                  COALESCE(wd.worker_type, jd.worker_type) AS worker_type,
+                  COALESCE(JSON_UNQUOTE(JSON_EXTRACT(wdh.payload, '$."ワーカータイプ"')), jd.worker_type) AS worker_type,
                   r.trigger_type,
                   r.started_at,
                   r.duration_ms,
                   j.name as job_name
            FROM job_runs r
            JOIN jobs j ON r.job_id = j.id
-           LEFT JOIN workers w ON r.worker_id = w.id
-           LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id
+           LEFT JOIN worker_definition_history wdh ON r.worker_definition_history_id = wdh.id
            LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id
            ORDER BY r.created_at DESC
            LIMIT 10"#,

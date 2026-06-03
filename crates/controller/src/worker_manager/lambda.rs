@@ -12,9 +12,11 @@ pub async fn launch(state: &AppState, run: &JobRun) -> anyhow::Result<String> {
     let mut is_local = state.config.lambda.function_name == "local"
         || state.config.lambda.function_name.is_empty();
 
-    if let Some(def_id) = run.worker_definition_id
-        && let Ok(Some(def)) = crate::db::workers::get_worker_definition(&state.db, &def_id).await
-        && let Some(val) = def.config.get("function_name").and_then(|v| v.as_str())
+    if let Some(history_id) = run.worker_definition_history_id
+        && let Ok(Some(history)) =
+            crate::db::workers::get_worker_definition_history(&state.db, &history_id).await
+        && let Some(config) = history.payload.get("設定")
+        && let Some(val) = config.get("function_name").and_then(|v| v.as_str())
     {
         is_local = val == "local" || val.is_empty();
     }
@@ -43,14 +45,16 @@ async fn launch_aws_lambda(state: &AppState, run: &JobRun) -> anyhow::Result<Str
     let mut qualifier = state.config.lambda.qualifier.clone();
 
     // 自作ワーカー定義の設定でオーバーライド
-    if let Some(def_id) = run.worker_definition_id
-        && let Some(def) = crate::db::workers::get_worker_definition(&state.db, &def_id).await?
+    if let Some(history_id) = run.worker_definition_history_id
+        && let Some(history) =
+            crate::db::workers::get_worker_definition_history(&state.db, &history_id).await?
+        && let Some(config) = history.payload.get("設定")
     {
-        if let Some(val) = def.config.get("function_name").and_then(|v| v.as_str()) {
+        if let Some(val) = config.get("function_name").and_then(|v| v.as_str()) {
             function_name = val.to_string();
             qualifier = None;
         }
-        if let Some(val) = def.config.get("qualifier").and_then(|v| v.as_str()) {
+        if let Some(val) = config.get("qualifier").and_then(|v| v.as_str()) {
             qualifier = Some(val.to_string());
         }
     }

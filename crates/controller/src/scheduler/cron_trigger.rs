@@ -61,6 +61,7 @@ pub async fn check_cron_jobs(state: &AppState) -> anyhow::Result<()> {
                     trigger_type: TriggerType::Scheduled,
                     scheduled_at: Some(scheduled_at),
                     worker_definition_id: job.worker_definition_id,
+                    worker_definition_history_id: None,
                 };
 
                 if let Err(e) = crate::db::runs::create_run(&state.db, &new_run).await {

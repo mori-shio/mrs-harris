@@ -13,9 +13,11 @@ pub async fn launch(state: &AppState, run: &JobRun) -> anyhow::Result<String> {
     let mut is_local =
         state.config.fargate.cluster_arn == "local" || state.config.fargate.cluster_arn.is_empty();
 
-    if let Some(def_id) = run.worker_definition_id
-        && let Ok(Some(def)) = crate::db::workers::get_worker_definition(&state.db, &def_id).await
-        && let Some(val) = def.config.get("cluster_arn").and_then(|v| v.as_str())
+    if let Some(history_id) = run.worker_definition_history_id
+        && let Ok(Some(history)) =
+            crate::db::workers::get_worker_definition_history(&state.db, &history_id).await
+        && let Some(config) = history.payload.get("設定")
+        && let Some(val) = config.get("cluster_arn").and_then(|v| v.as_str())
     {
         is_local = val == "local" || val.is_empty();
     }
@@ -49,31 +51,33 @@ async fn launch_aws_fargate(state: &AppState, run: &JobRun) -> anyhow::Result<St
     let mut assign_public_ip_bool = state.config.fargate.assign_public_ip.unwrap_or(true);
 
     // 自作ワーカー定義の設定でオーバーライド
-    if let Some(def_id) = run.worker_definition_id
-        && let Some(def) = crate::db::workers::get_worker_definition(&state.db, &def_id).await?
+    if let Some(history_id) = run.worker_definition_history_id
+        && let Some(history) =
+            crate::db::workers::get_worker_definition_history(&state.db, &history_id).await?
+        && let Some(config) = history.payload.get("設定")
     {
-        if let Some(val) = def.config.get("cluster_arn").and_then(|v| v.as_str()) {
+        if let Some(val) = config.get("cluster_arn").and_then(|v| v.as_str()) {
             cluster_arn = val.to_string();
         }
-        if let Some(val) = def.config.get("task_definition").and_then(|v| v.as_str()) {
+        if let Some(val) = config.get("task_definition").and_then(|v| v.as_str()) {
             task_definition = val.to_string();
         }
-        if let Some(val) = def.config.get("subnets").and_then(|v| v.as_array()) {
+        if let Some(val) = config.get("subnets").and_then(|v| v.as_array()) {
             subnets = val
                 .iter()
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect();
         }
-        if let Some(val) = def.config.get("security_groups").and_then(|v| v.as_array()) {
+        if let Some(val) = config.get("security_groups").and_then(|v| v.as_array()) {
             security_groups = val
                 .iter()
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect();
         }
-        if let Some(val) = def.config.get("container_name").and_then(|v| v.as_str()) {
+        if let Some(val) = config.get("container_name").and_then(|v| v.as_str()) {
             container_name = val.to_string();
         }
-        if let Some(val) = def.config.get("assign_public_ip").and_then(|v| v.as_bool()) {
+        if let Some(val) = config.get("assign_public_ip").and_then(|v| v.as_bool()) {
             assign_public_ip_bool = val;
         }
     }

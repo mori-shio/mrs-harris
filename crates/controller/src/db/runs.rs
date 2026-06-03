@@ -12,6 +12,14 @@ fn require_job_history_id(job_id: i64, job_history_id: Option<i64>) -> anyhow::R
     job_history_id.ok_or_else(|| anyhow::anyhow!("job {} has no job_history record", job_id))
 }
 
+fn require_worker_definition_history_id(
+    job_id: i64,
+    worker_definition_history_id: Option<i64>,
+) -> anyhow::Result<i64> {
+    worker_definition_history_id
+        .ok_or_else(|| anyhow::anyhow!("job {} has no worker_definition_history record", job_id))
+}
+
 async fn infer_terminal_duration_ms(
     pool: &MySqlPool,
     id: &i64,
@@ -79,7 +87,7 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
     let output: Option<serde_json::Value> = row.try_get("output")?;
     let error: Option<String> = row.try_get("error")?;
     let job_history_id: Option<i64> = row.try_get("job_history_id")?;
-    let worker_definition_id: Option<i64> = row.try_get("worker_definition_id")?;
+    let worker_definition_history_id: Option<i64> = row.try_get("worker_definition_history_id")?;
     let config_version: Option<u32> = row.try_get("config_version").ok().flatten();
     let created_at: DateTime<Utc> = row.try_get("created_at")?;
     let updated_at: DateTime<Utc> = row.try_get("updated_at")?;
@@ -107,7 +115,7 @@ fn map_row_to_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<JobRun> {
         output,
         error,
         job_history_id,
-        worker_definition_id,
+        worker_definition_history_id,
         config_version,
         created_at,
         updated_at,
@@ -148,6 +156,27 @@ pub async fn create_run(pool: &MySqlPool, new_run: &NewRun) -> anyhow::Result<Jo
     };
     let job_history_id = require_job_history_id(new_run.job_id, job_history_id)?;
 
+    let worker_definition_id = match new_run.worker_definition_id {
+        Some(def_id) => Some(def_id),
+        None => sqlx::query_scalar("SELECT worker_definition_id FROM jobs WHERE id = ?")
+            .bind(new_run.job_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .flatten(),
+    };
+
+    let worker_definition_history_id = match new_run.worker_definition_history_id {
+        Some(history_id) => Some(history_id),
+        None => match worker_definition_id {
+            Some(def_id) => {
+                crate::db::workers::get_latest_worker_definition_history_id(pool, &def_id).await?
+            }
+            None => None,
+        },
+    };
+    let worker_definition_history_id =
+        require_worker_definition_history_id(new_run.job_id, worker_definition_history_id)?;
+
     // 最新の run_number を FOR UPDATE で取得
     let max_run_number: i64 = sqlx::query_scalar(
         "SELECT COALESCE(MAX(run_number), 0) FROM job_runs WHERE job_id = ? FOR UPDATE",
@@ -159,14 +188,15 @@ pub async fn create_run(pool: &MySqlPool, new_run: &NewRun) -> anyhow::Result<Jo
     let new_run_number = max_run_number + 1;
 
     let result = sqlx::query(
-        r#"INSERT INTO job_runs (job_id, status, trigger_type, attempt, scheduled_at, job_history_id, run_number)
-           VALUES (?, ?, ?, 1, ?, ?, ?)"#
+        r#"INSERT INTO job_runs (job_id, status, trigger_type, attempt, scheduled_at, job_history_id, worker_definition_history_id, run_number)
+           VALUES (?, ?, ?, 1, ?, ?, ?, ?)"#
     )
     .bind(new_run.job_id)
     .bind(status_str)
     .bind(trigger_type_str)
     .bind(new_run.scheduled_at)
     .bind(job_history_id)
+    .bind(worker_definition_history_id)
     .bind(new_run_number)
     .execute(&mut *tx)
     .await?;
@@ -183,13 +213,12 @@ pub async fn create_run(pool: &MySqlPool, new_run: &NewRun) -> anyhow::Result<Jo
 pub async fn get_run(pool: &MySqlPool, id: &i64) -> anyhow::Result<Option<JobRun>> {
     let row = sqlx::query(
         "SELECT r.*, h.version as config_version, \
-                COALESCE(w.worker_definition_id, j.worker_definition_id) as worker_definition_id, \
-                COALESCE(wd.worker_type, jd.worker_type) as worker_type \
+                r.worker_definition_history_id as worker_definition_history_id, \
+                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(wdh.payload, '$.\"ワーカータイプ\"')), jd.worker_type) as worker_type \
          FROM job_runs r \
          LEFT JOIN job_history h ON r.job_history_id = h.id \
          LEFT JOIN jobs j ON r.job_id = j.id \
-         LEFT JOIN workers w ON r.worker_id = w.id \
-         LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id \
+         LEFT JOIN worker_definition_history wdh ON r.worker_definition_history_id = wdh.id \
          LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id \
          WHERE r.id = ?",
     )
@@ -211,13 +240,12 @@ pub async fn get_run_by_number(
 ) -> anyhow::Result<Option<JobRun>> {
     let row = sqlx::query(
         "SELECT r.*, h.version as config_version, \
-                COALESCE(w.worker_definition_id, j.worker_definition_id) as worker_definition_id, \
-                COALESCE(wd.worker_type, jd.worker_type) as worker_type \
+                r.worker_definition_history_id as worker_definition_history_id, \
+                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(wdh.payload, '$.\"ワーカータイプ\"')), jd.worker_type) as worker_type \
          FROM job_runs r \
          LEFT JOIN job_history h ON r.job_history_id = h.id \
          LEFT JOIN jobs j ON r.job_id = j.id \
-         LEFT JOIN workers w ON r.worker_id = w.id \
-         LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id \
+         LEFT JOIN worker_definition_history wdh ON r.worker_definition_history_id = wdh.id \
          LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id \
          WHERE r.job_id = ? AND r.run_number = ?",
     )
@@ -241,13 +269,12 @@ pub async fn list_runs(
     desc: bool,
 ) -> anyhow::Result<Vec<JobRun>> {
     let mut query_str = "SELECT r.*, h.version as config_version, \
-                                COALESCE(w.worker_definition_id, j.worker_definition_id) as worker_definition_id, \
-                                COALESCE(wd.worker_type, jd.worker_type) as worker_type \
+                                r.worker_definition_history_id as worker_definition_history_id, \
+                                COALESCE(JSON_UNQUOTE(JSON_EXTRACT(wdh.payload, '$.\"ワーカータイプ\"')), jd.worker_type) as worker_type \
                          FROM job_runs r \
                          LEFT JOIN job_history h ON r.job_history_id = h.id \
                          LEFT JOIN jobs j ON r.job_id = j.id \
-                         LEFT JOIN workers w ON r.worker_id = w.id \
-                         LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id \
+                         LEFT JOIN worker_definition_history wdh ON r.worker_definition_history_id = wdh.id \
                          LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id \
                          WHERE 1=1".to_string();
     if job_id.is_some() {
@@ -401,12 +428,11 @@ pub async fn claim_pending_run(pool: &MySqlPool) -> anyhow::Result<Option<JobRun
     // 予定時刻を過ぎている or 定期実行予定の pending ジョブを1件取得して排他ロック
     let row = sqlx::query(
         r#"SELECT r.*, 
-                  COALESCE(w.worker_definition_id, j.worker_definition_id) as worker_definition_id,
-                  COALESCE(wd.worker_type, jd.worker_type) as worker_type
+                  r.worker_definition_history_id as worker_definition_history_id,
+                  COALESCE(JSON_UNQUOTE(JSON_EXTRACT(wdh.payload, '$."ワーカータイプ"')), jd.worker_type) as worker_type
            FROM job_runs r
            LEFT JOIN jobs j ON r.job_id = j.id
-           LEFT JOIN workers w ON r.worker_id = w.id
-           LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id
+           LEFT JOIN worker_definition_history wdh ON r.worker_definition_history_id = wdh.id
            LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id
            WHERE r.status = 'pending' AND (r.scheduled_at IS NULL OR r.scheduled_at <= ?)
            LIMIT 1 FOR UPDATE"#,
@@ -496,13 +522,12 @@ pub async fn claim_terminal_run_for_archival(pool: &MySqlPool) -> anyhow::Result
 
     let row = sqlx::query(
         r#"SELECT r.*, h.version as config_version,
-                  COALESCE(w.worker_definition_id, j.worker_definition_id) as worker_definition_id,
-                  COALESCE(wd.worker_type, jd.worker_type) as worker_type
+                  r.worker_definition_history_id as worker_definition_history_id,
+                  COALESCE(JSON_UNQUOTE(JSON_EXTRACT(wdh.payload, '$."ワーカータイプ"')), jd.worker_type) as worker_type
            FROM job_runs r
            LEFT JOIN job_history h ON r.job_history_id = h.id
            LEFT JOIN jobs j ON r.job_id = j.id
-           LEFT JOIN workers w ON r.worker_id = w.id
-           LEFT JOIN worker_definitions wd ON w.worker_definition_id = wd.id
+           LEFT JOIN worker_definition_history wdh ON r.worker_definition_history_id = wdh.id
            LEFT JOIN worker_definitions jd ON j.worker_definition_id = jd.id
            WHERE r.status IN ('succeeded', 'failed', 'cancelled', 'dead_letter')
              AND (r.log_archive_status IS NULL OR r.log_archive_status IN ('pending', 'failed'))
