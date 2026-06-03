@@ -145,7 +145,7 @@ pub async fn list_active_workers(pool: &MySqlPool) -> anyhow::Result<Vec<Worker>
 // ==========================================
 
 use mrs_harris_common::models::worker::{
-    NewWorkerDefinition, WorkerDefinition, WorkerDefinitionUpdate,
+    NewWorkerDefinition, WorkerDefinition, WorkerDefinitionHistoryEntry, WorkerDefinitionUpdate,
 };
 
 fn map_row_to_worker_def(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<WorkerDefinition> {
@@ -159,8 +159,6 @@ fn map_row_to_worker_def(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<WorkerDe
         .map_err(|e| anyhow::anyhow!("Invalid WorkerType: {}", e))?;
 
     let config: serde_json::Value = row.try_get("config")?;
-    let is_active_val: i8 = row.try_get("is_active")?;
-    let is_active = is_active_val != 0;
 
     let created_at: DateTime<Utc> = row.try_get("created_at")?;
     let updated_at: DateTime<Utc> = row.try_get("updated_at")?;
@@ -171,9 +169,21 @@ fn map_row_to_worker_def(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<WorkerDe
         description,
         worker_type,
         config,
-        is_active,
         created_at,
         updated_at,
+    })
+}
+
+fn map_row_to_worker_def_history(
+    row: &sqlx::mysql::MySqlRow,
+) -> anyhow::Result<WorkerDefinitionHistoryEntry> {
+    Ok(WorkerDefinitionHistoryEntry {
+        id: row.try_get("id")?,
+        worker_definition_id: row.try_get("worker_definition_id")?,
+        version: row.try_get("version")?,
+        payload: row.try_get("payload")?,
+        changed_by: row.try_get("changed_by")?,
+        changed_at: row.try_get("changed_at")?,
     })
 }
 
@@ -194,16 +204,7 @@ pub async fn list_worker_definitions(pool: &MySqlPool) -> anyhow::Result<Vec<Wor
 pub async fn list_active_worker_definitions(
     pool: &MySqlPool,
 ) -> anyhow::Result<Vec<WorkerDefinition>> {
-    let rows =
-        sqlx::query("SELECT * FROM worker_definitions WHERE is_active = 1 ORDER BY name ASC")
-            .fetch_all(pool)
-            .await?;
-
-    let mut defs = Vec::new();
-    for r in rows {
-        defs.push(map_row_to_worker_def(&r)?);
-    }
-    Ok(defs)
+    list_worker_definitions(pool).await
 }
 
 /// 単一のワーカー定義を取得
@@ -222,22 +223,35 @@ pub async fn get_worker_definition(
     }
 }
 
+/// ワーカー定義名で単一のワーカー定義を取得
+pub async fn get_worker_definition_by_name(
+    pool: &MySqlPool,
+    name: &str,
+) -> anyhow::Result<Option<WorkerDefinition>> {
+    let row = sqlx::query("SELECT * FROM worker_definitions WHERE name = ?")
+        .bind(name)
+        .fetch_optional(pool)
+        .await?;
+
+    match row {
+        Some(r) => Ok(Some(map_row_to_worker_def(&r)?)),
+        None => Ok(None),
+    }
+}
+
 /// ワーカー定義を新規作成
 pub async fn create_worker_definition(
     pool: &MySqlPool,
     new_def: &NewWorkerDefinition,
 ) -> anyhow::Result<WorkerDefinition> {
-    let is_active_val: i8 = if new_def.is_active { 1 } else { 0 };
-
     let result = sqlx::query(
-        r#"INSERT INTO worker_definitions (name, description, worker_type, config, is_active, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)"#
+        r#"INSERT INTO worker_definitions (name, description, worker_type, config, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)"#
     )
     .bind(&new_def.name)
     .bind(&new_def.description)
     .bind(new_def.worker_type.to_string())
     .bind(&new_def.config)
-    .bind(is_active_val)
     .bind(Utc::now())
     .bind(Utc::now())
     .execute(pool)
@@ -281,15 +295,6 @@ pub async fn update_worker_definition(
             .await?;
     }
 
-    if let Some(active) = update.is_active {
-        let is_active_val: i8 = if active { 1 } else { 0 };
-        sqlx::query("UPDATE worker_definitions SET is_active = ? WHERE id = ?")
-            .bind(is_active_val)
-            .bind(id)
-            .execute(&mut *tx)
-            .await?;
-    }
-
     sqlx::query("UPDATE worker_definitions SET updated_at = ? WHERE id = ?")
         .bind(Utc::now())
         .bind(id)
@@ -310,4 +315,25 @@ pub async fn delete_worker_definition(pool: &MySqlPool, id: &i64) -> anyhow::Res
         .execute(pool)
         .await?;
     Ok(())
+}
+
+pub async fn list_worker_definition_history(
+    pool: &MySqlPool,
+    worker_definition_id: &i64,
+) -> anyhow::Result<Vec<WorkerDefinitionHistoryEntry>> {
+    let rows = sqlx::query(
+        "SELECT id, worker_definition_id, version, payload, changed_by, changed_at
+         FROM worker_definition_history
+         WHERE worker_definition_id = ?
+         ORDER BY version DESC",
+    )
+    .bind(worker_definition_id)
+    .fetch_all(pool)
+    .await?;
+
+    let mut items = Vec::new();
+    for row in rows {
+        items.push(map_row_to_worker_def_history(&row)?);
+    }
+    Ok(items)
 }

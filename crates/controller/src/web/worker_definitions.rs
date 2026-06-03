@@ -5,6 +5,8 @@ use axum::{
     response::{IntoResponse, Redirect},
     routing::{get, post},
 };
+use chrono::Utc;
+use sqlx::Row;
 
 use std::str::FromStr;
 
@@ -26,13 +28,12 @@ crate::impl_into_response!(WorkerDefListTemplate);
 #[template(path = "worker_definitions/form.html")]
 struct WorkerDefFormTemplate {
     is_edit: bool,
-    def_id: Option<i64>,
+    def_name: Option<String>,
     name: String,
     description: String,
     worker_type: String,
     config_json: String,
     lambda_function_arn: String,
-    is_active: bool,
 }
 crate::impl_into_response!(WorkerDefFormTemplate);
 
@@ -40,8 +41,17 @@ crate::impl_into_response!(WorkerDefFormTemplate);
 #[template(path = "worker_definitions/detail.html")]
 struct WorkerDefDetailTemplate {
     def: WorkerDefinition,
+    history: Vec<WorkerDefinitionHistoryRenderItem>,
 }
 crate::impl_into_response!(WorkerDefDetailTemplate);
+
+#[derive(Clone)]
+struct WorkerDefinitionHistoryRenderItem {
+    version: u32,
+    payload_json: String,
+    changed_by: String,
+    changed_at_str: String,
+}
 
 #[derive(serde::Deserialize, Debug)]
 pub struct WorkerDefFormData {
@@ -50,7 +60,6 @@ pub struct WorkerDefFormData {
     worker_type: String,
     config_json: Option<String>,
     lambda_function_arn: Option<String>,
-    is_active: Option<String>,
 }
 
 pub fn router() -> Router<AppState> {
@@ -60,12 +69,12 @@ pub fn router() -> Router<AppState> {
             "/worker-definitions/new",
             get(new_def_page).post(create_def_submit),
         )
-        .route("/worker-definitions/{id}", get(def_detail_page))
+        .route("/worker-definitions/{name}", get(def_detail_page))
         .route(
-            "/worker-definitions/{id}/edit",
+            "/worker-definitions/{name}/edit",
             get(edit_def_page).post(edit_def_submit),
         )
-        .route("/worker-definitions/{id}/delete", post(delete_def))
+        .route("/worker-definitions/{name}/delete", post(delete_def))
 }
 
 async fn list_defs(_claims: WebClaims, State(state): State<AppState>) -> impl IntoResponse {
@@ -78,7 +87,7 @@ async fn list_defs(_claims: WebClaims, State(state): State<AppState>) -> impl In
 async fn new_def_page(_claims: WebClaims) -> impl IntoResponse {
     WorkerDefFormTemplate {
         is_edit: false,
-        def_id: None,
+        def_name: None,
         name: String::new(),
         description: String::new(),
         worker_type: "fargate".to_string(),
@@ -92,12 +101,11 @@ async fn new_def_page(_claims: WebClaims) -> impl IntoResponse {
 }"#
         .to_string(),
         lambda_function_arn: String::new(),
-        is_active: true,
     }
 }
 
 async fn create_def_submit(
-    _claims: WebClaims,
+    claims: WebClaims,
     State(state): State<AppState>,
     Form(form): Form<WorkerDefFormData>,
 ) -> impl IntoResponse {
@@ -126,33 +134,36 @@ async fn create_def_submit(
         description: form.description.filter(|d| !d.trim().is_empty()),
         worker_type,
         config,
-        is_active: form.is_active.as_deref() == Some("on"),
     };
 
-    let _ = crate::db::workers::create_worker_definition(&state.db, &new_def)
+    let created = crate::db::workers::create_worker_definition(&state.db, &new_def)
         .await
         .unwrap();
-    Redirect::to("/worker-definitions").into_response()
+    let _ = record_worker_definition_history(&state.db, &created.id, &claims.0.username).await;
+    Redirect::to(&format!("/worker-definitions/{}", created.name)).into_response()
 }
 
 async fn def_detail_page(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(name): Path<String>,
 ) -> impl IntoResponse {
-    let def = crate::db::workers::get_worker_definition(&state.db, &id)
+    let def = crate::db::workers::get_worker_definition_by_name(&state.db, &name)
         .await
         .unwrap()
         .unwrap();
-    WorkerDefDetailTemplate { def }
+    let history = list_worker_definition_history(&state.db, &def.id)
+        .await
+        .unwrap_or_default();
+    WorkerDefDetailTemplate { def, history }
 }
 
 async fn edit_def_page(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(name): Path<String>,
 ) -> impl IntoResponse {
-    let def = crate::db::workers::get_worker_definition(&state.db, &id)
+    let def = crate::db::workers::get_worker_definition_by_name(&state.db, &name)
         .await
         .unwrap()
         .unwrap();
@@ -166,22 +177,27 @@ async fn edit_def_page(
 
     WorkerDefFormTemplate {
         is_edit: true,
-        def_id: Some(def.id),
+        def_name: Some(def.name.clone()),
         name: def.name,
         description: def.description.unwrap_or_default(),
         worker_type: def.worker_type.to_string(),
         config_json,
         lambda_function_arn,
-        is_active: def.is_active,
     }
 }
 
 async fn edit_def_submit(
-    _claims: WebClaims,
+    claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(name): Path<String>,
     Form(form): Form<WorkerDefFormData>,
 ) -> impl IntoResponse {
+    let def = crate::db::workers::get_worker_definition_by_name(&state.db, &name)
+        .await
+        .unwrap()
+        .unwrap();
+    let id = def.id;
+
     let worker_type = WorkerType::from_str(&form.worker_type).unwrap_or(WorkerType::Fargate);
     let config: serde_json::Value = match worker_type {
         WorkerType::Fargate => serde_json::from_str(form.config_json.as_deref().unwrap_or(""))
@@ -195,22 +211,111 @@ async fn edit_def_submit(
         description: Some(form.description.unwrap_or_default()),
         worker_type: Some(worker_type),
         config: Some(config),
-        is_active: Some(form.is_active.as_deref() == Some("on")),
     };
 
     let _ = crate::db::workers::update_worker_definition(&state.db, &id, &update)
         .await
         .unwrap();
-    Redirect::to(&format!("/worker-definitions/{}", id)).into_response()
+    let _ = record_worker_definition_history(&state.db, &id, &claims.0.username).await;
+    Redirect::to(&format!("/worker-definitions/{}", name)).into_response()
 }
 
 async fn delete_def(
     _claims: WebClaims,
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(name): Path<String>,
 ) -> impl IntoResponse {
-    crate::db::workers::delete_worker_definition(&state.db, &id)
+    let def = crate::db::workers::get_worker_definition_by_name(&state.db, &name)
+        .await
+        .unwrap()
+        .unwrap();
+    crate::db::workers::delete_worker_definition(&state.db, &def.id)
         .await
         .unwrap();
     Redirect::to("/worker-definitions").into_response()
+}
+
+async fn build_worker_definition_snapshot(
+    pool: &sqlx::MySqlPool,
+    worker_definition_id: &i64,
+) -> serde_json::Value {
+    let def = match crate::db::workers::get_worker_definition(pool, worker_definition_id).await {
+        Ok(Some(def)) => def,
+        _ => return serde_json::Value::Null,
+    };
+
+    serde_json::json!({
+        "ワーカー名": def.name,
+        "説明": def.description.unwrap_or_default(),
+        "ワーカータイプ": def.worker_type.to_string(),
+        "設定": def.config
+    })
+}
+
+async fn list_worker_definition_history(
+    pool: &sqlx::MySqlPool,
+    worker_definition_id: &i64,
+) -> anyhow::Result<Vec<WorkerDefinitionHistoryRenderItem>> {
+    let existing =
+        crate::db::workers::list_worker_definition_history(pool, worker_definition_id).await?;
+    if !existing.is_empty() {
+        return Ok(existing
+            .into_iter()
+            .map(|item| WorkerDefinitionHistoryRenderItem {
+                version: item.version,
+                payload_json: serde_json::to_string(&item.payload)
+                    .unwrap_or_else(|_| "{}".to_string()),
+                changed_by: item.changed_by,
+                changed_at_str: item.changed_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+            })
+            .collect());
+    }
+
+    record_worker_definition_history(pool, worker_definition_id, "system").await?;
+    let created =
+        crate::db::workers::list_worker_definition_history(pool, worker_definition_id).await?;
+    Ok(created
+        .into_iter()
+        .map(|item| WorkerDefinitionHistoryRenderItem {
+            version: item.version,
+            payload_json: serde_json::to_string(&item.payload).unwrap_or_else(|_| "{}".to_string()),
+            changed_by: item.changed_by,
+            changed_at_str: item.changed_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+        })
+        .collect())
+}
+
+async fn record_worker_definition_history(
+    pool: &sqlx::MySqlPool,
+    worker_definition_id: &i64,
+    changed_by: &str,
+) -> anyhow::Result<()> {
+    let snapshot = build_worker_definition_snapshot(pool, worker_definition_id).await;
+    if snapshot.is_null() {
+        return Ok(());
+    }
+
+    let version_row = sqlx::query(
+        "SELECT MAX(version) as max_v FROM worker_definition_history WHERE worker_definition_id = ?",
+    )
+    .bind(worker_definition_id)
+    .fetch_one(pool)
+    .await?;
+
+    let current_max: Option<u32> = version_row.try_get("max_v").ok();
+    let next_version = current_max.unwrap_or(0) + 1;
+
+    sqlx::query(
+        r#"INSERT INTO worker_definition_history (worker_definition_id, version, payload, changed_by, changed_at)
+           VALUES (?, ?, ?, ?, ?)"#,
+    )
+    .bind(worker_definition_id)
+    .bind(next_version)
+    .bind(snapshot)
+    .bind(changed_by)
+    .bind(Utc::now())
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }

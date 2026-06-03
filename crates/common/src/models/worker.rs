@@ -37,9 +37,18 @@ pub struct WorkerDefinition {
     pub description: Option<String>,
     pub worker_type: super::job::WorkerType,
     pub config: serde_json::Value,
-    pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkerDefinitionHistoryEntry {
+    pub id: i64,
+    pub worker_definition_id: i64,
+    pub version: u32,
+    pub payload: serde_json::Value,
+    pub changed_by: String,
+    pub changed_at: DateTime<Utc>,
 }
 
 /// 新規ワーカー定義作成
@@ -49,12 +58,6 @@ pub struct NewWorkerDefinition {
     pub description: Option<String>,
     pub worker_type: super::job::WorkerType,
     pub config: serde_json::Value,
-    #[serde(default = "default_active")]
-    pub is_active: bool,
-}
-
-fn default_active() -> bool {
-    true
 }
 
 /// ワーカー定義更新
@@ -63,5 +66,4 @@ pub struct WorkerDefinitionUpdate {
     pub description: Option<String>,
     pub worker_type: Option<super::job::WorkerType>,
     pub config: Option<serde_json::Value>,
-    pub is_active: Option<bool>,
 }

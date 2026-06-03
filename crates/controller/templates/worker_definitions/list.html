@@ -14,8 +14,8 @@
 
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px;">
     <div class="page-title">
-        <h2>ワーカー定義管理 (ノード設定)</h2>
-        <p>自分で作成したカスタムワーカーノード (AWS Fargate や AWS Lambda の接続情報) の管理</p>
+        <h2>ワーカー定義</h2>
+        <p>自分で作成したカスタムワーカー (AWS Fargate や AWS Lambda の接続情報) の管理</p>
     </div>
     <a href="/worker-definitions/new" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px;">
         <i data-lucide="plus" style="width: 18px; height: 18px;"></i>
@@ -28,17 +28,16 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>ノード名 (ワーカー定義名)</th>
+                    <th>ワーカー名</th>
                     <th>タイプ</th>
                     <th>説明</th>
-                    <th>ステータス</th>
-                    <th style="text-align: right;">操作</th>
+                    <th style="text-align: right;"></th>
                 </tr>
             </thead>
             <tbody>
                 {% if defs.is_empty() %}
                 <tr>
-                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 40px 0;">
                         登録されている自作ワーカー定義はありません。「新規定義作成」から登録してください。
                     </td>
                 </tr>
@@ -46,8 +45,7 @@
                     {% for def in defs %}
                     <tr>
                         <td style="font-weight: 600;">
-                            <a href="/worker-definitions/{{ def.id }}" style="color: var(--text-primary); text-decoration: none; display: flex; align-items: center; gap: 8px;">
-                                <i data-lucide="server" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+                            <a href="/worker-definitions/{{ def.name }}" class="table-entity-link" style="align-items: center;">
                                 {{ def.name }}
                             </a>
                         </td>
@@ -59,24 +57,13 @@
                         <td style="color: var(--text-muted); font-size: 0.9rem;">
                             {{ def.description.clone().unwrap_or_default() }}
                         </td>
-                        <td>
-                            {% if def.is_active %}
-                            <span class="badge" style="background-color: var(--color-success-glow); color: var(--color-success); border-color: rgba(16,185,129,0.2); box-shadow: 0 0 8px rgba(16,185,129,0.1);">
-                                有効
-                            </span>
-                            {% else %}
-                            <span class="badge" style="background-color: rgba(244,63,94,0.1); color: #fb7185; border-color: rgba(244,63,94,0.2);">
-                                無効
-                            </span>
-                            {% endif %}
-                        </td>
                         <td style="text-align: right;">
                             <div style="display: inline-flex; gap: 8px;">
-                                <a href="/worker-definitions/{{ def.id }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
+                                <a href="/worker-definitions/{{ def.name }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
                                     <i data-lucide="eye" style="width: 12px; height: 12px;"></i>
                                     詳細
                                 </a>
-                                <a href="/worker-definitions/{{ def.id }}/edit" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
+                                <a href="/worker-definitions/{{ def.name }}/edit" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
                                     <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i>
                                     編集
                                 </a>

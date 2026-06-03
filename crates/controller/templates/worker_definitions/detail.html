@@ -1,37 +1,169 @@
 {% extends "base.html" %}
 
-{% block title %}ノード詳細: {{ def.name }} | Mrs. Harris{% endblock %}
+{% block title %}{{ def.name }} | Mrs. Harris{% endblock %}
 
 {% block nav_worker_defs %}active{% endblock %}
 
 {% block content %}
-<!-- Breadcrumbs -->
+<style>
+    .ec2-tabs-nav {
+        display: flex;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        margin-top: 28px;
+        margin-bottom: 14px;
+        gap: 4px;
+        overflow-x: auto;
+        padding-bottom: 1px;
+    }
+
+    .ec2-tab-btn {
+        background: none;
+        border: none;
+        padding: 12px 20px;
+        color: var(--text-muted);
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .ec2-tab-btn:hover {
+        color: var(--text-primary);
+        border-bottom-color: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.01);
+    }
+
+    .ec2-tab-btn.active {
+        color: var(--color-primary);
+        border-bottom-color: var(--color-primary);
+        font-weight: 600;
+        background: rgba(var(--color-primary-rgb), 0.02);
+    }
+
+    .ec2-tab-pane {
+        display: none;
+        padding: 14px 0 0;
+    }
+
+    .ec2-tab-pane.active {
+        display: block;
+        animation: ec2FadeIn 0.25s ease-out;
+    }
+
+    @keyframes ec2FadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .wd-vd-link:hover {
+        text-decoration: underline;
+    }
+
+    #worker-version-detail-modal .form-control[readonly],
+    #worker-version-detail-modal .form-control[disabled],
+    #worker-version-detail-modal select[disabled] {
+        background: rgba(255,255,255,0.03);
+        color: var(--text-primary);
+        opacity: 1;
+        cursor: default;
+    }
+
+    #worker-version-detail-modal .section-title {
+        margin-bottom: 16px;
+    }
+
+    #worker-version-detail-modal .wvd-scroll-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding-right: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    #worker-version-detail-modal .wvd-scroll-body > * {
+        flex: 0 0 auto;
+    }
+
+    #worker-version-detail-modal .wvd-grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+    }
+
+    #worker-version-detail-modal .wvd-status-banner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        border-radius: var(--radius-md);
+        border: 1px solid rgba(255,255,255,0.06);
+        background: rgba(255,255,255,0.02);
+    }
+
+    #worker-version-detail-modal .wvd-type-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        background: rgba(56, 189, 248, 0.08);
+        color: #38bdf8;
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    #worker-version-detail-modal .wvd-helptext {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        line-height: 1.5;
+        display: block;
+        margin-top: 6px;
+    }
+
+    @media (max-width: 720px) {
+        #worker-version-detail-modal .wvd-grid-2 {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
 <nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
     <a href="/">ホーム</a>
     <span class="breadcrumbs-separator">/</span>
     <a href="/worker-definitions">ワーカー定義</a>
     <span class="breadcrumbs-separator">/</span>
-    <span style="color: var(--text-primary);">{{ def.name }}</span>
+    <span style="color: var(--text-primary); font-weight: 600;">{{ def.name }}</span>
 </nav>
 
-<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px;">
+<div class="page-header" style="margin-bottom: 24px;">
     <div class="page-title">
         <div style="display: flex; align-items: center; gap: 12px;">
             <a href="/worker-definitions" class="title-back-link" hx-boost="true">
                 <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
             </a>
-            <h2>ワーカー定義: {{ def.name }}</h2>
+            <h2>{{ def.name }}</h2>
         </div>
-        <p style="margin-left: 32px;">ノード固有のパラメータ設定および構成情報</p>
     </div>
-    
+
     <div style="display: flex; gap: 12px;">
-        <a href="/worker-definitions/{{ def.id }}/edit" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px;">
+        <a href="/worker-definitions/{{ def.name }}/edit" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px;">
             <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
-            編集する
+            編集
         </a>
-        
-        <form action="/worker-definitions/{{ def.id }}/delete"
+
+        <form action="/worker-definitions/{{ def.name }}/delete"
               method="POST"
               style="display: inline;"
               data-confirm-kind="form"
@@ -48,62 +180,290 @@
     </div>
 </div>
 
-<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 28px;">
-    
-    <!-- Info Panel -->
-    <div class="card" style="padding: 24px;">
-        <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 600; margin-bottom: 18px; color: var(--color-primary); display: flex; align-items: center; gap: 6px;">
-            <i data-lucide="info" style="width: 16px; height: 16px;"></i>
-            スペック情報
-        </h3>
-        
-        <div style="display: flex; flex-direction: column; gap: 16px;">
-            <div>
-                <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">バックエンド種別</span>
-                <span style="font-weight: 600; text-transform: uppercase;">{{ def.worker_type.to_string() }}</span>
-            </div>
+<div class="card" style="padding: 24px; margin-bottom: 24px; border: 1px solid rgba(255, 255, 255, 0.06); background: rgba(255, 255, 255, 0.015);">
+    <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; margin: 0;">
+        <i data-lucide="layout-list" style="width: 18px; height: 18px; color: var(--color-primary);"></i>
+        ワーカー定義の概要
+    </h3>
 
-            <div>
-                <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">状態</span>
-                {% if def.is_active %}
-                <span class="badge" style="background-color: var(--color-success-glow); color: var(--color-success); border-color: rgba(16,185,129,0.2); margin-top: 4px;">
-                    有効
-                </span>
-                {% else %}
-                <span class="badge" style="background-color: rgba(244,63,94,0.1); color: #fb7185; border-color: rgba(244,63,94,0.2); margin-top: 4px;">
-                    無効
-                </span>
-                {% endif %}
-            </div>
-
-            <div>
-                <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">説明</span>
-                <span style="font-size: 0.9rem;">{% if let Some(desc) = def.description.as_ref() %}{{ desc }}{% else %}なし{% endif %}</span>
-            </div>
-
-            <div style="border-top: 1px solid rgba(255,255,255,0.06); padding-top: 16px;">
-                <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">作成日時</span>
-                <span style="font-size: 0.85rem;">{{ def.created_at.format("%Y-%m-%d %H:%M:%S").to_string() }}</span>
-            </div>
-
-            <div>
-                <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">最終更新日時</span>
-                <span style="font-size: 0.85rem;">{{ def.updated_at.format("%Y-%m-%d %H:%M:%S").to_string() }}</span>
-            </div>
+    <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 14px; padding-top: 14px;">
+        <div class="summary-item">
+            <span class="summary-label">説明</span>
+            <div class="summary-value" style="line-height: 1.5; text-align: left; white-space: pre-wrap; word-break: break-all; display: block; width: 100%;">{% if let Some(desc) = def.description.as_ref() %}{{ desc }}{% else %}<span style="color: var(--text-muted); font-weight: 400; font-style: italic;">説明はありません。</span>{% endif %}</div>
         </div>
     </div>
 
-    <!-- Config JSON Panel -->
-    <div class="card" style="padding: 24px;">
-        <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 600; margin-bottom: 18px; color: var(--color-primary); display: flex; align-items: center; gap: 6px;">
-            <i data-lucide="code" style="width: 16px; height: 16px;"></i>
-            接続構成設定 (JSON)
-        </h3>
-        
-        <div style="background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-sm); padding: 18px; overflow: auto; max-height: 480px;">
-            <pre style="margin: 0; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5;"><code class="language-json">{{ serde_json::to_string_pretty(&def.config).unwrap() }}</code></pre>
+    <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 14px; padding-top: 14px;">
+        <div class="summary-grid">
+            <div class="summary-item">
+                <span class="summary-label">ワーカータイプ</span>
+                <div class="summary-value" style="font-family: 'Outfit', sans-serif; font-weight: 600; text-transform: uppercase;">
+                    <i data-lucide="cpu" style="width: 14px; height: 14px; color: var(--color-primary-light);"></i>
+                    {{ def.worker_type.to_string() }}
+                </div>
+            </div>
+
+            <div class="summary-item">
+                <span class="summary-label">作成日時</span>
+                <div class="summary-value" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 500;">
+                    {{ def.created_at.format("%Y-%m-%d %H:%M:%S").to_string() }}
+                </div>
+            </div>
+
+            <div class="summary-item">
+                <span class="summary-label">更新日時</span>
+                <div class="summary-value" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 500;">
+                    {{ def.updated_at.format("%Y-%m-%d %H:%M:%S").to_string() }}
+                </div>
+            </div>
         </div>
     </div>
-
 </div>
+
+<div class="ec2-tabs-nav" hx-boost="false">
+    <button class="ec2-tab-btn active" data-tab="tab-config">
+        <i data-lucide="code" style="width:14px;height:14px;"></i> 接続構成
+    </button>
+    <button class="ec2-tab-btn" data-tab="tab-history">
+        <i data-lucide="scroll-text" style="width:14px;height:14px;"></i> 設定変更履歴
+    </button>
+</div>
+
+<div id="tab-config" class="ec2-tab-pane active">
+    <div class="card" style="padding: 24px;">
+        <h3 class="section-title">
+            <i data-lucide="code" style="width: 18px; height: 18px;"></i>
+            接続構成設定
+        </h3>
+        <div class="code-block">
+            <pre><code class="language-json">{{ serde_json::to_string_pretty(&def.config).unwrap() }}</code></pre>
+        </div>
+    </div>
+</div>
+
+<div id="tab-history" class="ec2-tab-pane">
+    <div class="card" style="padding: 24px;">
+        <h3 class="section-title">
+            <i data-lucide="scroll-text" style="width: 18px; height: 18px;"></i>
+            設定変更履歴
+        </h3>
+
+        <div class="table-container" style="margin-top: 0;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 16%;">バージョン</th>
+                        <th style="width: 42%;">変更日時</th>
+                        <th style="width: 42%;">変更者</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if history.is_empty() %}
+                    <tr>
+                        <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 48px 0;">
+                            履歴はまだありません。
+                        </td>
+                    </tr>
+                    {% else %}
+                        {% for item in history %}
+                        <tr>
+                            <td>
+                                <a href="javascript:void(0)" class="wd-vd-link" onclick="showWorkerVersionDetail('{{ item.version }}', '{{ item.payload_json|urlencode }}')" style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--color-primary); text-decoration: none;">v{{ item.version }}</a>
+                            </td>
+                            <td style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;">{{ item.changed_at_str }}</td>
+                            <td>{{ item.changed_by }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="worker-version-detail-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center;" hx-boost="false">
+    <div style="width:min(980px, calc(100vw - 48px)); max-height:min(90vh, 900px); background:var(--bg-card); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-lg); box-shadow:0 24px 80px rgba(0,0,0,0.45); padding:24px; display:flex; flex-direction:column; gap:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
+            <div>
+                <h3 style="font-family:'Outfit',sans-serif;font-size:1.2rem;font-weight:700;color:var(--text-primary); margin:0;">
+                    バージョン詳細 <span id="worker-vdetail-title-version" style="color:var(--color-primary);">v1</span>
+                </h3>
+                <p style="margin:6px 0 0; color:var(--text-muted); font-size:0.88rem;">
+                    ワーカー定義作成/編集画面と同じ項目構成で、保存済みの設定内容を確認できます。
+                </p>
+            </div>
+            <button class="btn btn-secondary" onclick="closeWorkerVersionDetailModal()" style="padding:8px 12px;">
+                <i data-lucide="x" style="width:16px;height:16px;"></i>
+            </button>
+        </div>
+
+        <div class="wvd-scroll-body">
+            <div class="wvd-status-banner">
+                <div>
+                    <div style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:6px;">保存バージョン</div>
+                    <div id="worker-vd-version-banner" style="font-family:'JetBrains Mono', monospace; font-size:0.92rem; font-weight:600; color:var(--text-primary);">v1</div>
+                </div>
+                <div id="worker-vd-type-pill" class="wvd-type-pill">FARGATE</div>
+            </div>
+
+            <div class="card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
+                <h3 class="section-title">
+                    <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+                    基本情報
+                </h3>
+
+                <div class="wvd-grid-2">
+                    <div class="form-group">
+                        <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">ワーカー名</label>
+                        <input type="text" id="worker-vd-name" class="form-control" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">ワーカータイプ</label>
+                        <input type="text" id="worker-vd-type" class="form-control" readonly>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px; margin-bottom: 0;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">説明</label>
+                    <textarea id="worker-vd-description" class="form-control" readonly style="min-height: 72px;"></textarea>
+                </div>
+            </div>
+
+            <div class="card" id="worker-vd-fargate-card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
+                <h3 class="section-title">
+                    <i data-lucide="container" style="width: 16px; height: 16px;"></i>
+                    ワーカータイプ: Fargate
+                </h3>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">ワーカー接続構成 (JSON 形式)</label>
+                    <textarea id="worker-vd-config-json" class="form-control" readonly style="min-height: 240px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;"></textarea>
+                    <span class="wvd-helptext">Fargate 実行時に使われる接続設定です。</span>
+                </div>
+            </div>
+
+            <div class="card" id="worker-vd-lambda-card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0; display: none;">
+                <h3 class="section-title">
+                    <i data-lucide="zap" style="width: 16px; height: 16px;"></i>
+                    ワーカータイプ: Lambda
+                </h3>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">Lambda関数 ARN</label>
+                    <input type="text" id="worker-vd-lambda-arn" class="form-control" readonly>
+                    <span class="wvd-helptext">末尾に `:prod` や `:22`、`:$LATEST` を含めた ARN もそのまま表示します。</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex; justify-content:end; margin-top:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:16px; gap:10px;">
+            <button class="btn btn-secondary" onclick="closeWorkerVersionDetailModal()">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    function initWorkerDefinitionTabs() {
+        var tabs = document.querySelectorAll('.ec2-tab-btn');
+        var panes = document.querySelectorAll('.ec2-tab-pane');
+        if (!tabs.length || !panes.length) {
+            return;
+        }
+
+        var urlParams = new URLSearchParams(window.location.search);
+        var initialTab = urlParams.get('tab') || 'config';
+
+        function tabParamToId(tab) {
+            var map = {
+                'config': 'tab-config',
+                'history': 'tab-history'
+            };
+            return map[tab] || 'tab-config';
+        }
+
+        function tabIdToParam(tabId) {
+            var map = {
+                'tab-config': 'config',
+                'tab-history': 'history'
+            };
+            return map[tabId] || 'config';
+        }
+
+        function activateTab(targetId) {
+            tabs.forEach(function(other) {
+                other.classList.toggle('active', other.dataset.tab === targetId);
+            });
+            panes.forEach(function(pane) {
+                pane.classList.toggle('active', pane.id === targetId);
+            });
+        }
+
+        tabs.forEach(function(btn) {
+            if (btn.dataset.tabsBound === 'true') {
+                return;
+            }
+            btn.dataset.tabsBound = 'true';
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var targetId = btn.dataset.tab;
+                activateTab(targetId);
+
+                var url = new URL(window.location.href);
+                url.searchParams.set('tab', tabIdToParam(targetId));
+                history.replaceState(null, '', url.toString());
+            });
+        });
+
+        activateTab(tabParamToId(initialTab));
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initWorkerDefinitionTabs);
+    } else {
+        initWorkerDefinitionTabs();
+    }
+})();
+
+function showWorkerVersionDetail(version, encodedPayload) {
+    var payloadStr = decodeURIComponent(encodedPayload);
+    var snapshot = JSON.parse(payloadStr || '{}');
+
+    var workerType = String(snapshot["ワーカータイプ"] || '').toLowerCase();
+    var config = snapshot["設定"];
+    var isLambda = workerType.includes('lambda');
+
+    document.getElementById('worker-vdetail-title-version').textContent = 'v' + version;
+    document.getElementById('worker-vd-version-banner').textContent = 'v' + version;
+    document.getElementById('worker-vd-name').value = snapshot["ワーカー名"] || '';
+    document.getElementById('worker-vd-type').value = isLambda ? 'Lambda' : 'Fargate';
+    document.getElementById('worker-vd-description').value = snapshot["説明"] || '';
+    document.getElementById('worker-vd-type-pill').textContent = isLambda ? 'LAMBDA' : 'FARGATE';
+
+    document.getElementById('worker-vd-fargate-card').style.display = isLambda ? 'none' : 'block';
+    document.getElementById('worker-vd-lambda-card').style.display = isLambda ? 'block' : 'none';
+
+    if (isLambda) {
+        var functionName = '';
+        if (config && typeof config === 'object') {
+            functionName = config["function_name"] || '';
+        }
+        document.getElementById('worker-vd-lambda-arn').value = functionName;
+        document.getElementById('worker-vd-config-json').value = '';
+    } else {
+        document.getElementById('worker-vd-config-json').value = config ? JSON.stringify(config, null, 2) : '{}';
+        document.getElementById('worker-vd-lambda-arn').value = '';
+    }
+
+    document.getElementById('worker-version-detail-modal').style.display = 'flex';
+    window.lockBodyScroll();
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+}
+
+function closeWorkerVersionDetailModal() {
+    document.getElementById('worker-version-detail-modal').style.display = 'none';
+    window.unlockBodyScroll();
+}
+</script>
 {% endblock %}

@@ -11,4 +11,5 @@
 - [スペース一覧画面](file:///Users/shion.morikawa/private/mrs-harris/docs/ui_checklists/spaces_list.md)
 - [ワーカー定義作成・編集画面](file:///Users/shion.morikawa/private/mrs-harris/docs/ui_checklists/worker_definition_form.md)
 - [ワーカー定義詳細画面](file:///Users/shion.morikawa/private/mrs-harris/docs/ui_checklists/worker_definition_detail.md)
+- [ワーカー定義一覧画面](file:///Users/shion.morikawa/private/mrs-harris/docs/ui_checklists/worker_definition_list.md)
 - [データベース画面](file:///Users/shion.morikawa/private/mrs-harris/docs/ui_checklists/database.md)

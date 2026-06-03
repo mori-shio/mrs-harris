@@ -1,13 +1,4 @@
 <style>
-    /* レコード（行）にフォーカス（ホバー）した時、ジョブ名リンクをリンク色の青色にする */
-    .data-table tbody tr:hover .job-link {
-        color: var(--color-primary) !important;
-    }
-    /* ジョブ名カラムの文字自身にフォーカス（ホバー）した時、アンダーバーを出す */
-    .data-table tbody tr .job-link:hover {
-        text-decoration: underline !important;
-    }
-
     .job-tags-list {
         display: flex;
         gap: 4px;
@@ -89,7 +80,7 @@
                 {% for job in jobs %}
                 <tr>
                     <td style="font-weight: 600;">
-                        <a href="/jobs/{{ job.name }}" class="job-link" style="color: var(--text-primary); text-decoration: none; display: flex; flex-direction: column; gap: 4px;" hx-boost="false">
+                        <a href="/jobs/{{ job.name }}" class="table-entity-link" style="flex-direction: column; gap: 4px; align-items: flex-start;" hx-boost="false">
                             <span>{{ job.name }}</span>
                         </a>
                     </td>

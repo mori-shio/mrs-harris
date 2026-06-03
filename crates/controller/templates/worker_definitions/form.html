@@ -7,55 +7,6 @@
 {% block head %}{% endblock %}
 
 {% block content %}
-<style>
-    /* Toggle switch styles */
-    .switch {
-        position: relative;
-        display: inline-block;
-        width: 48px;
-        height: 24px;
-    }
-    .switch input {
-        opacity: 0;
-        width: 0;
-        height: 0;
-    }
-    .slider {
-        position: absolute;
-        cursor: pointer;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: rgba(255, 255, 255, 0.08);
-        transition: .3s;
-        border: 1px solid var(--border-color);
-    }
-    .slider:before {
-        position: absolute;
-        content: "";
-        height: 16px;
-        width: 16px;
-        left: 3px;
-        bottom: 3px;
-        background-color: var(--text-secondary);
-        transition: .3s;
-    }
-    input:checked + .slider {
-        background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
-        border-color: transparent;
-    }
-    input:checked + .slider:before {
-        transform: translateX(24px);
-        background-color: #fff;
-    }
-    .slider.round {
-        border-radius: 24px;
-    }
-    .slider.round:before {
-        border-radius: 50%;
-    }
-</style>
 <!-- Breadcrumbs -->
 <nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
     <a href="/">ホーム</a>
@@ -69,25 +20,16 @@
     <div class="page-header" style="margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center;">
         <div class="page-title">
             <div style="display: flex; align-items: center; gap: 12px;">
-                <a href="{% if is_edit %}/worker-definitions/{{ def_id.unwrap() }}{% else %}/worker-definitions{% endif %}" class="title-back-link" hx-boost="true">
+                <a href="{% if is_edit %}/worker-definitions/{{ def_name.as_ref().unwrap() }}{% else %}/worker-definitions{% endif %}" class="title-back-link" hx-boost="true">
                     <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
                 </a>
                 <h2>{% if is_edit %}ワーカー定義編集{% else %}ワーカー定義 新規作成{% endif %}</h2>
             </div>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.03); padding: 10px 18px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.06); backdrop-filter: var(--glass-blur);">
-            <span id="is_active_label" style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">{% if is_active %}有効{% else %}無効{% endif %}</span>
-            <label class="switch">
-                <input type="checkbox" id="is_active" name="is_active" form="worker-definition-form" {% if is_active %}checked{% endif %} onchange="document.getElementById('is_active_label').textContent = this.checked ? '有効' : '無効';">
-                <span class="slider round"></span>
-            </label>
-        </div>
     </div>
 
-    <form id="worker-definition-form" action="{% if is_edit %}/worker-definitions/{{ def_id.unwrap() }}/edit{% else %}/worker-definitions/new{% endif %}" method="POST" hx-boost="false">
-        <input type="hidden" name="is_active_present" value="true">
-
+    <form id="worker-definition-form" action="{% if is_edit %}/worker-definitions/{{ def_name.as_ref().unwrap() }}/edit{% else %}/worker-definitions/new{% endif %}" method="POST" hx-boost="false">
         <div class="card" style="margin-bottom: 24px; padding: 24px;">
             <h3 class="section-title">
                 <i data-lucide="file-text" style="width: 18px; height: 18px;"></i>

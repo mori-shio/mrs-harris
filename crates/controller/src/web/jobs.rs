@@ -22,7 +22,6 @@ use crate::app::AppState;
 
 #[derive(Clone)]
 pub struct JobRenderItem {
-    pub id: i64,
     pub name: String,
     pub job_type_label: &'static str,
     pub worker_name: String,
@@ -370,7 +369,6 @@ pub fn map_job_to_render(
         .unwrap_or_else(|| "-".to_string());
 
     JobRenderItem {
-        id: job.id,
         name: job.name.clone(),
         job_type_label: job_type_label(&job.job_type),
         worker_name,
