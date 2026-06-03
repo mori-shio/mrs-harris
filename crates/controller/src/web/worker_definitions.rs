@@ -31,6 +31,7 @@ struct WorkerDefFormTemplate {
     description: String,
     worker_type: String,
     config_json: String,
+    lambda_function_arn: String,
     is_active: bool,
 }
 crate::impl_into_response!(WorkerDefFormTemplate);
@@ -47,7 +48,8 @@ pub struct WorkerDefFormData {
     name: String,
     description: Option<String>,
     worker_type: String,
-    config_json: String,
+    config_json: Option<String>,
+    lambda_function_arn: Option<String>,
     is_active: Option<String>,
 }
 
@@ -89,6 +91,7 @@ async fn new_def_page(_claims: WebClaims) -> impl IntoResponse {
   "assign_public_ip": true
 }"#
         .to_string(),
+        lambda_function_arn: String::new(),
         is_active: true,
     }
 }
@@ -99,21 +102,24 @@ async fn create_def_submit(
     Form(form): Form<WorkerDefFormData>,
 ) -> impl IntoResponse {
     let worker_type = WorkerType::from_str(&form.worker_type).unwrap_or(WorkerType::Fargate);
-    let config: serde_json::Value = serde_json::from_str(&form.config_json).unwrap_or_else(|_| {
-        if worker_type == WorkerType::Fargate {
+    let config: serde_json::Value = match worker_type {
+        WorkerType::Fargate => serde_json::from_str(form.config_json.as_deref().unwrap_or(""))
+            .unwrap_or_else(|_| {
+                serde_json::json!({
+                    "cluster_arn": "",
+                    "task_definition": "",
+                    "subnets": [],
+                    "security_groups": [],
+                    "container_name": "mrs-harris-worker"
+                })
+            }),
+        WorkerType::Lambda => {
+            let function_name = form.lambda_function_arn.clone().unwrap_or_default();
             serde_json::json!({
-                "cluster_arn": "",
-                "task_definition": "",
-                "subnets": [],
-                "security_groups": [],
-                "container_name": "mrs-harris-worker"
-            })
-        } else {
-            serde_json::json!({
-                "function_name": ""
+                "function_name": function_name
             })
         }
-    });
+    };
 
     let new_def = NewWorkerDefinition {
         name: form.name,
@@ -151,6 +157,12 @@ async fn edit_def_page(
         .unwrap()
         .unwrap();
     let config_json = serde_json::to_string_pretty(&def.config).unwrap_or_default();
+    let lambda_function_arn = def
+        .config
+        .get("function_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
 
     WorkerDefFormTemplate {
         is_edit: true,
@@ -159,6 +171,7 @@ async fn edit_def_page(
         description: def.description.unwrap_or_default(),
         worker_type: def.worker_type.to_string(),
         config_json,
+        lambda_function_arn,
         is_active: def.is_active,
     }
 }
@@ -170,8 +183,13 @@ async fn edit_def_submit(
     Form(form): Form<WorkerDefFormData>,
 ) -> impl IntoResponse {
     let worker_type = WorkerType::from_str(&form.worker_type).unwrap_or(WorkerType::Fargate);
-    let config: serde_json::Value =
-        serde_json::from_str(&form.config_json).unwrap_or(serde_json::Value::Null);
+    let config: serde_json::Value = match worker_type {
+        WorkerType::Fargate => serde_json::from_str(form.config_json.as_deref().unwrap_or(""))
+            .unwrap_or(serde_json::Value::Null),
+        WorkerType::Lambda => serde_json::json!({
+            "function_name": form.lambda_function_arn.clone().unwrap_or_default()
+        }),
+    };
 
     let update = WorkerDefinitionUpdate {
         description: Some(form.description.unwrap_or_default()),

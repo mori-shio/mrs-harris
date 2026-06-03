@@ -48,6 +48,7 @@ async fn launch_aws_lambda(state: &AppState, run: &JobRun) -> anyhow::Result<Str
     {
         if let Some(val) = def.config.get("function_name").and_then(|v| v.as_str()) {
             function_name = val.to_string();
+            qualifier = None;
         }
         if let Some(val) = def.config.get("qualifier").and_then(|v| v.as_str()) {
             qualifier = Some(val.to_string());
