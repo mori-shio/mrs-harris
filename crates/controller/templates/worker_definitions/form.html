@@ -39,6 +39,9 @@
             <div class="form-group">
                 <label for="name">ワーカー名 <span style="color: var(--color-danger);">*</span></label>
                 <input type="text" id="name" name="name" class="form-control" placeholder="fargate-tokio-prod" required value="{{ name }}" {% if is_edit %}disabled{% endif %}>
+                {% if is_edit %}
+                <input type="hidden" name="name" value="{{ name }}">
+                {% endif %}
                 <span style="font-size: 0.8rem; color: var(--text-muted);">ワーカーを識別するユニークな名前（スペースなし、スネークケースまたはハイフン接続）</span>
             </div>
 
