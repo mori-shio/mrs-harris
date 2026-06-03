@@ -89,7 +89,11 @@
     <form id="worker-definition-form" action="{% if is_edit %}/worker-definitions/{{ def_id.unwrap() }}/edit{% else %}/worker-definitions/new{% endif %}" method="POST" hx-boost="false">
         <input type="hidden" name="is_active_present" value="true">
 
-        <!-- Name & Description -->
+        <h3 class="section-title">
+            <i data-lucide="file-text" style="width: 18px; height: 18px;"></i>
+            基本情報
+        </h3>
+
         <div class="form-group">
             <label for="name">ワーカー名 (一意) <span style="color: var(--color-danger);">*</span></label>
             <input type="text" id="name" name="name" class="form-control" placeholder="fargate-tokio-prod" required value="{{ name }}" {% if is_edit %}disabled{% endif %}>
@@ -107,18 +111,20 @@
                 <option value="fargate" {% if worker_type == "fargate" %}selected{% endif %}>AWS Fargate (サーバーレスコンテナ)</option>
                 <option value="lambda" {% if worker_type == "lambda" %}selected{% endif %}>AWS Lambda (サーバーレス関数)</option>
             </select>
-            <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 8px;">
-                ローカル検証では `lambda.function_name = "local"` または `fargate.cluster_arn = "local"` を使うと、AWS 呼び出しの代わりにローカル fallback 実行へ切り替わります。
-            </span>
         </div>
 
-        <!-- Connection Config JSON -->
-        <div class="form-group" style="margin-top: 24px;">
-            <label for="config_json">ワーカー接続構成 (JSON 形式) <span style="color: var(--color-danger);">*</span></label>
-            <textarea id="config_json" name="config_json" class="form-control" style="min-height: 240px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;" required>{{ config_json }}</textarea>
-            <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 8px;">
-                Fargate または Lambda の接続設定を JSON 形式で入力してください。上のセレクトボックスでデフォルトテンプレートが自動選択されます。
-            </span>
+        <div id="worker-type-config-card" class="card" style="margin-top: 24px; padding: 24px;">
+            <h3 class="section-title">
+                <i id="worker-type-config-icon" data-lucide="container" style="width: 18px; height: 18px;"></i>
+                <span id="worker-type-config-title">ワーカータイプ: Fargate</span>
+            </h3>
+            <div class="form-group">
+                <label for="config_json">ワーカー接続構成 (JSON 形式) <span style="color: var(--color-danger);">*</span></label>
+                <textarea id="config_json" name="config_json" class="form-control" style="min-height: 240px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;" required>{{ config_json }}</textarea>
+                <span id="worker-type-config-help" style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 8px;">
+                    Fargate の接続設定を JSON 形式で入力してください。ローカル検証では `fargate.cluster_arn = "local"` を使うと、AWS 呼び出しの代わりにローカル fallback 実行へ切り替わります。
+                </span>
+            </div>
         </div>
 
         <!-- Buttons -->
@@ -151,15 +157,41 @@
     function updateConfigPlaceholder() {
         const type = document.getElementById('worker_type').value;
         const configTextarea = document.getElementById('config_json');
-        
-        // 編集画面でない（新規作成）場合、デフォルト値に差し替える
-        if (!configTextarea.value.trim() || configTextarea.value === fargatePlaceholder || configTextarea.value === lambdaPlaceholder) {
+        const title = document.getElementById('worker-type-config-title');
+        const help = document.getElementById('worker-type-config-help');
+        const icon = document.getElementById('worker-type-config-icon');
+        const previousAutoTemplate = configTextarea.dataset.autofillTemplate || '';
+        const currentValue = configTextarea.value.trim();
+        const nextTemplate = type === 'fargate' ? fargatePlaceholder : lambdaPlaceholder;
+
+        if (title && help && icon) {
             if (type === 'fargate') {
-                configTextarea.value = fargatePlaceholder;
+                title.textContent = 'ワーカータイプ: Fargate';
+                help.textContent = 'Fargate の接続設定を JSON 形式で入力してください。ローカル検証では `fargate.cluster_arn = \"local\"` を使うと、AWS 呼び出しの代わりにローカル fallback 実行へ切り替わります。';
+                icon.setAttribute('data-lucide', 'container');
             } else {
-                configTextarea.value = lambdaPlaceholder;
+                title.textContent = 'ワーカータイプ: Lambda';
+                help.textContent = 'Lambda の接続設定を JSON 形式で入力してください。ローカル検証では `lambda.function_name = \"local\"` を使うと、AWS 呼び出しの代わりにローカル fallback 実行へ切り替わります。';
+                icon.setAttribute('data-lucide', 'zap');
+            }
+            if (window.lucide) {
+                lucide.createIcons();
             }
         }
+
+        if (!currentValue || currentValue === previousAutoTemplate) {
+            configTextarea.value = nextTemplate;
+            configTextarea.dataset.autofillTemplate = nextTemplate.trim();
+        }
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const configTextarea = document.getElementById('config_json');
+        const currentValue = configTextarea.value.trim();
+        if (currentValue === fargatePlaceholder.trim() || currentValue === lambdaPlaceholder.trim()) {
+            configTextarea.dataset.autofillTemplate = currentValue;
+        }
+        updateConfigPlaceholder();
+    });
 </script>
 {% endblock %}
