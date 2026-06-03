@@ -85,35 +85,36 @@
         </div>
     </div>
 
-<div class="card" style="padding: 32px;">
     <form id="worker-definition-form" action="{% if is_edit %}/worker-definitions/{{ def_id.unwrap() }}/edit{% else %}/worker-definitions/new{% endif %}" method="POST" hx-boost="false">
         <input type="hidden" name="is_active_present" value="true">
 
-        <h3 class="section-title">
-            <i data-lucide="file-text" style="width: 18px; height: 18px;"></i>
-            基本情報
-        </h3>
+        <div class="card" style="margin-bottom: 24px; padding: 24px;">
+            <h3 class="section-title">
+                <i data-lucide="file-text" style="width: 18px; height: 18px;"></i>
+                基本情報
+            </h3>
 
-        <div class="form-group">
-            <label for="name">ワーカー名 <span style="color: var(--color-danger);">*</span></label>
-            <input type="text" id="name" name="name" class="form-control" placeholder="fargate-tokio-prod" required value="{{ name }}" {% if is_edit %}disabled{% endif %}>
-            <span style="font-size: 0.8rem; color: var(--text-muted);">ワーカーを識別するユニークな名前（スペースなし、スネークケースまたはハイフン接続）</span>
+            <div class="form-group">
+                <label for="name">ワーカー名 <span style="color: var(--color-danger);">*</span></label>
+                <input type="text" id="name" name="name" class="form-control" placeholder="fargate-tokio-prod" required value="{{ name }}" {% if is_edit %}disabled{% endif %}>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">ワーカーを識別するユニークな名前（スペースなし、スネークケースまたはハイフン接続）</span>
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="description">説明</label>
+                <textarea id="description" name="description" class="form-control" style="min-height: 80px;" placeholder="本番用のFargateタスクで構成されたワーカー...">{{ description }}</textarea>
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="worker_type">ワーカータイプ</label>
+                <select id="worker_type" name="worker_type" class="form-control" onchange="updateConfigPlaceholder()">
+                    <option value="fargate" {% if worker_type == "fargate" %}selected{% endif %}>AWS Fargate (サーバーレスコンテナ)</option>
+                    <option value="lambda" {% if worker_type == "lambda" %}selected{% endif %}>AWS Lambda (サーバーレス関数)</option>
+                </select>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="description">説明</label>
-            <textarea id="description" name="description" class="form-control" style="min-height: 80px;" placeholder="本番用のFargateタスクで構成されたワーカー...">{{ description }}</textarea>
-        </div>
-
-        <div class="form-group" style="margin-top: 20px;">
-            <label for="worker_type">ワーカータイプ</label>
-            <select id="worker_type" name="worker_type" class="form-control" onchange="updateConfigPlaceholder()">
-                <option value="fargate" {% if worker_type == "fargate" %}selected{% endif %}>AWS Fargate (サーバーレスコンテナ)</option>
-                <option value="lambda" {% if worker_type == "lambda" %}selected{% endif %}>AWS Lambda (サーバーレス関数)</option>
-            </select>
-        </div>
-
-        <div id="worker-type-config-card" class="card" style="margin-top: 24px; padding: 24px;">
+        <div id="worker-type-config-card" class="card" style="margin-bottom: 24px; padding: 24px;">
             <h3 class="section-title">
                 <i id="worker-type-config-icon" data-lucide="container" style="width: 18px; height: 18px;"></i>
                 <span id="worker-type-config-title">ワーカータイプ: Fargate</span>
@@ -136,7 +137,6 @@
             </button>
         </div>
     </form>
-</div>
 </div>
 
 <script>
