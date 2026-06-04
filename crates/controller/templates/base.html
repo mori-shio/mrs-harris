@@ -788,6 +788,34 @@
             }
         }
 
+        window.bindCompareTriggerIntercept = function(root) {
+            const button = (root || document).querySelector('[data-compare-trigger="true"]');
+            if (!button || button.dataset.compareInterceptBound === "true") {
+                return;
+            }
+
+            button.dataset.compareInterceptBound = "true";
+            button.addEventListener('click', function(event) {
+                const selectedA = document.querySelector('input[name="compare-a"]:checked');
+                const selectedB = document.querySelector('input[name="compare-b"]:checked');
+                if (selectedA && selectedB) {
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                clearCompareNotice();
+                if (typeof window.appConfirm === "function") {
+                    window.appConfirm({
+                        title: "選択が必要です",
+                        message: "比較する2つのバージョン（AとB）を選択してください。",
+                        confirmLabel: "閉じる",
+                        hideCancel: true
+                    });
+                }
+            }, true);
+        };
+
         window.toggleCompareRadio = function(radio) {
             const stateKey = radio.name === 'compare-a' ? 'a' : 'b';
 
@@ -933,11 +961,13 @@
             initSidebarGroups();
             initTableSorting();
             initCompareState();
+            window.bindCompareTriggerIntercept(document);
         });
         document.addEventListener("htmx:afterSwap", (e) => {
             initIcons();
             initSidebarGroups();
             initTableSorting();
+            window.bindCompareTriggerIntercept(e.target);
 
             if (e.target.id === 'history-table-container' || e.target.id === 'tab-history' || e.target.closest?.('#history-table-container')) {
                 restoreCompareState();

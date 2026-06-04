@@ -1,7 +1,7 @@
 use askama::Template;
 use axum::{
     Form, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::{IntoResponse, Redirect},
     routing::{get, post},
 };
@@ -21,6 +21,7 @@ use mrs_harris_common::models::worker::{
 #[template(path = "worker_definitions/list.html")]
 struct WorkerDefListTemplate {
     defs: Vec<WorkerDefinition>,
+    toast_message: Option<&'static str>,
 }
 crate::impl_into_response!(WorkerDefListTemplate);
 
@@ -63,6 +64,11 @@ pub struct WorkerDefFormData {
     lambda_function_arn: Option<String>,
 }
 
+#[derive(serde::Deserialize, Default)]
+struct WorkerDefListQuery {
+    toast: Option<String>,
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/worker-definitions", get(list_defs))
@@ -78,11 +84,22 @@ pub fn router() -> Router<AppState> {
         .route("/worker-definitions/{name}/delete", post(delete_def))
 }
 
-async fn list_defs(_claims: WebClaims, State(state): State<AppState>) -> impl IntoResponse {
+async fn list_defs(
+    _claims: WebClaims,
+    State(state): State<AppState>,
+    Query(query): Query<WorkerDefListQuery>,
+) -> impl IntoResponse {
     let defs = crate::db::workers::list_worker_definitions(&state.db)
         .await
         .unwrap_or_default();
-    WorkerDefListTemplate { defs }
+    let toast_message = match query.toast.as_deref() {
+        Some("deleted") => Some("ワーカー定義を削除しました。"),
+        _ => None,
+    };
+    WorkerDefListTemplate {
+        defs,
+        toast_message,
+    }
 }
 
 async fn new_def_page(_claims: WebClaims) -> impl IntoResponse {
@@ -238,7 +255,7 @@ async fn delete_def(
     crate::db::workers::delete_worker_definition(&state.db, &def.id)
         .await
         .unwrap();
-    Redirect::to("/worker-definitions").into_response()
+    Redirect::to("/worker-definitions?toast=deleted").into_response()
 }
 
 async fn build_worker_definition_snapshot(

@@ -77,3 +77,29 @@
     </div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+{% if let Some(message) = toast_message %}
+<script>
+(function() {
+    function showWorkerDefinitionToast() {
+        if (typeof window.appToast === 'function') {
+            window.appToast({ message: 'ワーカー定義を削除しました。' });
+        }
+
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('toast');
+            window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+        } catch (_error) {}
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', showWorkerDefinitionToast, { once: true });
+    } else {
+        showWorkerDefinitionToast();
+    }
+})();
+</script>
+{% endif %}
+{% endblock %}
