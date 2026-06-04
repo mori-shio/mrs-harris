@@ -495,24 +495,23 @@
 
 <!-- ========== TAB: 設定変更履歴 ========== -->
 <div id="tab-history" class="ec2-tab-pane">
-    <div id="job-history-panel" class="card" style="padding:24px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-            <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin:0;display:flex;align-items:center;gap:8px;">
+    <div id="job-history-panel" class="card history-card">
+        <div class="history-card-header">
+            <h4 class="history-card-title">
                 <i data-lucide="scroll-text" style="width:15px;height:15px;color:var(--color-primary);"></i>
                 バージョン
             </h4>
             <button
                 data-compare-trigger="true"
-                class="btn btn-secondary"
+                class="btn btn-secondary history-compare-btn"
                 onclick="compareVersions()"
-                style="font-size:0.82rem;padding:6px 12px;background:rgba(14,165,233,0.08);color:var(--color-primary);border-color:rgba(14,165,233,0.25);"
                 {% if history.len() < 2 %}disabled aria-disabled="true"{% endif %}
             >
                 <i data-lucide="git-compare" style="width:14px;height:14px;"></i> ABでの差分比較
             </button>
         </div>
         {% if history.len() < 2 %}
-        <div style="margin-bottom:12px;font-size:0.8rem;color:var(--text-muted);">
+        <div class="history-card-note">
             差分比較には 2 つ以上のバージョンが必要です。
         </div>
         {% endif %}

@@ -146,6 +146,67 @@ body:not(.sidebar-collapsed) {
     padding-bottom: 10px;
 }
 
+.form-actions-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 36px;
+}
+
+.history-card {
+    padding: 24px;
+}
+
+.history-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    gap: 12px;
+}
+
+.history-card-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.history-compare-btn {
+    font-size: 0.82rem;
+    padding: 6px 12px;
+    background: rgba(14, 165, 233, 0.08);
+    color: var(--color-primary);
+    border-color: rgba(14, 165, 233, 0.25);
+}
+
+.history-compare-btn[disabled],
+.history-compare-btn[aria-disabled="true"] {
+    opacity: 0.45;
+}
+
+.history-card-note {
+    margin-bottom: 12px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.history-version-link {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.history-version-link:hover {
+    color: #38bdf8;
+    text-decoration: underline;
+}
+
 .summary-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
