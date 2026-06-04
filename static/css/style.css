@@ -1072,7 +1072,7 @@ select.form-control {
     display: none;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 32px;
     background: rgba(3, 7, 18, 0.82);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -1084,8 +1084,8 @@ select.form-control {
 }
 
 .detail-modal-container {
-    width: min(1040px, calc(100vw - 40px));
-    max-height: calc(100vh - 48px);
+    width: min(960px, calc(100vw - 64px));
+    max-height: calc(100vh - 64px);
     display: flex;
     flex-direction: column;
     background: rgba(15, 23, 42, 0.98);
