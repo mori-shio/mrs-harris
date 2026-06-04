@@ -276,6 +276,7 @@
             message.textContent = options.message || "";
             confirmBtn.textContent = options.confirmLabel || "実行";
             cancelBtn.textContent = options.cancelLabel || "キャンセル";
+            cancelBtn.style.display = options.hideCancel ? "none" : "";
             window.lockBodyScroll();
 
             return new Promise(resolve => {
@@ -286,9 +287,13 @@
         window.closeAppDialog = function(confirmed) {
             const overlay = document.getElementById("app-dialog-root");
             if (!overlay) return;
+            const cancelBtn = overlay.querySelector("[data-dialog-cancel]");
 
             overlay.classList.remove("active");
             overlay.setAttribute("aria-hidden", "true");
+            if (cancelBtn) {
+                cancelBtn.style.display = "";
+            }
             window.unlockBodyScroll();
 
             const resolve = window.appUi.dialogResolver;
@@ -809,10 +814,13 @@
             ensureCompareStateInitialized();
 
             if (!window.compareState.a.version || !window.compareState.b.version) {
-                const noticeContainer = getCompareNoticeContainer();
-                if (noticeContainer && typeof window.renderInlineNotice === "function") {
-                    window.renderInlineNotice(noticeContainer, {
-                        message: '比較する2つのバージョン（AとB）を選択してください。'
+                clearCompareNotice();
+                if (typeof window.appConfirm === "function") {
+                    window.appConfirm({
+                        title: "選択が必要です",
+                        message: "比較する2つのバージョン（AとB）を選択してください。",
+                        confirmLabel: "閉じる",
+                        hideCancel: true
                     });
                 }
                 return;

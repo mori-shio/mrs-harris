@@ -257,6 +257,7 @@
                 バージョン
             </h4>
             <button
+                data-compare-trigger="true"
                 class="btn btn-secondary"
                 onclick="compareVersions()"
                 style="font-size:0.82rem;padding:6px 12px;background:rgba(14,165,233,0.08);color:var(--color-primary);border-color:rgba(14,165,233,0.25);"
@@ -497,5 +498,51 @@ function closeWorkerVersionDetailModal() {
     document.getElementById('worker-version-detail-modal').style.display = 'none';
     window.unlockBodyScroll();
 }
+
+(function() {
+    function clearInlineCompareNotice() {
+        var host = document.querySelector('#tab-history .inline-notice-host');
+        if (host) {
+            host.remove();
+        }
+    }
+
+    function interceptCompareTrigger(root) {
+        var button = (root || document).querySelector('[data-compare-trigger="true"]');
+        if (!button || button.dataset.compareInterceptBound === 'true') {
+            return;
+        }
+        button.dataset.compareInterceptBound = 'true';
+        button.addEventListener('click', function(event) {
+            var selectedA = document.querySelector('input[name="compare-a"]:checked');
+            var selectedB = document.querySelector('input[name="compare-b"]:checked');
+            if (selectedA && selectedB) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            clearInlineCompareNotice();
+            if (typeof window.appConfirm === 'function') {
+                window.appConfirm({
+                    title: '選択が必要です',
+                    message: '比較する2つのバージョン（AとB）を選択してください。',
+                    confirmLabel: '閉じる',
+                    hideCancel: true
+                });
+            }
+        }, true);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() { interceptCompareTrigger(document); });
+    } else {
+        interceptCompareTrigger(document);
+    }
+
+    document.addEventListener('htmx:afterSwap', function(event) {
+        interceptCompareTrigger(event.target);
+    });
+})();
 </script>
 {% endblock %}
