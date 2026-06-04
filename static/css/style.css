@@ -177,7 +177,7 @@ body:not(.sidebar-collapsed) {
     gap: 8px;
 }
 
-.history-compare-btn {
+.btn.history-compare-btn {
     font-size: 0.82rem;
     padding: 6px 12px;
     background: rgba(14, 165, 233, 0.08);
@@ -185,8 +185,14 @@ body:not(.sidebar-collapsed) {
     border-color: rgba(14, 165, 233, 0.25);
 }
 
-.history-compare-btn[disabled],
-.history-compare-btn[aria-disabled="true"] {
+.btn.history-compare-btn:hover {
+    background: rgba(14, 165, 233, 0.14);
+    color: #38bdf8;
+    border-color: rgba(14, 165, 233, 0.38);
+}
+
+.btn.history-compare-btn[disabled],
+.btn.history-compare-btn[aria-disabled="true"] {
     opacity: 0.45;
 }
 
@@ -1113,6 +1119,12 @@ select.form-control {
     font-size: 1.08rem;
     font-weight: 600;
     color: var(--text-primary);
+}
+
+.detail-modal-title-version {
+    margin-left: 8px;
+    font: inherit;
+    color: inherit;
 }
 
 .detail-modal-close {
