@@ -151,6 +151,7 @@ body:not(.sidebar-collapsed) {
     justify-content: flex-end;
     gap: 12px;
     margin-top: 36px;
+    padding-bottom: 36px;
 }
 
 .history-card {
