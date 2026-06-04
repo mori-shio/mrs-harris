@@ -216,6 +216,14 @@
                     {{ def.updated_at.format("%Y-%m-%d %H:%M:%S").to_string() }}
                 </div>
             </div>
+
+            <!-- Latest Version -->
+            <div class="summary-item">
+                <span class="summary-label">最新バージョン</span>
+                <div class="summary-value" style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 600;">
+                    v{{ latest_version }}
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -231,10 +239,10 @@
 
 <div id="tab-config" class="ec2-tab-pane active">
     <div class="card" style="padding: 24px;">
-        <h3 class="section-title">
-            <i data-lucide="code" style="width: 18px; height: 18px;"></i>
+        <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+            <i data-lucide="code" style="width:15px;height:15px;color:var(--color-primary);"></i>
             接続構成設定
-        </h3>
+        </h4>
         <div class="code-block">
             <pre><code class="language-json">{{ serde_json::to_string_pretty(&def.config).unwrap() }}</code></pre>
         </div>
@@ -243,24 +251,31 @@
 
 <div id="tab-history" class="ec2-tab-pane">
     <div class="card" style="padding: 24px;">
-        <h3 class="section-title">
-            <i data-lucide="scroll-text" style="width: 18px; height: 18px;"></i>
-            設定変更履歴
-        </h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin:0;display:flex;align-items:center;gap:8px;">
+                <i data-lucide="scroll-text" style="width:15px;height:15px;color:var(--color-primary);"></i>
+                バージョン
+            </h4>
+            <button class="btn btn-secondary" onclick="compareVersions()" style="font-size:0.82rem;padding:6px 12px;background:rgba(14,165,233,0.08);color:var(--color-primary);border-color:rgba(14,165,233,0.25);">
+                <i data-lucide="git-compare" style="width:14px;height:14px;"></i> ABでの差分比較
+            </button>
+        </div>
 
         <div class="table-container" style="margin-top: 0;">
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th style="width: 16%;">バージョン</th>
-                        <th style="width: 42%;">変更日時</th>
-                        <th style="width: 42%;">変更者</th>
+                        <th style="width: 15%;">バージョン</th>
+                        <th style="width: 30%;">変更日時</th>
+                        <th style="width: 25%;">変更者</th>
+                        <th style="width: 15%; text-align: center;">比較 A</th>
+                        <th style="width: 15%; text-align: center;">比較 B</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% if history.is_empty() %}
                     <tr>
-                        <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 48px 0;">
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 48px 0;">
                             履歴はまだありません。
                         </td>
                     </tr>
@@ -268,10 +283,16 @@
                         {% for item in history %}
                         <tr>
                             <td>
-                                <a href="javascript:void(0)" class="wd-vd-link" onclick="showWorkerVersionDetail('{{ item.version }}', '{{ item.payload_json|urlencode }}')" style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--color-primary); text-decoration: none;">v{{ item.version }}</a>
+                                <a href="javascript:void(0)" class="wd-vd-link" onclick="showWorkerVersionDetail('{{ item.version }}', '{{ item.changed_at_str }}', '{{ item.changed_by }}', '{{ item.payload_json|urlencode }}')" style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--color-primary); text-decoration: none;">v{{ item.version }}</a>
                             </td>
                             <td style="font-family:'JetBrains Mono',monospace;font-size:0.82rem;">{{ item.changed_at_str }}</td>
                             <td>{{ item.changed_by }}</td>
+                            <td style="text-align:center;">
+                                <input type="radio" name="compare-a" value="{{ item.version }}" data-payload="{{ item.payload_json|urlencode }}" class="compare-radio" onclick="toggleCompareRadio(this)" {% if loop.index == 2 %}checked{% endif %}>
+                            </td>
+                            <td style="text-align:center;">
+                                <input type="radio" name="compare-b" value="{{ item.version }}" data-payload="{{ item.payload_json|urlencode }}" class="compare-radio" onclick="toggleCompareRadio(this)" {% if loop.first %}checked{% endif %}>
+                            </td>
                         </tr>
                         {% endfor %}
                     {% endif %}
@@ -281,59 +302,61 @@
     </div>
 </div>
 
-<div id="worker-version-detail-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center;" hx-boost="false">
-    <div style="width:min(980px, calc(100vw - 48px)); max-height:min(90vh, 900px); background:var(--bg-card); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-lg); box-shadow:0 24px 80px rgba(0,0,0,0.45); padding:24px; display:flex; flex-direction:column; gap:20px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
-            <div>
-                <h3 style="font-family:'Outfit',sans-serif;font-size:1.2rem;font-weight:700;color:var(--text-primary); margin:0;">
-                    バージョン詳細 <span id="worker-vdetail-title-version" style="color:var(--color-primary);">v1</span>
-                </h3>
-                <p style="margin:6px 0 0; color:var(--text-muted); font-size:0.88rem;">
-                    ワーカー定義作成/編集画面と同じ項目構成で、保存済みの設定内容を確認できます。
-                </p>
-            </div>
-            <button class="btn btn-secondary" onclick="closeWorkerVersionDetailModal()" style="padding:8px 12px;">
-                <i data-lucide="x" style="width:16px;height:16px;"></i>
-            </button>
+{% endblock %}
+
+{% block scripts %}
+
+{% include "components/diff_compare_modal.html" %}
+
+<div id="worker-version-detail-modal" class="detail-modal-overlay" hx-boost="false">
+    <div class="detail-modal-container">
+        <div class="detail-modal-header">
+            <h3 class="detail-modal-title">
+                <i data-lucide="scroll-text" style="color:var(--color-primary); width:18px; height:18px;"></i>
+                ワーカー定義詳細 <span id="worker-vdetail-title-version" style="font-size:0.82rem; color:var(--text-muted); font-weight:normal; margin-left:8px;">v1</span>
+            </h3>
+            <button onclick="closeWorkerVersionDetailModal()" class="detail-modal-close">&times;</button>
         </div>
 
-        <div class="wvd-scroll-body">
-            <div class="wvd-status-banner">
-                <div>
-                    <div style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:6px;">保存バージョン</div>
-                    <div id="worker-vd-version-banner" style="font-family:'JetBrains Mono', monospace; font-size:0.92rem; font-weight:600; color:var(--text-primary);">v1</div>
-                </div>
-                <div id="worker-vd-type-pill" class="wvd-type-pill">FARGATE</div>
-            </div>
-
+        <div class="wvd-scroll-body detail-modal-body">
             <div class="card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
-                <h3 class="section-title">
-                    <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+                <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                    <i data-lucide="file-text" style="width: 15px; height: 15px; color:var(--color-primary);"></i>
                     基本情報
-                </h3>
+                </h4>
 
-                <div class="wvd-grid-2">
-                    <div class="form-group">
-                        <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">ワーカー名</label>
-                        <input type="text" id="worker-vd-name" class="form-control" readonly>
-                    </div>
-                    <div class="form-group">
-                        <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">ワーカータイプ</label>
-                        <input type="text" id="worker-vd-type" class="form-control" readonly>
-                    </div>
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">ワーカー名</label>
+                    <input type="text" id="worker-vd-name" class="form-control" readonly>
                 </div>
 
-                <div class="form-group" style="margin-top: 16px; margin-bottom: 0;">
+                <div class="form-group" style="margin-bottom: 16px;">
                     <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">説明</label>
                     <textarea id="worker-vd-description" class="form-control" readonly style="min-height: 72px;"></textarea>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">ワーカータイプ</label>
+                    <input type="text" id="worker-vd-type" class="form-control" readonly>
+                </div>
+                
+                <div class="wvd-grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">変更日時</label>
+                        <input type="text" id="worker-vd-changed-at" class="form-control" readonly style="font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">変更者</label>
+                        <input type="text" id="worker-vd-changed-by" class="form-control" readonly>
+                    </div>
                 </div>
             </div>
 
             <div class="card" id="worker-vd-fargate-card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0;">
-                <h3 class="section-title">
-                    <i data-lucide="container" style="width: 16px; height: 16px;"></i>
+                <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                    <i data-lucide="container" style="width: 15px; height: 15px; color:var(--color-primary);"></i>
                     ワーカータイプ: Fargate
-                </h3>
+                </h4>
                 <div class="form-group" style="margin-bottom: 0;">
                     <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">ワーカー接続構成 (JSON 形式)</label>
                     <textarea id="worker-vd-config-json" class="form-control" readonly style="min-height: 240px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;"></textarea>
@@ -342,19 +365,18 @@
             </div>
 
             <div class="card" id="worker-vd-lambda-card" style="padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0; display: none;">
-                <h3 class="section-title">
-                    <i data-lucide="zap" style="width: 16px; height: 16px;"></i>
+                <h4 style="font-family:'Outfit',sans-serif;font-size:0.95rem;font-weight:600;color:var(--text-secondary);margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                    <i data-lucide="zap" style="width: 15px; height: 15px; color:var(--color-primary);"></i>
                     ワーカータイプ: Lambda
-                </h3>
+                </h4>
                 <div class="form-group" style="margin-bottom: 0;">
                     <label style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; display: block;">Lambda関数 ARN</label>
                     <input type="text" id="worker-vd-lambda-arn" class="form-control" readonly>
-                    <span class="wvd-helptext">末尾に `:prod` や `:22`、`:$LATEST` を含めた ARN もそのまま表示します。</span>
                 </div>
             </div>
         </div>
 
-        <div style="display:flex; justify-content:end; margin-top:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:16px; gap:10px;">
+        <div class="detail-modal-footer">
             <button class="btn btn-secondary" onclick="closeWorkerVersionDetailModal()">閉じる</button>
         </div>
     </div>
@@ -424,7 +446,7 @@
     }
 })();
 
-function showWorkerVersionDetail(version, encodedPayload) {
+function showWorkerVersionDetail(version, changedAt, changedBy, encodedPayload) {
     var payloadStr = decodeURIComponent(encodedPayload);
     var snapshot = JSON.parse(payloadStr || '{}');
 
@@ -433,11 +455,11 @@ function showWorkerVersionDetail(version, encodedPayload) {
     var isLambda = workerType.includes('lambda');
 
     document.getElementById('worker-vdetail-title-version').textContent = 'v' + version;
-    document.getElementById('worker-vd-version-banner').textContent = 'v' + version;
     document.getElementById('worker-vd-name').value = snapshot["ワーカー名"] || '';
     document.getElementById('worker-vd-type').value = isLambda ? 'Lambda' : 'Fargate';
     document.getElementById('worker-vd-description').value = snapshot["説明"] || '';
-    document.getElementById('worker-vd-type-pill').textContent = isLambda ? 'LAMBDA' : 'FARGATE';
+    document.getElementById('worker-vd-changed-at').value = changedAt || '';
+    document.getElementById('worker-vd-changed-by').value = changedBy || '';
 
     document.getElementById('worker-vd-fargate-card').style.display = isLambda ? 'none' : 'block';
     document.getElementById('worker-vd-lambda-card').style.display = isLambda ? 'block' : 'none';

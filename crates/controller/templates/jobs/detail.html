@@ -519,25 +519,7 @@
 {% endblock %}
 
 {% block scripts %}
-<div id="diff-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center;" hx-boost="false">
-    <div class="card" style="width:90%; max-width:920px; max-height:85vh; display:flex; flex-direction:column; padding:24px; border:1px solid rgba(255,255,255,0.08); background:rgba(15,23,42,0.95); box-shadow:0 20px 40px rgba(0,0,0,0.6); overflow:hidden; animation: modalFadeIn 0.22s ease-out;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:12px;">
-            <h3 style="font-family:'Outfit',sans-serif; font-size:1.05rem; display:flex; align-items:center; gap:8px; margin:0;">
-                <i data-lucide="git-compare" style="color:var(--color-primary); width:18px; height:18px;"></i>
-                設定差分比較 <span id="diff-title-versions" style="font-size:0.82rem; color:var(--text-muted); font-weight:normal; margin-left:8px;"></span>
-            </h3>
-            <button onclick="closeDiffModal()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.4rem; padding:0; display:flex; align-items:center; justify-content:center; line-height:1;">&times;</button>
-        </div>
-        
-        <div id="diff-content" style="flex:1; overflow-y:auto; padding-right:6px; font-size:0.84rem;">
-            <!-- Diff result table will be injected dynamically -->
-        </div>
-        
-        <div style="display:flex; justify-content:end; margin-top:20px; border-top:1px solid rgba(255,255,255,0.08); padding-top:16px; gap:10px;">
-            <button class="btn btn-secondary" onclick="closeDiffModal()">閉じる</button>
-        </div>
-    </div>
-</div>
+{% include "components/diff_compare_modal.html" %}
 
 <!-- ========== Hash Router for Run Detail (#3) ========== -->
 <script>
@@ -728,231 +710,6 @@
     }
 })();
 </script>
-
-<!-- ========== A/B Diff Logic JS ========== -->
-<script>
-window.compareState = {
-    a: { version: null, payload: null },
-    b: { version: null, payload: null },
-    initialized: false
-};
-
-function syncCompareStateFromDom() {
-    var selectedA = document.querySelector('input[name="compare-a"]:checked');
-    if (selectedA) {
-        window.compareState.a = { version: selectedA.value, payload: selectedA.dataset.payload };
-    }
-
-    var selectedB = document.querySelector('input[name="compare-b"]:checked');
-    if (selectedB) {
-        window.compareState.b = { version: selectedB.value, payload: selectedB.dataset.payload };
-    }
-
-    document.querySelectorAll('input[name="compare-a"]').forEach(r => {
-        r.dataset.wasChecked = r.checked ? "true" : "false";
-    });
-    document.querySelectorAll('input[name="compare-b"]').forEach(r => {
-        r.dataset.wasChecked = r.checked ? "true" : "false";
-    });
-}
-
-function initCompareState() {
-    // 常にDOMの現在のchecked状態をcompareStateに同期する
-    syncCompareStateFromDom();
-    window.compareState.initialized = true;
-}
-
-function ensureCompareStateInitialized() {
-    if (!window.compareState.initialized) {
-        initCompareState();
-        return;
-    }
-
-    syncCompareStateFromDom();
-}
-
-function restoreCompareState() {
-    document.querySelectorAll('input[name="compare-a"]').forEach(r => {
-        if (window.compareState.a.version === r.value) {
-            r.checked = true;
-            r.dataset.wasChecked = "true";
-        } else {
-            r.checked = false;
-            r.dataset.wasChecked = "false";
-        }
-    });
-    document.querySelectorAll('input[name="compare-b"]').forEach(r => {
-        if (window.compareState.b.version === r.value) {
-            r.checked = true;
-            r.dataset.wasChecked = "true";
-        } else {
-            r.checked = false;
-            r.dataset.wasChecked = "false";
-        }
-    });
-}
-
-function getCompareNoticeContainer() {
-    return document.getElementById('job-history-panel') || document.getElementById('history-table-container');
-}
-
-function clearCompareNotice() {
-    var container = getCompareNoticeContainer();
-    if (!container) return;
-    var host = container.querySelector('.inline-notice-host');
-    if (host) {
-        host.remove();
-    }
-}
-
-function toggleCompareRadio(radio) {
-    var isA = radio.name === 'compare-a';
-    var stateKey = isA ? 'a' : 'b';
-    
-    if (radio.dataset.wasChecked === "true") {
-        radio.checked = false;
-        radio.dataset.wasChecked = "false";
-        window.compareState[stateKey] = { version: null, payload: null };
-    } else {
-        document.querySelectorAll('input[name="' + radio.name + '"]').forEach(r => {
-            r.dataset.wasChecked = "false";
-        });
-        radio.checked = true;
-        radio.dataset.wasChecked = "true";
-        window.compareState[stateKey] = {
-            version: radio.value,
-            payload: radio.dataset.payload
-        };
-    }
-
-    clearCompareNotice();
-}
-
-document.addEventListener('DOMContentLoaded', initCompareState);
-document.addEventListener('htmx:afterSwap', function(e) {
-    if (e.target.id === 'history-table-container') {
-        // まずDOMにcompareStateを復元し、wasCheckedを正しくセットする
-        restoreCompareState();
-        syncCompareStateFromDom();
-    }
-});
-
-function compareVersions() {
-    ensureCompareStateInitialized();
-
-    if (!window.compareState.a.version || !window.compareState.b.version) {
-        var noticeContainer = getCompareNoticeContainer();
-        if (noticeContainer && typeof window.renderInlineNotice === 'function') {
-            window.renderInlineNotice(noticeContainer, {
-                message: '比較する2つのバージョン（AとB）を選択してください。'
-            });
-        }
-        return;
-    }
-
-    clearCompareNotice();
-    
-    var verA = window.compareState.a.version;
-    var verB = window.compareState.b.version;
-    
-    var payloadA = JSON.parse(decodeURIComponent(window.compareState.a.payload));
-    var payloadB = JSON.parse(decodeURIComponent(window.compareState.b.payload));
-    
-    var titleEl = document.getElementById('diff-title-versions');
-    titleEl.textContent = 'バージョン ' + verA + ' (A) ➔ バージョン ' + verB + ' (B)';
-    
-    var diffContent = document.getElementById('diff-content');
-    diffContent.innerHTML = '';
-    
-    // Create diff view table
-    var table = document.createElement('table');
-    table.className = 'data-table';
-    table.style.width = '100%';
-    table.style.fontSize = '0.82rem';
-    
-    var thead = document.createElement('thead');
-    thead.innerHTML = '<tr><th style="width:22%;text-align:left;">設定項目</th><th style="width:39%;text-align:left;color:#ef4444;">バージョン ' + verA + ' (A)</th><th style="width:39%;text-align:left;color:#10b981;">バージョン ' + verB + ' (B)</th></tr>';
-    table.appendChild(thead);
-    
-    var tbody = document.createElement('tbody');
-    var allKeys = Array.from(new Set([...Object.keys(payloadA), ...Object.keys(payloadB)]));
-    var hasDiff = false;
-    
-    allKeys.forEach(function(key) {
-        var valA = payloadA[key];
-        var valB = payloadB[key];
-        
-        var strA = typeof valA === 'object' ? JSON.stringify(valA, null, 2) : String(valA !== undefined ? valA : '—');
-        var strB = typeof valB === 'object' ? JSON.stringify(valB, null, 2) : String(valB !== undefined ? valB : '—');
-        
-        if (strA === 'undefined' || strA === '') strA = '—';
-        if (strB === 'undefined' || strB === '') strB = '—';
-        
-        var isDifferent = strA !== strB;
-        
-        if (isDifferent) {
-            hasDiff = true;
-            var tr = document.createElement('tr');
-            tr.style.background = 'rgba(239, 68, 68, 0.015)';
-            
-            var tdKey = document.createElement('td');
-            tdKey.style.fontWeight = '600';
-            tdKey.style.color = 'var(--text-secondary)';
-            tdKey.style.verticalAlign = 'top';
-            tdKey.style.padding = '12px 10px';
-            tdKey.textContent = key;
-            
-            var tdA = document.createElement('td');
-            tdA.style.fontFamily = 'JetBrains Mono, monospace';
-            tdA.style.whiteSpace = 'pre-wrap';
-            tdA.style.color = '#f87171'; // soft red
-            tdA.style.background = 'rgba(239, 68, 68, 0.06)';
-            tdA.style.verticalAlign = 'top';
-            tdA.style.padding = '12px 10px';
-            tdA.textContent = strA;
-            
-            var tdB = document.createElement('td');
-            tdB.style.fontFamily = 'JetBrains Mono, monospace';
-            tdB.style.whiteSpace = 'pre-wrap';
-            tdB.style.color = '#34d399'; // soft green
-            tdB.style.background = 'rgba(16, 185, 129, 0.06)';
-            tdB.style.verticalAlign = 'top';
-            tdB.style.padding = '12px 10px';
-            tdB.textContent = strB;
-            
-            tr.appendChild(tdKey);
-            tr.appendChild(tdA);
-            tr.appendChild(tdB);
-            tbody.appendChild(tr);
-        }
-    });
-    
-    if (!hasDiff) {
-        diffContent.innerHTML = '<div style="text-align:center; padding:60px 0; color:var(--text-muted);"><i data-lucide="check-circle-2" style="width:36px; height:36px; color:var(--color-success); margin:0 auto 14px; display:block; opacity:0.85;"></i>設定項目に差分はありません。すべての構成値が同一です。</div>';
-    } else {
-        table.appendChild(tbody);
-        diffContent.appendChild(table);
-    }
-    
-    document.getElementById('diff-modal').style.display = 'flex';
-    window.lockBodyScroll();
-    lucide.createIcons();
-}
-
-function closeDiffModal() {
-    document.getElementById('diff-modal').style.display = 'none';
-    window.unlockBodyScroll();
-}
-
-if (document.readyState !== 'loading') {
-    initCompareState();
-}
-
-window.toggleCompareRadio = toggleCompareRadio;
-window.compareVersions = compareVersions;
-window.closeDiffModal = closeDiffModal;
-</script>
-
 <!-- ========== MODAL: バージョン構成詳細ビューア (Readonly Form UI) ========== -->
 <style>
     #version-detail-modal .form-control[readonly],
@@ -1064,17 +821,17 @@ window.closeDiffModal = closeDiffModal;
     }
 </style>
 
-<div id="version-detail-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center;" hx-boost="false">
-    <div class="card" style="width:90%; max-width:850px; max-height:85vh; display:flex; flex-direction:column; padding:24px; border:1px solid rgba(255,255,255,0.08); background:rgba(15,23,42,0.95); box-shadow:0 20px 40px rgba(0,0,0,0.6); overflow:hidden; animation: modalFadeIn 0.22s ease-out;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:12px;">
-            <h3 style="font-family:'Outfit',sans-serif; font-size:1.05rem; display:flex; align-items:center; gap:8px; margin:0;">
+<div id="version-detail-modal" class="detail-modal-overlay" hx-boost="false">
+    <div class="detail-modal-container">
+        <div class="detail-modal-header">
+            <h3 class="detail-modal-title">
                 <i data-lucide="scroll-text" style="color:var(--color-primary); width:18px; height:18px;"></i>
-                ジョブ設定詳細 <span id="vdetail-title-version" style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--color-primary);margin-left:6px;"></span>
+                バージョン詳細 <span id="vdetail-title-version" style="font-size:0.82rem; color:var(--text-muted); font-weight:normal; margin-left:8px;"></span>
             </h3>
-            <button onclick="closeVersionDetailModal()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.4rem; padding:0; display:flex; align-items:center; justify-content:center; line-height:1;">&times;</button>
+            <button onclick="closeVersionDetailModal()" class="detail-modal-close">&times;</button>
         </div>
         
-        <div class="vd-scroll-body">
+        <div class="vd-scroll-body detail-modal-body">
             <div class="vd-status-banner">
                 <div>
                     <div style="font-size:0.76rem; color:var(--text-muted); margin-bottom:6px;">バージョンの状態</div>
@@ -1260,7 +1017,7 @@ window.closeDiffModal = closeDiffModal;
             </div>
         </div>
         
-        <div style="display:flex; justify-content:end; margin-top:20px; border-top:1px solid rgba(255,255,255,0.08); padding-top:16px; gap:10px;">
+        <div class="detail-modal-footer">
             <button class="btn btn-secondary" onclick="closeVersionDetailModal()">閉じる</button>
         </div>
     </div>

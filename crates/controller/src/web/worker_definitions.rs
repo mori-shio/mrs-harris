@@ -42,6 +42,7 @@ crate::impl_into_response!(WorkerDefFormTemplate);
 struct WorkerDefDetailTemplate {
     def: WorkerDefinition,
     history: Vec<WorkerDefinitionHistoryRenderItem>,
+    latest_version: u32,
 }
 crate::impl_into_response!(WorkerDefDetailTemplate);
 
@@ -155,7 +156,12 @@ async fn def_detail_page(
     let history = list_worker_definition_history(&state.db, &def.id)
         .await
         .unwrap_or_default();
-    WorkerDefDetailTemplate { def, history }
+    let latest_version = history.first().map(|h| h.version).unwrap_or(1);
+    WorkerDefDetailTemplate {
+        def,
+        history,
+        latest_version,
+    }
 }
 
 async fn edit_def_page(

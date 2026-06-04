@@ -715,72 +715,82 @@
             }
         }
 
-        function initJobHistoryCompare() {
-            if (!document.getElementById('history-table-container')) return;
+        if (!window.compareState) {
+            window.compareState = {
+                a: { version: null, payload: null },
+                b: { version: null, payload: null },
+                initialized: false
+            };
+        }
 
-            if (!window.compareState) {
-                window.compareState = {
-                    a: { version: null, payload: null },
-                    b: { version: null, payload: null },
-                    initialized: false
-                };
+        function syncCompareStateFromDom() {
+            const selectedA = document.querySelector('input[name="compare-a"]:checked');
+            const selectedB = document.querySelector('input[name="compare-b"]:checked');
+
+            window.compareState.a = selectedA
+                ? { version: selectedA.value, payload: selectedA.dataset.payload }
+                : { version: null, payload: null };
+            window.compareState.b = selectedB
+                ? { version: selectedB.value, payload: selectedB.dataset.payload }
+                : { version: null, payload: null };
+
+            document.querySelectorAll('input[name="compare-a"]').forEach(radio => {
+                radio.dataset.wasChecked = radio.checked ? "true" : "false";
+            });
+            document.querySelectorAll('input[name="compare-b"]').forEach(radio => {
+                radio.dataset.wasChecked = radio.checked ? "true" : "false";
+            });
+        }
+
+        function initCompareState() {
+            syncCompareStateFromDom();
+            window.compareState.initialized = true;
+        }
+
+        function ensureCompareStateInitialized() {
+            if (!window.compareState.initialized) {
+                initCompareState();
+                return;
             }
+            syncCompareStateFromDom();
+        }
 
-            function syncCompareStateFromDom() {
-                const selectedA = document.querySelector('input[name="compare-a"]:checked');
-                const selectedB = document.querySelector('input[name="compare-b"]:checked');
+        function restoreCompareState() {
+            document.querySelectorAll('input[name="compare-a"]').forEach(radio => {
+                const isSelected = window.compareState.a.version === radio.value;
+                radio.checked = isSelected;
+                radio.dataset.wasChecked = isSelected ? "true" : "false";
+            });
+            document.querySelectorAll('input[name="compare-b"]').forEach(radio => {
+                const isSelected = window.compareState.b.version === radio.value;
+                radio.checked = isSelected;
+                radio.dataset.wasChecked = isSelected ? "true" : "false";
+            });
+        }
 
-                window.compareState.a = selectedA
-                    ? { version: selectedA.value, payload: selectedA.dataset.payload }
-                    : { version: null, payload: null };
-                window.compareState.b = selectedB
-                    ? { version: selectedB.value, payload: selectedB.dataset.payload }
-                    : { version: null, payload: null };
+        function getCompareNoticeContainer() {
+            return document.getElementById('job-history-panel')
+                || document.getElementById('history-table-container')
+                || document.getElementById('tab-history');
+        }
 
-                document.querySelectorAll('input[name="compare-a"]').forEach(radio => {
-                    radio.dataset.wasChecked = radio.checked ? "true" : "false";
-                });
-                document.querySelectorAll('input[name="compare-b"]').forEach(radio => {
-                    radio.dataset.wasChecked = radio.checked ? "true" : "false";
-                });
+        function clearCompareNotice() {
+            const container = getCompareNoticeContainer();
+            if (!container) return;
+            const host = container.querySelector('.inline-notice-host');
+            if (host) {
+                host.remove();
             }
+        }
 
-            function restoreCompareState() {
-                document.querySelectorAll('input[name="compare-a"]').forEach(radio => {
-                    const isSelected = window.compareState.a.version === radio.value;
-                    radio.checked = isSelected;
-                    radio.dataset.wasChecked = isSelected ? "true" : "false";
-                });
-                document.querySelectorAll('input[name="compare-b"]').forEach(radio => {
-                    const isSelected = window.compareState.b.version === radio.value;
-                    radio.checked = isSelected;
-                    radio.dataset.wasChecked = isSelected ? "true" : "false";
-                });
-            }
+        window.toggleCompareRadio = function(radio) {
+            const stateKey = radio.name === 'compare-a' ? 'a' : 'b';
 
-            function getCompareNoticeContainer() {
-                return document.getElementById('job-history-panel') || document.getElementById('history-table-container');
-            }
-
-            function clearCompareNotice() {
-                const container = getCompareNoticeContainer();
-                if (!container) return;
-                const host = container.querySelector(".inline-notice-host");
-                if (host) {
-                    host.remove();
-                }
-            }
-
-            window.toggleCompareRadio = function(radio) {
-                const stateKey = radio.name === 'compare-a' ? 'a' : 'b';
-
-                if (radio.dataset.wasChecked === "true") {
-                    radio.checked = false;
-                    radio.dataset.wasChecked = "false";
-                    window.compareState[stateKey] = { version: null, payload: null };
-                    return;
-                }
-
+            if (radio.dataset.wasChecked === "true") {
+                radio.checked = false;
+                radio.dataset.wasChecked = "false";
+                window.compareState[stateKey] = { version: null, payload: null };
+            } else {
                 document.querySelectorAll('input[name="' + radio.name + '"]').forEach(item => {
                     item.dataset.wasChecked = "false";
                 });
@@ -790,140 +800,147 @@
                     version: radio.value,
                     payload: radio.dataset.payload
                 };
-
-                clearCompareNotice();
-            };
-
-            window.compareVersions = function() {
-                syncCompareStateFromDom();
-                window.compareState.initialized = true;
-
-                if (!window.compareState.a.version || !window.compareState.b.version) {
-                    const noticeContainer = getCompareNoticeContainer();
-                    if (noticeContainer && typeof window.renderInlineNotice === "function") {
-                        window.renderInlineNotice(noticeContainer, {
-                            message: '比較する2つのバージョン（AとB）を選択してください。'
-                        });
-                    }
-                    return;
-                }
-
-                clearCompareNotice();
-
-                const payloadA = JSON.parse(decodeURIComponent(window.compareState.a.payload));
-                const payloadB = JSON.parse(decodeURIComponent(window.compareState.b.payload));
-                const verA = window.compareState.a.version;
-                const verB = window.compareState.b.version;
-                const titleEl = document.getElementById('diff-title-versions');
-                const diffContent = document.getElementById('diff-content');
-
-                if (!titleEl || !diffContent) return;
-
-                titleEl.textContent = 'バージョン ' + verA + ' (A) ➔ バージョン ' + verB + ' (B)';
-                diffContent.innerHTML = '';
-
-                const table = document.createElement('table');
-                table.className = 'data-table';
-                table.style.width = '100%';
-                table.style.fontSize = '0.82rem';
-
-                const thead = document.createElement('thead');
-                thead.innerHTML = '<tr><th style="width:22%;text-align:left;">設定項目</th><th style="width:39%;text-align:left;color:#ef4444;">バージョン ' + verA + ' (A)</th><th style="width:39%;text-align:left;color:#10b981;">バージョン ' + verB + ' (B)</th></tr>';
-                table.appendChild(thead);
-
-                const tbody = document.createElement('tbody');
-                const allKeys = Array.from(new Set([...Object.keys(payloadA), ...Object.keys(payloadB)]));
-                let hasDiff = false;
-
-                allKeys.forEach(key => {
-                    const valA = payloadA[key];
-                    const valB = payloadB[key];
-                    let strA = typeof valA === 'object' ? JSON.stringify(valA, null, 2) : String(valA !== undefined ? valA : '—');
-                    let strB = typeof valB === 'object' ? JSON.stringify(valB, null, 2) : String(valB !== undefined ? valB : '—');
-
-                    if (strA === 'undefined' || strA === '') strA = '—';
-                    if (strB === 'undefined' || strB === '') strB = '—';
-                    if (strA === strB) return;
-
-                    hasDiff = true;
-                    const tr = document.createElement('tr');
-                    tr.style.background = 'rgba(239, 68, 68, 0.015)';
-
-                    const tdKey = document.createElement('td');
-                    tdKey.style.fontWeight = '600';
-                    tdKey.style.color = 'var(--text-secondary)';
-                    tdKey.style.verticalAlign = 'top';
-                    tdKey.style.padding = '12px 10px';
-                    tdKey.textContent = key;
-
-                    const tdA = document.createElement('td');
-                    tdA.style.fontFamily = 'JetBrains Mono, monospace';
-                    tdA.style.whiteSpace = 'pre-wrap';
-                    tdA.style.color = '#f87171';
-                    tdA.style.background = 'rgba(239, 68, 68, 0.06)';
-                    tdA.style.verticalAlign = 'top';
-                    tdA.style.padding = '12px 10px';
-                    tdA.textContent = strA;
-
-                    const tdB = document.createElement('td');
-                    tdB.style.fontFamily = 'JetBrains Mono, monospace';
-                    tdB.style.whiteSpace = 'pre-wrap';
-                    tdB.style.color = '#34d399';
-                    tdB.style.background = 'rgba(16, 185, 129, 0.06)';
-                    tdB.style.verticalAlign = 'top';
-                    tdB.style.padding = '12px 10px';
-                    tdB.textContent = strB;
-
-                    tr.appendChild(tdKey);
-                    tr.appendChild(tdA);
-                    tr.appendChild(tdB);
-                    tbody.appendChild(tr);
-                });
-
-                if (!hasDiff) {
-                    diffContent.innerHTML = '<div style="text-align:center; padding:60px 0; color:var(--text-muted);"><i data-lucide="check-circle-2" style="width:36px; height:36px; color:var(--color-success); margin:0 auto 14px; display:block; opacity:0.85;"></i>設定項目に差分はありません。すべての構成値が同一です。</div>';
-                } else {
-                    table.appendChild(tbody);
-                    diffContent.appendChild(table);
-                }
-
-                document.getElementById('diff-modal').style.display = 'flex';
-                window.lockBodyScroll();
-                if (window.lucide) {
-                    lucide.createIcons();
-                }
-            };
-
-            window.closeDiffModal = function() {
-                const modal = document.getElementById('diff-modal');
-                if (!modal) return;
-                modal.style.display = 'none';
-                window.unlockBodyScroll();
-            };
-
-            if (!window.compareState.initialized) {
-                syncCompareStateFromDom();
-                window.compareState.initialized = true;
-            } else {
-                restoreCompareState();
-                syncCompareStateFromDom();
             }
-        }
 
-        window.initJobHistoryCompare = initJobHistoryCompare;
+            clearCompareNotice();
+        };
+
+        window.compareVersions = function() {
+            ensureCompareStateInitialized();
+
+            if (!window.compareState.a.version || !window.compareState.b.version) {
+                const noticeContainer = getCompareNoticeContainer();
+                if (noticeContainer && typeof window.renderInlineNotice === "function") {
+                    window.renderInlineNotice(noticeContainer, {
+                        message: '比較する2つのバージョン（AとB）を選択してください。'
+                    });
+                }
+                return;
+            }
+
+            clearCompareNotice();
+
+            const payloadA = JSON.parse(decodeURIComponent((window.compareState.a.payload || '').replace(/\+/g, '%20')));
+            const payloadB = JSON.parse(decodeURIComponent((window.compareState.b.payload || '').replace(/\+/g, '%20')));
+            const verA = window.compareState.a.version;
+            const verB = window.compareState.b.version;
+            const titleEl = document.getElementById('diff-title-versions');
+            const diffContent = document.getElementById('diff-content');
+
+            if (!titleEl || !diffContent) {
+                console.warn('compareVersions called without diff modal markup on page');
+                return;
+            }
+
+            titleEl.textContent = 'バージョン ' + verA + ' (A) ➔ バージョン ' + verB + ' (B)';
+            diffContent.innerHTML = '';
+
+            const table = document.createElement('table');
+            table.className = 'data-table';
+            table.style.width = '100%';
+            table.style.fontSize = '0.82rem';
+
+            const thead = document.createElement('thead');
+            thead.innerHTML = '<tr><th style="width:22%;text-align:left;">設定項目</th><th style="width:39%;text-align:left;color:#ef4444;">バージョン ' + verA + ' (A)</th><th style="width:39%;text-align:left;color:#10b981;">バージョン ' + verB + ' (B)</th></tr>';
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            const allKeys = Array.from(new Set([...Object.keys(payloadA), ...Object.keys(payloadB)]));
+            let hasDiff = false;
+
+            allKeys.forEach(key => {
+                const valA = payloadA[key];
+                const valB = payloadB[key];
+                let strA = typeof valA === 'object' ? JSON.stringify(valA, null, 2) : String(valA !== undefined ? valA : '—');
+                let strB = typeof valB === 'object' ? JSON.stringify(valB, null, 2) : String(valB !== undefined ? valB : '—');
+
+                if (strA === 'undefined' || strA === '') strA = '—';
+                if (strB === 'undefined' || strB === '') strB = '—';
+                if (strA === strB) return;
+
+                hasDiff = true;
+                const tr = document.createElement('tr');
+                tr.style.background = 'rgba(239, 68, 68, 0.015)';
+
+                const tdKey = document.createElement('td');
+                tdKey.style.fontWeight = '600';
+                tdKey.style.color = 'var(--text-secondary)';
+                tdKey.style.verticalAlign = 'top';
+                tdKey.style.padding = '12px 10px';
+                tdKey.textContent = key;
+
+                const tdA = document.createElement('td');
+                tdA.style.fontFamily = 'JetBrains Mono, monospace';
+                tdA.style.whiteSpace = 'pre-wrap';
+                tdA.style.color = '#f87171';
+                tdA.style.background = 'rgba(239, 68, 68, 0.06)';
+                tdA.style.verticalAlign = 'top';
+                tdA.style.padding = '12px 10px';
+                tdA.textContent = strA;
+
+                const tdB = document.createElement('td');
+                tdB.style.fontFamily = 'JetBrains Mono, monospace';
+                tdB.style.whiteSpace = 'pre-wrap';
+                tdB.style.color = '#34d399';
+                tdB.style.background = 'rgba(16, 185, 129, 0.06)';
+                tdB.style.verticalAlign = 'top';
+                tdB.style.padding = '12px 10px';
+                tdB.textContent = strB;
+
+                tr.appendChild(tdKey);
+                tr.appendChild(tdA);
+                tr.appendChild(tdB);
+                tbody.appendChild(tr);
+            });
+
+            if (!hasDiff) {
+                diffContent.innerHTML = '<div style="text-align:center; padding:60px 0; color:var(--text-muted);"><i data-lucide="check-circle-2" style="width:36px; height:36px; color:var(--color-success); margin:0 auto 14px; display:block; opacity:0.85;"></i>設定項目に差分はありません。すべての構成値が同一です。</div>';
+            } else {
+                table.appendChild(tbody);
+                diffContent.appendChild(table);
+            }
+
+            const modal = document.getElementById('diff-modal');
+            if (!modal) {
+                console.warn('compareVersions could not find diff modal element');
+                return;
+            }
+            modal.style.display = 'flex';
+            window.lockBodyScroll();
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        };
+
+        window.closeDiffModal = function() {
+            const modal = document.getElementById('diff-modal');
+            if (!modal) return;
+            modal.style.display = 'none';
+            window.unlockBodyScroll();
+        };
 
         document.addEventListener("DOMContentLoaded", () => {
             initSidebarVisibility();
             initIcons();
             initSidebarGroups();
             initTableSorting();
-            initJobHistoryCompare();
+            initCompareState();
         });
-        document.addEventListener("htmx:afterSwap", () => {
+        document.addEventListener("htmx:afterSwap", (e) => {
             initIcons();
             initSidebarGroups();
             initTableSorting();
-            initJobHistoryCompare();
+
+            if (e.target.id === 'history-table-container' || e.target.id === 'tab-history' || e.target.closest?.('#history-table-container')) {
+                restoreCompareState();
+                syncCompareStateFromDom();
+            } else if (document.querySelector('input[name="compare-a"], input[name="compare-b"]')) {
+                syncCompareStateFromDom();
+            } else {
+                window.compareState.a = { version: null, payload: null };
+                window.compareState.b = { version: null, payload: null };
+                window.compareState.initialized = false;
+            }
         });
     </script>
     {% block scripts %}{% endblock %}
