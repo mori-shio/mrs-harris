@@ -505,16 +505,10 @@
                 data-compare-trigger="true"
                 class="btn btn-secondary history-compare-btn"
                 onclick="compareVersions()"
-                {% if history.len() < 2 %}disabled aria-disabled="true"{% endif %}
             >
                 <i data-lucide="git-compare" style="width:14px;height:14px;"></i> ABでの差分比較
             </button>
         </div>
-        {% if history.len() < 2 %}
-        <div class="history-card-note">
-            差分比較には 2 つ以上のバージョンが必要です。
-        </div>
-        {% endif %}
 
         <div id="history-table-container">
             {% include "jobs/history_table.html" %}
