@@ -354,14 +354,14 @@
     }
 </style>
 
-<div id="version-detail-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px); z-index:9999; align-items:center; justify-content:center;" hx-boost="false">
-    <div class="card" style="width:90%; max-width:850px; max-height:85vh; display:flex; flex-direction:column; padding:24px; border:1px solid rgba(255,255,255,0.08); background:rgba(15,23,42,0.95); box-shadow:0 20px 40px rgba(0,0,0,0.6); overflow:hidden; animation: modalFadeIn 0.22s ease-out;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:12px;">
-            <h3 style="font-family:'Outfit',sans-serif; font-size:1.05rem; display:flex; align-items:center; gap:8px; margin:0;">
+<div id="version-detail-modal" class="detail-modal-overlay" hx-boost="false">
+    <div class="detail-modal-container">
+        <div class="detail-modal-header">
+            <h3 class="detail-modal-title">
                 <i data-lucide="scroll-text" style="color:var(--color-primary); width:18px; height:18px;"></i>
                 ジョブ設定詳細 <span id="vdetail-title-version" style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--color-primary);margin-left:6px;"></span>
             </h3>
-            <button onclick="closeVersionDetailModal()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.4rem; padding:0; display:flex; align-items:center; justify-content:center; line-height:1;">&times;</button>
+            <button onclick="closeVersionDetailModal()" class="detail-modal-close">&times;</button>
         </div>
 
         <div class="vd-scroll-body">
@@ -545,7 +545,7 @@
             </div>
         </div>
 
-        <div style="display:flex; justify-content:end; margin-top:20px; border-top:1px solid rgba(255,255,255,0.08); padding-top:16px; gap:10px;">
+        <div class="detail-modal-footer">
             <button class="btn btn-secondary" onclick="closeVersionDetailModal()">閉じる</button>
         </div>
     </div>
@@ -553,6 +553,8 @@
 
 <script>
 function showVersionDetail(version, encodedPayload) {
+    ensureVersionDetailModalHost();
+
     var payloadStr = decodeURIComponent(encodedPayload);
     var snapshot = JSON.parse(payloadStr);
 
@@ -654,7 +656,8 @@ function showVersionDetail(version, encodedPayload) {
         document.getElementById('vd-slack-failed').checked = false;
     }
 
-    document.getElementById('version-detail-modal').style.display = 'flex';
+    document.getElementById('version-detail-modal').classList.add('active');
+    document.getElementById('version-detail-modal').setAttribute('aria-hidden', 'false');
     var mainContent = document.querySelector('main.main-content');
     if (mainContent) {
         mainContent.dataset.versionModalLayer = mainContent.style.zIndex || '';
@@ -667,13 +670,30 @@ function showVersionDetail(version, encodedPayload) {
 }
 
 function closeVersionDetailModal() {
-    document.getElementById('version-detail-modal').style.display = 'none';
+    document.getElementById('version-detail-modal').classList.remove('active');
+    document.getElementById('version-detail-modal').setAttribute('aria-hidden', 'true');
     var mainContent = document.querySelector('main.main-content');
     if (mainContent) {
         mainContent.style.zIndex = mainContent.dataset.versionModalLayer || '1';
         delete mainContent.dataset.versionModalLayer;
     }
     window.unlockBodyScroll();
+}
+
+function ensureVersionDetailModalHost() {
+    var modal = document.getElementById('version-detail-modal');
+    if (!modal) {
+        return;
+    }
+    if (modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ensureVersionDetailModalHost);
+} else {
+    ensureVersionDetailModalHost();
 }
 </script>
 {% endif %}

@@ -1079,6 +1079,10 @@ select.form-control {
     z-index: 1300;
 }
 
+.detail-modal-overlay.active {
+    display: flex;
+}
+
 .detail-modal-container {
     width: min(1040px, calc(100vw - 40px));
     max-height: calc(100vh - 48px);
