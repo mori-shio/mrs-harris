@@ -15,10 +15,16 @@
         <h2>ステップフロー</h2>
         <p>登録済みジョブをグループ単位で直列・並列実行するフローの管理</p>
     </div>
-    <a href="/step-flows/new" class="btn btn-primary">
-        <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
-        新規作成
-    </a>
+    <div style="display: flex; gap: 12px;">
+        <button type="button" class="btn btn-secondary" onclick="openCopyStepFlowModal()">
+            <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
+            コピーして作成
+        </button>
+        <a href="/step-flows/new" class="btn btn-primary">
+            <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+            新規作成
+        </a>
+    </div>
 </div>
 
 <style>
@@ -75,6 +81,55 @@
         font-weight: 600;
         background: rgba(14, 165, 233, 0.04);
     }
+
+    .copy-step-flow-result {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--text-primary);
+        text-align: left;
+        cursor: pointer;
+        transition: all 0.18s ease;
+    }
+
+    .copy-step-flow-result:hover {
+        border-color: rgba(56, 189, 248, 0.28);
+        background: rgba(14, 165, 233, 0.08);
+    }
+
+    .copy-step-flow-result-name {
+        font-weight: 600;
+    }
+
+    .copy-step-flow-result-name-match {
+        color: var(--color-primary);
+    }
+
+    .copy-step-flow-result-description {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .copy-step-flow-results {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 360px;
+        max-height: 360px;
+        overflow-y: auto;
+        box-sizing: border-box;
+    }
+
+    .copy-step-flow-results-empty {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        padding: 12px 4px;
+    }
 </style>
 
 <div class="space-tabs-shell">
@@ -125,6 +180,82 @@
             }
         }
     });
+
+    const copyStepFlowCandidates = {{ copy_candidates_json|safe }};
+
+    function renderCopyStepFlowResults(query) {
+        const list = document.getElementById('copy-step-flow-results');
+        if (!list) return;
+
+        const normalized = (query || '').trim().toLowerCase();
+        const matches = copyStepFlowCandidates.filter(function(flow) {
+            return normalized === '' || flow.name.toLowerCase().startsWith(normalized);
+        });
+
+        if (matches.length === 0) {
+            list.innerHTML = '<div class="copy-step-flow-results-empty">一致するステップフローがありません</div>';
+            return;
+        }
+
+        list.innerHTML = matches.map(function(flow) {
+            const description = flow.description && flow.description.trim() !== ''
+                ? '<span class="copy-step-flow-result-description">' + escapeHtml(flow.description) + '</span>'
+                : '';
+            return '<button type="button" class="copy-step-flow-result" data-copy-step-flow="' + encodeURIComponent(flow.name) + '">' +
+                '<span class="copy-step-flow-result-name">' + renderHighlightedCopyStepFlowName(flow.name, query || '') + '</span>' +
+                description +
+                '</button>';
+        }).join('');
+
+        list.querySelectorAll('.copy-step-flow-result').forEach(function(button) {
+            button.addEventListener('click', function() {
+                goToCopyStepFlow(button.dataset.copyStepFlow || '');
+            });
+        });
+    }
+
+    function renderHighlightedCopyStepFlowName(name, query) {
+        const trimmed = (query || '').trim();
+        if (trimmed === '') {
+            return escapeHtml(name);
+        }
+
+        const prefixLength = trimmed.length;
+        const matched = name.slice(0, prefixLength);
+        const rest = name.slice(prefixLength);
+        return '<span class="copy-step-flow-result-name-match">' + escapeHtml(matched) + '</span>' + escapeHtml(rest);
+    }
+
+    function escapeHtml(text) {
+        return String(text)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+    }
+
+    function goToCopyStepFlow(encodedName) {
+        window.location.href = '/step-flows/new?copy_from=' + encodedName;
+    }
+
+    function openCopyStepFlowModal() {
+        const modal = document.getElementById('copy-step-flow-modal');
+        const input = document.getElementById('copy-step-flow-search');
+        if (!modal || !input) return;
+        modal.classList.add('active');
+        input.value = '';
+        renderCopyStepFlowResults('');
+        window.requestAnimationFrame(function() {
+            input.focus();
+        });
+    }
+
+    function closeCopyStepFlowModal() {
+        const modal = document.getElementById('copy-step-flow-modal');
+        if (!modal) return;
+        modal.classList.remove('active');
+    }
 </script>
 
 <div class="card" style="margin-bottom: 24px; padding: 16px 24px;">
@@ -150,5 +281,21 @@
 
 <div id="step-flows-list-container">
     {% include "step_flows/list_partial.html" %}
+</div>
+
+<div class="modal-overlay" id="copy-step-flow-modal" style="padding-left: 260px;">
+    <div class="modal-content" style="max-width: 620px;">
+        <div class="modal-header">
+            <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 700;">既存ステップフローをコピーして作成</h3>
+            <button class="modal-close" onclick="closeCopyStepFlowModal()">&times;</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="copy-step-flow-search">コピー元ステップフロー</label>
+                <input type="text" id="copy-step-flow-search" class="form-control" placeholder="ステップフロー名で前方一致検索" oninput="renderCopyStepFlowResults(this.value)">
+            </div>
+            <div id="copy-step-flow-results" class="copy-step-flow-results"></div>
+        </div>
+    </div>
 </div>
 {% endblock %}

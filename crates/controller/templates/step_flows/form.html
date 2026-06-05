@@ -28,24 +28,24 @@
         <h3 class="section-title">基本情報</h3>
         <div class="form-group">
             <label for="name">名前</label>
-            <input id="name" name="name" class="form-control" required>
+            <input id="name" name="name" class="form-control" value="{{ form.name }}" required>
         </div>
         <div class="form-group">
             <label for="description">説明</label>
-            <textarea id="description" name="description" class="form-control" rows="3"></textarea>
+            <textarea id="description" name="description" class="form-control" rows="3">{{ form.description }}</textarea>
         </div>
         <div class="form-group">
             <label for="space_id">スペース</label>
             <select id="space_id" name="space_id" class="form-control">
-                <option value="">未分類</option>
+                <option value="" {% if form.space_id.is_empty() %}selected{% endif %}>未分類</option>
                 {% for space in spaces %}
-                <option value="{{ space.id }}">{{ space.name }}</option>
+                <option value="{{ space.id }}" {% if form.space_id == space.id.to_string() %}selected{% endif %}>{{ space.name }}</option>
                 {% endfor %}
             </select>
         </div>
         <div class="form-group">
             <label for="tags">タグ</label>
-            <input id="tags" name="tags" class="form-control" placeholder="step-flow, sample">
+            <input id="tags" name="tags" class="form-control" placeholder="step-flow, sample" value="{{ form.tags }}">
         </div>
     </div>
 
@@ -54,7 +54,7 @@
         <p style="color: var(--text-muted); font-size: 0.86rem;">最初の Group は条件なしで実行されます。複数選択すると並列起動します。</p>
         <select name="group1_jobs" class="form-control" multiple required size="6">
             {% for job in jobs %}
-            <option value="{{ job.id }}">{{ job.label }}</option>
+            <option value="{{ job.id }}" {% if job.selected_group1 %}selected{% endif %}>{{ job.label }}</option>
             {% endfor %}
         </select>
     </div>
@@ -64,13 +64,13 @@
         <div class="form-group">
             <label>実行条件</label>
             <select name="group2_condition" class="form-control">
-                <option value="on_success">前Group成功時のみ</option>
-                <option value="always">常に実行</option>
+                <option value="on_success" {% if form.group2_condition == "on_success" %}selected{% endif %}>前Group成功時のみ</option>
+                <option value="always" {% if form.group2_condition == "always" %}selected{% endif %}>常に実行</option>
             </select>
         </div>
         <select name="group2_jobs" class="form-control" multiple size="6">
             {% for job in jobs %}
-            <option value="{{ job.id }}">{{ job.label }}</option>
+            <option value="{{ job.id }}" {% if job.selected_group2 %}selected{% endif %}>{{ job.label }}</option>
             {% endfor %}
         </select>
     </div>
@@ -80,13 +80,13 @@
         <div class="form-group">
             <label>実行条件</label>
             <select name="group3_condition" class="form-control">
-                <option value="always">常に実行</option>
-                <option value="on_success">前Group成功時のみ</option>
+                <option value="always" {% if form.group3_condition == "always" %}selected{% endif %}>常に実行</option>
+                <option value="on_success" {% if form.group3_condition == "on_success" %}selected{% endif %}>前Group成功時のみ</option>
             </select>
         </div>
         <select name="group3_jobs" class="form-control" multiple size="6">
             {% for job in jobs %}
-            <option value="{{ job.id }}">{{ job.label }}</option>
+            <option value="{{ job.id }}" {% if job.selected_group3 %}selected{% endif %}>{{ job.label }}</option>
             {% endfor %}
         </select>
     </div>

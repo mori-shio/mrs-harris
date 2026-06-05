@@ -19,6 +19,9 @@ use crate::app::AppState;
 struct JobOption {
     id: i64,
     label: String,
+    selected_group1: bool,
+    selected_group2: bool,
+    selected_group3: bool,
 }
 
 #[derive(Clone)]
@@ -59,6 +62,7 @@ struct StepFlowListTemplate {
     current_space: String,
     current_search: String,
     current_is_active: String,
+    copy_candidates_json: String,
 }
 crate::impl_into_response!(StepFlowListTemplate);
 
@@ -74,6 +78,7 @@ crate::impl_into_response!(StepFlowListPartialTemplate);
 struct StepFlowFormTemplate {
     jobs: Vec<JobOption>,
     spaces: Vec<mrs_harris_common::models::space::Space>,
+    form: StepFlowFormValues,
     error_message: Option<String>,
 }
 crate::impl_into_response!(StepFlowFormTemplate);
@@ -106,6 +111,41 @@ struct StepFlowForm {
     group2_jobs: Option<Vec<i64>>,
     group3_condition: Option<String>,
     group3_jobs: Option<Vec<i64>>,
+}
+
+#[derive(Clone)]
+struct StepFlowFormValues {
+    name: String,
+    description: String,
+    space_id: String,
+    tags: String,
+    group1_jobs: Vec<i64>,
+    group2_condition: String,
+    group2_jobs: Vec<i64>,
+    group3_condition: String,
+    group3_jobs: Vec<i64>,
+}
+
+impl Default for StepFlowFormValues {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            description: String::new(),
+            space_id: String::new(),
+            tags: String::new(),
+            group1_jobs: Vec::new(),
+            group2_condition: "on_success".to_string(),
+            group2_jobs: Vec::new(),
+            group3_condition: "always".to_string(),
+            group3_jobs: Vec::new(),
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+struct StepFlowCopyCandidate {
+    name: String,
+    description: String,
 }
 
 pub fn router() -> Router<AppState> {
@@ -146,6 +186,15 @@ async fn list_page(
         .collect();
 
     let flows = attach_space_names(&state, flows).await;
+    let copy_candidates = flows
+        .iter()
+        .map(|flow| StepFlowCopyCandidate {
+            name: flow.name.clone(),
+            description: flow.description.clone(),
+        })
+        .collect::<Vec<_>>();
+    let copy_candidates_json =
+        serde_json::to_string(&copy_candidates).unwrap_or_else(|_| "[]".to_string());
     let is_partial = headers
         .get("hx-target")
         .map(|value| value == "step-flows-list-container")
@@ -160,15 +209,28 @@ async fn list_page(
             current_space,
             current_search,
             current_is_active,
+            copy_candidates_json,
         }
         .into_response()
     }
 }
 
-async fn new_page(State(state): State<AppState>, _claims: WebClaims) -> impl IntoResponse {
+async fn new_page(
+    State(state): State<AppState>,
+    _claims: WebClaims,
+    Query(query): Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    let form = match query
+        .get("copy_from")
+        .filter(|name| !name.trim().is_empty())
+    {
+        Some(name) => build_form_values_from_copy(&state, name).await,
+        None => StepFlowFormValues::default(),
+    };
     StepFlowFormTemplate {
-        jobs: load_job_options(&state).await,
+        jobs: load_job_options(&state, &form).await,
         spaces: load_spaces(&state).await,
+        form,
         error_message: None,
     }
 }
@@ -178,12 +240,14 @@ async fn create_submit(
     claims: WebClaims,
     Form(form): Form<StepFlowForm>,
 ) -> impl IntoResponse {
+    let form_values = StepFlowFormValues::from(&form);
     let groups = match build_groups_from_form(&form) {
         Ok(groups) => groups,
         Err(message) => {
             return StepFlowFormTemplate {
-                jobs: load_job_options(&state).await,
+                jobs: load_job_options(&state, &form_values).await,
                 spaces: load_spaces(&state).await,
+                form: form_values,
                 error_message: Some(message),
             }
             .into_response();
@@ -211,8 +275,9 @@ async fn create_submit(
     match crate::db::step_flows::create_step_flow(&state.db, &new_flow, &claims.0.username).await {
         Ok(flow) => Redirect::to(&format!("/step-flows/{}", flow.name)).into_response(),
         Err(err) => StepFlowFormTemplate {
-            jobs: load_job_options(&state).await,
+            jobs: load_job_options(&state, &form_values).await,
             spaces: load_spaces(&state).await,
+            form: form_values,
             error_message: Some(format!("ステップフローを保存できませんでした: {}", err)),
         }
         .into_response(),
@@ -357,7 +422,80 @@ fn parse_condition(value: Option<&str>) -> Result<StepFlowRunCondition, String> 
     }
 }
 
-async fn load_job_options(state: &AppState) -> Vec<JobOption> {
+impl From<&StepFlowForm> for StepFlowFormValues {
+    fn from(form: &StepFlowForm) -> Self {
+        Self {
+            name: form.name.clone(),
+            description: form.description.clone().unwrap_or_default(),
+            space_id: form.space_id.map(|id| id.to_string()).unwrap_or_default(),
+            tags: form.tags.clone().unwrap_or_default(),
+            group1_jobs: form.group1_jobs.clone(),
+            group2_condition: form
+                .group2_condition
+                .clone()
+                .unwrap_or_else(|| "on_success".to_string()),
+            group2_jobs: form.group2_jobs.clone().unwrap_or_default(),
+            group3_condition: form
+                .group3_condition
+                .clone()
+                .unwrap_or_else(|| "always".to_string()),
+            group3_jobs: form.group3_jobs.clone().unwrap_or_default(),
+        }
+    }
+}
+
+async fn build_form_values_from_copy(state: &AppState, name: &str) -> StepFlowFormValues {
+    let Some(flow) = crate::db::step_flows::get_step_flow_by_name(&state.db, name)
+        .await
+        .ok()
+        .flatten()
+    else {
+        return StepFlowFormValues::default();
+    };
+
+    let groups = crate::db::step_flows::list_groups(&state.db, flow.id)
+        .await
+        .unwrap_or_default();
+    let mut values = StepFlowFormValues {
+        name: String::new(),
+        description: flow.description.unwrap_or_default(),
+        space_id: flow.space_id.map(|id| id.to_string()).unwrap_or_default(),
+        tags: flow.tags.join(", "),
+        group1_jobs: Vec::new(),
+        group2_condition: "on_success".to_string(),
+        group2_jobs: Vec::new(),
+        group3_condition: "always".to_string(),
+        group3_jobs: Vec::new(),
+    };
+
+    for group in groups {
+        let job_ids = group.steps.into_iter().map(|step| step.job_id).collect();
+        match group.group_order {
+            1 => values.group1_jobs = job_ids,
+            2 => {
+                values.group2_condition = group
+                    .run_condition
+                    .as_ref()
+                    .map(|condition| condition.to_string())
+                    .unwrap_or_else(|| "on_success".to_string());
+                values.group2_jobs = job_ids;
+            }
+            3 => {
+                values.group3_condition = group
+                    .run_condition
+                    .as_ref()
+                    .map(|condition| condition.to_string())
+                    .unwrap_or_else(|| "always".to_string());
+                values.group3_jobs = job_ids;
+            }
+            _ => {}
+        }
+    }
+
+    values
+}
+
+async fn load_job_options(state: &AppState, form: &StepFlowFormValues) -> Vec<JobOption> {
     let rows = sqlx::query(
         "SELECT j.id, j.name, COALESCE(s.name, '未分類') AS space_name \
          FROM jobs j LEFT JOIN spaces s ON j.space_id = s.id ORDER BY s.priority ASC, s.name ASC, j.name ASC",
@@ -374,6 +512,9 @@ async fn load_job_options(state: &AppState) -> Vec<JobOption> {
             Some(JobOption {
                 id,
                 label: format!("{} / {}", space_name, name),
+                selected_group1: form.group1_jobs.contains(&id),
+                selected_group2: form.group2_jobs.contains(&id),
+                selected_group3: form.group3_jobs.contains(&id),
             })
         })
         .collect()
@@ -474,7 +615,7 @@ async fn build_group_views(state: &AppState, step_flow_id: i64) -> Vec<StepFlowG
     let groups = crate::db::step_flows::list_groups(&state.db, step_flow_id)
         .await
         .unwrap_or_default();
-    let jobs = load_job_options(state).await;
+    let jobs = load_job_options(state, &StepFlowFormValues::default()).await;
 
     groups
         .into_iter()
