@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum JobType {
     Cron,
-    Dag,
     OneShot,
 }
 
@@ -27,8 +26,15 @@ pub enum WorkerType {
 
 #[cfg(test)]
 mod tests {
-    use super::WorkerType;
+    use super::{JobType, WorkerType};
     use std::str::FromStr;
+
+    #[test]
+    fn job_type_no_longer_accepts_dag() {
+        assert_eq!(JobType::Cron.to_string(), "cron");
+        assert_eq!(JobType::OneShot.to_string(), "one_shot");
+        assert!(JobType::from_str("dag").is_err());
+    }
 
     #[test]
     fn worker_type_does_not_include_controller_variant() {

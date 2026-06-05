@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{{ flow.name }} #{{ run.run_number }} | Mrs. Harris{% endblock %}
+{% block nav_step_flows %}active{% endblock %}
+
+{% block content %}
+<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
+    <a href="/">ホーム</a>
+    <span class="breadcrumbs-separator">/</span>
+    <a href="/step-flows">ステップフロー</a>
+    <span class="breadcrumbs-separator">/</span>
+    <a href="/step-flows/{{ flow.name }}">{{ flow.name }}</a>
+    <span class="breadcrumbs-separator">/</span>
+    <span style="color: var(--text-primary); font-weight: 600;">#{{ run.run_number }}</span>
+</nav>
+
+<div class="page-header">
+    <div class="page-title">
+        <h2>{{ flow.name }} #{{ run.run_number }}</h2>
+        <p>ステップフロー実行履歴</p>
+    </div>
+</div>
+
+<div class="card" style="padding: 20px 24px;">
+    <h3 class="section-title">実行ステータス</h3>
+    <div class="summary-grid">
+        <div><span class="summary-label">状態</span><span class="summary-value">{{ run.status.label_ja() }}</span></div>
+        <div><span class="summary-label">トリガー</span><span class="summary-value">{{ run.trigger_type.label_ja() }}</span></div>
+        <div><span class="summary-label">設定バージョンID</span><span class="summary-value">{{ run.step_flow_history_id }}</span></div>
+    </div>
+</div>
+{% endblock %}

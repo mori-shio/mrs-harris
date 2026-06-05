@@ -13,7 +13,6 @@ use chrono::{DateTime, Utc};
 use sqlx::{MySqlPool, Row};
 use std::str::FromStr;
 
-use mrs_harris_common::models::job::JobType;
 use mrs_harris_common::models::run::{JobRun, LogArchiveStatus, LogLine, LogStream};
 
 use super::auth::WebClaims;
@@ -226,7 +225,7 @@ async fn fetch_run_detail_data(
         .ok_or_else(|| anyhow::anyhow!("Job not found"))?;
 
     let job_name = job.name;
-    let is_dag = job.job_type == JobType::Dag;
+    let is_dag = false;
 
     // Fetch task runs if it is a DAG
     let mut task_runs = Vec::new();

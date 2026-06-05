@@ -4,5 +4,6 @@ pub mod job;
 pub mod notification;
 pub mod run;
 pub mod space;
+pub mod step_flow;
 pub mod user;
 pub mod worker;

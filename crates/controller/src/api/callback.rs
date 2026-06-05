@@ -113,6 +113,14 @@ async fn worker_callback(
     if let Some(run) = run_opt {
         // すでに終端状態の場合は何もしない
         if run.status.is_terminal() {
+            if let Err(e) =
+                crate::scheduler::step_flow_engine::handle_child_run_update(&state, run.id).await
+            {
+                tracing::error!(
+                    "Failed to evaluate StepFlow for terminal child run callback: {}",
+                    e
+                );
+            }
             return Ok(StatusCode::OK);
         }
 
@@ -257,12 +265,18 @@ async fn worker_callback(
         }
 
         // 5. ジョブタイプが DAG の場合、DAG実行エンジンを起動して後続タスクを評価・実行する
-        if let Ok(Some(job)) = crate::db::jobs::get_job(&state.db, &run.job_id).await
-            && job.job_type == mrs_harris_common::models::job::JobType::Dag
+        if let Ok(Some(_job)) = crate::db::jobs::get_job(&state.db, &run.job_id).await
+            && false
             && let Err(e) =
                 crate::scheduler::dag_engine::resolve_and_dispatch(state.clone(), run.id).await
         {
             tracing::error!("Failed to resolve and dispatch DAG: {}", e);
+        }
+
+        if let Err(e) =
+            crate::scheduler::step_flow_engine::handle_child_run_update(&state, run.id).await
+        {
+            tracing::error!("Failed to evaluate StepFlow after child run update: {}", e);
         }
     } else {
         // 2. なければ task_runs から探す（DAGタスクコールバック）

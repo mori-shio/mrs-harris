@@ -18,7 +18,7 @@ pub async fn dispatch_pending_runs(state: &AppState) -> anyhow::Result<()> {
         };
 
         // ジョブタイプが DAG の場合、DAG 実行エンジンを起動
-        if job.job_type == mrs_harris_common::models::job::JobType::Dag {
+        if false {
             tracing::info!("Starting DAG job run {}", run.id);
             // ステータスを running に更新
             if let Err(e) = crate::db::runs::update_run_status(

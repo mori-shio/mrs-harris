@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{{ flow.name }} | Mrs. Harris{% endblock %}
+{% block nav_step_flows %}active{% endblock %}
+
+{% block content %}
+<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
+    <a href="/">ホーム</a>
+    <span class="breadcrumbs-separator">/</span>
+    <a href="/step-flows">ステップフロー</a>
+    <span class="breadcrumbs-separator">/</span>
+    <span style="color: var(--text-primary); font-weight: 600;">{{ flow.name }}</span>
+</nav>
+
+<div class="page-header">
+    <div class="page-title">
+        <h2>{{ flow.name }}</h2>
+        <p>{{ flow.description.as_deref().unwrap_or("") }}</p>
+    </div>
+    <form method="POST" action="/step-flows/{{ flow.name }}/run" hx-boost="false">
+        <button type="submit" class="btn btn-primary">
+            <i data-lucide="play" style="width: 16px; height: 16px;"></i>
+            実行
+        </button>
+    </form>
+</div>
+
+<div class="card" style="padding: 20px 24px; margin-bottom: 24px;">
+    <h3 class="section-title">概要</h3>
+    <div class="summary-grid">
+        <div><span class="summary-label">最新バージョン</span><span class="summary-value">v{{ latest_version }}</span></div>
+        <div><span class="summary-label">状態</span><span class="summary-value">{% if flow.is_active %}有効{% else %}無効{% endif %}</span></div>
+    </div>
+</div>
+
+{% for group in groups %}
+<div class="card" style="padding: 20px 24px; margin-bottom: 18px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h3 class="section-title" style="margin: 0;">Group {{ group.order }}</h3>
+        <span class="badge">{{ group.condition_label }}</span>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 120px;">Step</th>
+                <th>ジョブ</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for step in group.steps %}
+            <tr>
+                <td>#{{ step.order }}</td>
+                <td>{{ step.job_label }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endfor %}
+{% endblock %}

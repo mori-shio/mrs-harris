@@ -272,6 +272,20 @@ pub async fn update_job(pool: &MySqlPool, id: &i64, update: &JobUpdate) -> anyho
 
 /// ジョブを削除
 pub async fn delete_job(pool: &MySqlPool, id: &i64) -> anyhow::Result<()> {
+    let step_flow_ref_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM step_flow_steps WHERE job_id = ?")
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
+    if step_flow_ref_count > 0 {
+        return Err(anyhow::anyhow!(
+            "job {} is referenced by {} step flow step(s)",
+            id,
+            step_flow_ref_count
+        ));
+    }
+
     sqlx::query("DELETE FROM jobs WHERE id = ?")
         .bind(id)
         .execute(pool)

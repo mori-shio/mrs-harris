@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}ステップフロー作成 | Mrs. Harris{% endblock %}
+{% block nav_step_flows %}active{% endblock %}
+
+{% block content %}
+<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
+    <a href="/">ホーム</a>
+    <span class="breadcrumbs-separator">/</span>
+    <a href="/step-flows">ステップフロー</a>
+    <span class="breadcrumbs-separator">/</span>
+    <span style="color: var(--text-primary); font-weight: 600;">新規作成</span>
+</nav>
+
+<div class="page-header">
+    <div class="page-title">
+        <h2>ステップフロー作成</h2>
+        <p>Group 内は並列、Group 間は上から順に実行されます</p>
+    </div>
+</div>
+
+{% if let Some(message) = error_message %}
+<div class="alert alert-danger" style="margin-bottom: 20px;">{{ message }}</div>
+{% endif %}
+
+<form method="POST" action="/step-flows/new" hx-boost="false">
+    <div class="card" style="padding: 24px; margin-bottom: 24px;">
+        <h3 class="section-title">基本情報</h3>
+        <div class="form-group">
+            <label for="name">名前</label>
+            <input id="name" name="name" class="form-control" required>
+        </div>
+        <div class="form-group">
+            <label for="description">説明</label>
+            <textarea id="description" name="description" class="form-control" rows="3"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="space_id">スペース</label>
+            <select id="space_id" name="space_id" class="form-control">
+                <option value="">未分類</option>
+                {% for space in spaces %}
+                <option value="{{ space.id }}">{{ space.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="tags">タグ</label>
+            <input id="tags" name="tags" class="form-control" placeholder="step-flow, sample">
+        </div>
+    </div>
+
+    <div class="card" style="padding: 24px; margin-bottom: 24px;">
+        <h3 class="section-title">Group 1</h3>
+        <p style="color: var(--text-muted); font-size: 0.86rem;">最初の Group は条件なしで実行されます。複数選択すると並列起動します。</p>
+        <select name="group1_jobs" class="form-control" multiple required size="6">
+            {% for job in jobs %}
+            <option value="{{ job.id }}">{{ job.label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="card" style="padding: 24px; margin-bottom: 24px;">
+        <h3 class="section-title">Group 2</h3>
+        <div class="form-group">
+            <label>実行条件</label>
+            <select name="group2_condition" class="form-control">
+                <option value="on_success">前Group成功時のみ</option>
+                <option value="always">常に実行</option>
+            </select>
+        </div>
+        <select name="group2_jobs" class="form-control" multiple size="6">
+            {% for job in jobs %}
+            <option value="{{ job.id }}">{{ job.label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="card" style="padding: 24px; margin-bottom: 24px;">
+        <h3 class="section-title">Group 3</h3>
+        <div class="form-group">
+            <label>実行条件</label>
+            <select name="group3_condition" class="form-control">
+                <option value="always">常に実行</option>
+                <option value="on_success">前Group成功時のみ</option>
+            </select>
+        </div>
+        <select name="group3_jobs" class="form-control" multiple size="6">
+            {% for job in jobs %}
+            <option value="{{ job.id }}">{{ job.label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 12px;">
+        <a href="/step-flows" class="btn btn-secondary">キャンセル</a>
+        <button type="submit" class="btn btn-primary">保存</button>
+    </div>
+</form>
+{% endblock %}

@@ -9,6 +9,7 @@ pub mod jobs;
 pub mod runs;
 pub mod settings;
 pub mod spaces;
+pub mod step_flows;
 pub mod worker_definitions;
 pub mod workers;
 
@@ -24,6 +25,7 @@ pub fn router() -> Router<AppState> {
         .merge(settings::router())
         .merge(worker_definitions::router())
         .merge(database::router())
+        .merge(step_flows::router())
         .merge(spaces::router())
 }
 

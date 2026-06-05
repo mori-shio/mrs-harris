@@ -36,7 +36,7 @@ SET description = 'Lambda local fallback で実行される軽量なテストジ
 WHERE name = 'local-echo-job' AND worker_definition_id = 1001;
 
 UPDATE job_history
-SET payload = '{"タグ": ["local", "test"], "説明": "Lambda local fallback で実行される軽量なテストジョブ", "ジョブ名": "local-echo-job", "ジョブタイプ": "OneShot (単発/手動実行)", "タイムアウト": "300 秒", "有効化状態": "有効", "初期遅延": "5 秒", "リトライ上限": "1", "バックオフ戦略": "固定", "ワーカー定義": "default-local-lambda", "スクリプト / DAG構成": "echo Hello from Controller!", "Slack通知": {"成功時": "無効", "失敗時": "無効", "ジョブ起動時": "無効"}}'
+SET payload = '{"タグ": ["local", "test"], "説明": "Lambda local fallback で実行される軽量なテストジョブ", "ジョブ名": "local-echo-job", "ジョブタイプ": "OneShot (単発/手動実行)", "タイムアウト": "300 秒", "有効化状態": "有効", "初期遅延": "5 秒", "リトライ上限": "1", "バックオフ戦略": "固定", "ワーカー定義": "default-local-lambda", "スクリプト": "echo Hello from Controller!", "Slack通知": {"成功時": "無効", "失敗時": "無効", "ジョブ起動時": "無効"}}'
 WHERE job_id = 1001 AND version = 1;
 
 ALTER TABLE worker_definitions

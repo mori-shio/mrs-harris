@@ -153,13 +153,12 @@
                 <span style="font-size: 0.8rem; color: var(--text-muted);">ジョブを実行するワーカーノード（自作ワーカー定義）を指定します。</span>
             </div>
 
-            <!-- ジョブタイプ (OneShot -> Cron -> DAG) -->
+            <!-- ジョブタイプ -->
             <div class="form-group" style="margin-top: 20px;">
                 <label for="job_type">ジョブタイプ</label>
                 <select id="job_type" name="job_type" class="form-control" onchange="toggleJobTypeFields()">
                     <option value="one_shot" {% if job_type == "one_shot" %}selected{% endif %}>OneShot</option>
                     <option value="cron" {% if job_type == "cron" %}selected{% endif %}>Cron</option>
-                    <option value="dag" {% if job_type == "dag" %}selected{% endif %}>DAG</option>
                 </select>
             </div>
 

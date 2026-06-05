@@ -7,6 +7,7 @@ pub mod dag_engine;
 pub mod dispatcher;
 pub mod reaper;
 pub mod retry_manager;
+pub mod step_flow_engine;
 
 /// スケジューラのメインループ
 pub async fn run_scheduler(state: AppState) -> anyhow::Result<()> {

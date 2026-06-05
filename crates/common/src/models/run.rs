@@ -112,7 +112,8 @@ impl TriggerType {
         match self {
             Self::Scheduled => "自動スケジュール",
             Self::Manual => "手動実行",
-            Self::Dependency => "DAG依存",
+            Self::Dependency => "依存実行",
+            Self::StepFlow => "ステップフロー",
         }
     }
 }
@@ -145,7 +146,8 @@ mod tests {
     fn trigger_type_label_is_stable() {
         assert_eq!(TriggerType::Scheduled.label_ja(), "自動スケジュール");
         assert_eq!(TriggerType::Manual.label_ja(), "手動実行");
-        assert_eq!(TriggerType::Dependency.label_ja(), "DAG依存");
+        assert_eq!(TriggerType::StepFlow.label_ja(), "ステップフロー");
+        assert_eq!(TriggerType::StepFlow.to_string(), "step_flow");
     }
 
     #[test]
@@ -173,6 +175,7 @@ pub enum TriggerType {
     Scheduled,
     Manual,
     Dependency,
+    StepFlow,
 }
 
 /// ジョブ実行履歴

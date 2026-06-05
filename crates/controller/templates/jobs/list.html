@@ -15,7 +15,7 @@
 <div class="page-header">
     <div class="page-title">
         <h2>ジョブ</h2>
-        <p>登録されているスケジュールジョブおよびDAGパイプラインの管理</p>
+        <p>登録されているスケジュールジョブの管理</p>
     </div>
     <div style="display: flex; gap: 12px;">
         <button type="button" class="btn btn-secondary" onclick="openCopyJobModal()">
@@ -298,7 +298,6 @@
                     hx-get="/jobs" hx-trigger="change" hx-target="#jobs-list-container" hx-include="#filter-form" hx-push-url="true">
                 <option value="" {% if current_job_type.is_empty() %}selected{% endif %}>すべて</option>
                 <option value="cron" {% if current_job_type == "cron" %}selected{% endif %}>Cron</option>
-                <option value="dag" {% if current_job_type == "dag" %}selected{% endif %}>DAG</option>
                 <option value="one_shot" {% if current_job_type == "one_shot" %}selected{% endif %}>OneShot</option>
             </select>
         </div>

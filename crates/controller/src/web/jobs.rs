@@ -91,7 +91,6 @@ fn display_shell_command(shell: &ShellPayload) -> String {
 fn job_type_label(job_type: &JobType) -> &'static str {
     match job_type {
         JobType::Cron => "Cron",
-        JobType::Dag => "DAG",
         JobType::OneShot => "OneShot",
     }
 }
@@ -302,7 +301,6 @@ mod tests {
     #[test]
     fn job_type_label_uses_english_only() {
         assert_eq!(job_type_label(&JobType::Cron), "Cron");
-        assert_eq!(job_type_label(&JobType::Dag), "DAG");
         assert_eq!(job_type_label(&JobType::OneShot), "OneShot");
     }
 
@@ -595,7 +593,7 @@ async fn build_job_form_template_from_job(
         let mut ssm_recursive = false;
         let mut dag_tasks_json = String::new();
 
-        if job.job_type == JobType::Dag {
+        if false {
             let rows = sqlx::query(
                 "SELECT id, name, worker_type, payload, retry_policy, timeout_sec FROM dag_tasks WHERE dag_id = ? ORDER BY id ASC",
             )
@@ -870,7 +868,7 @@ async fn create_job_submit(
     let is_active = form.is_active.as_deref() == Some("on");
 
     // Build Payload
-    let payload = if job_type == JobType::Dag {
+    let payload = if false {
         let task_defs: Vec<DagTaskDefinition> =
             serde_json::from_str(form.dag_tasks_json.as_deref().unwrap_or("[]"))
                 .unwrap_or_default();
@@ -1061,7 +1059,7 @@ async fn create_job_submit(
 
     let job_id = res.last_insert_id() as i64;
 
-    if new_job.job_type == JobType::Dag {
+    if false {
         let task_defs: Vec<DagTaskDefinition> =
             serde_json::from_str(form.dag_tasks_json.as_deref().unwrap_or("[]"))
                 .unwrap_or_default();
@@ -1201,7 +1199,7 @@ async fn job_detail_page(
         recent_runs.push(job_run_render_item_from_run(&r));
     }
 
-    let is_dag = job.job_type == JobType::Dag;
+    let is_dag = false;
     let mut command_preview = String::new();
     let mut env_vars_list = Vec::new();
     let mut ssm_region = String::new();
@@ -1604,7 +1602,7 @@ async fn edit_job_submit(
 
     let is_active = form.is_active.as_deref() == Some("on");
 
-    let payload = if job_type == JobType::Dag {
+    let payload = if false {
         let task_defs: Vec<DagTaskDefinition> =
             serde_json::from_str(form.dag_tasks_json.as_deref().unwrap_or("[]"))
                 .unwrap_or_default();
@@ -1779,7 +1777,7 @@ async fn edit_job_submit(
         }
     }
 
-    if job_type == JobType::Dag {
+    if false {
         // Clear old tasks/edges and write new ones
         sqlx::query("DELETE FROM dag_tasks WHERE dag_id = ?")
             .bind(id)
@@ -1911,7 +1909,7 @@ async fn build_job_snapshot(pool: &MySqlPool, job: &Job) -> serde_json::Value {
     let mut ssm_path = String::new();
     let mut ssm_recursive = false;
 
-    if job.job_type == JobType::Dag {
+    if false {
         // Load DAG tasks
         let tasks_rows =
             sqlx::query("SELECT task_name, worker_type, payload FROM dag_tasks WHERE dag_id = ?")

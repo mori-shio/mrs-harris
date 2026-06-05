@@ -32,7 +32,7 @@ SET payload = '{
     "成功時": "無効",
     "失敗時": "無効"
   },
-  "スクリプト / DAG構成": "echo Hello from Controller!"
+  "スクリプト": "echo Hello from Controller!"
 }'
 WHERE job_id = 1001 AND version = 1;
 
@@ -63,7 +63,7 @@ SELECT
         "成功時": "無効",
         "失敗時": "無効"
       },
-      "スクリプト / DAG構成": "set -eux\\n\\necho Hello from Controller!\\nsleep 10\\necho ''done.''"
+      "スクリプト": "set -eux\\n\\necho Hello from Controller!\\nsleep 10\\necho ''done.''"
     }',
     'system-admin',
     '2026-06-01 00:00:00.000'
@@ -97,6 +97,6 @@ SET payload = '{
     "成功時": "無効",
     "失敗時": "無効"
   },
-  "スクリプト / DAG構成": "set -eux\\n\\necho Hello from Controller!\\nsleep 10\\necho ''done.''"
+  "スクリプト": "set -eux\\n\\necho Hello from Controller!\\nsleep 10\\necho ''done.''"
 }'
 WHERE job_id = 1001 AND version = 2;

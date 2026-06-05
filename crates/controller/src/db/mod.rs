@@ -7,6 +7,7 @@ pub mod leases;
 pub mod logs;
 pub mod notifications;
 pub mod runs;
+pub mod step_flows;
 pub mod users;
 pub mod workers;
 
