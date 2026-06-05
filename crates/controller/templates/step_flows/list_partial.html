@@ -60,10 +60,10 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>名前</th>
+                    <th>ステップフロー名</th>
                     <th>説明</th>
+                    <th>ステータス</th>
                     <th>タグ</th>
-                    <th>状態</th>
                     <th style="text-align: right;"></th>
                 </tr>
             </thead>
@@ -84,6 +84,17 @@
                         </td>
                         <td style="color: var(--text-muted);">{{ flow.description }}</td>
                         <td>
+                            {% if flow.is_active %}
+                            <span class="badge" style="background-color: var(--color-success-glow); color: var(--color-success); border-color: rgba(16,185,129,0.2); box-shadow: 0 0 8px rgba(16,185,129,0.1);">
+                                有効
+                            </span>
+                            {% else %}
+                            <span class="badge" style="background-color: rgba(148,163,184,0.05); color: var(--text-muted); border-color: var(--border-color);">
+                                無効
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
                             <div class="job-tags-list" data-tags-tooltip="{% for tag in flow.tags %}{{ tag }}{% if !loop.last %}, {% endif %}{% endfor %}">
                                 {% if flow.tags.is_empty() %}
                                 <span style="color: var(--text-muted); font-size: 0.8rem;">-</span>
@@ -95,17 +106,6 @@
                                 {% endfor %}
                                 {% endif %}
                             </div>
-                        </td>
-                        <td>
-                            {% if flow.is_active %}
-                            <span class="badge" style="background-color: var(--color-success-glow); color: var(--color-success); border-color: rgba(16,185,129,0.2); box-shadow: 0 0 8px rgba(16,185,129,0.1);">
-                                有効
-                            </span>
-                            {% else %}
-                            <span class="badge" style="background-color: rgba(148,163,184,0.05); color: var(--text-muted); border-color: var(--border-color);">
-                                無効
-                            </span>
-                            {% endif %}
                         </td>
                         <td style="text-align: right;">
                             <a href="/step-flows/{{ flow.name }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" hx-boost="false">
