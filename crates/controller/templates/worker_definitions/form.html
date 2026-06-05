@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "components/breadcrumbs.html" as breadcrumb_components %}
 
 {% block title %}{% if is_edit %}ワーカー定義編集{% else %}ワーカー定義 新規作成{% endif %} | Mrs. Harris{% endblock %}
 
@@ -8,13 +9,7 @@
 
 {% block content %}
 <!-- Breadcrumbs -->
-<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
-    <a href="/">ホーム</a>
-    <span class="breadcrumbs-separator">/</span>
-    <a href="/worker-definitions">ワーカー定義</a>
-    <span class="breadcrumbs-separator">/</span>
-    <span style="color: var(--text-primary);">{% if is_edit %}編集{% else %}新規作成{% endif %}</span>
-</nav>
+{% call breadcrumb_components::breadcrumbs(breadcrumbs) %}
 
 <div class="form-page-shell">
     <div class="page-header" style="margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center;">

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "components/breadcrumbs.html" as breadcrumb_components %}
 
 {% block title %}ワーカー定義一覧 | Mrs. Harris{% endblock %}
 
@@ -6,11 +7,7 @@
 
 {% block content %}
 <!-- Breadcrumbs -->
-<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
-    <a href="/">ホーム</a>
-    <span class="breadcrumbs-separator">/</span>
-    <span style="color: var(--text-primary);">ワーカー定義</span>
-</nav>
+{% call breadcrumb_components::breadcrumbs(breadcrumbs) %}
 
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px;">
     <div class="page-title">

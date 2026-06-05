@@ -1,18 +1,11 @@
 {% extends "base.html" %}
+{% import "components/breadcrumbs.html" as breadcrumb_components %}
 
 {% block title %}{{ flow.name }} #{{ run.run_number }} | Mrs. Harris{% endblock %}
 {% block nav_step_flows %}active{% endblock %}
 
 {% block content %}
-<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
-    <a href="/">ホーム</a>
-    <span class="breadcrumbs-separator">/</span>
-    <a href="/step-flows">ステップフロー</a>
-    <span class="breadcrumbs-separator">/</span>
-    <a href="/step-flows/{{ flow.name }}">{{ flow.name }}</a>
-    <span class="breadcrumbs-separator">/</span>
-    <span style="color: var(--text-primary); font-weight: 600;">#{{ run.run_number }}</span>
-</nav>
+{% call breadcrumb_components::breadcrumbs(breadcrumbs) %}
 
 <div class="page-header">
     <div class="page-title">

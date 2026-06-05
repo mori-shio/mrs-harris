@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "components/breadcrumbs.html" as breadcrumb_components %}
 
 {% block title %}{{ def.name }} | Mrs. Harris{% endblock %}
 
@@ -140,13 +141,7 @@
     }
 </style>
 
-<nav class="breadcrumbs" style="margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted);">
-    <a href="/">ホーム</a>
-    <span class="breadcrumbs-separator">/</span>
-    <a href="/worker-definitions">ワーカー定義</a>
-    <span class="breadcrumbs-separator">/</span>
-    <span style="color: var(--text-primary); font-weight: 600;">{{ def.name }}</span>
-</nav>
+{% call breadcrumb_components::breadcrumbs(breadcrumbs) %}
 
 <div class="page-header" style="margin-bottom: 24px;">
     <div class="page-title">

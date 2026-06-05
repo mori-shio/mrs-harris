@@ -13,6 +13,50 @@ pub mod step_flows;
 pub mod worker_definitions;
 pub mod workers;
 
+#[derive(Clone)]
+pub struct BreadcrumbItem {
+    pub label: String,
+    pub href: String,
+    pub icon: String,
+    pub hx_boost: String,
+    pub current: bool,
+}
+
+impl BreadcrumbItem {
+    pub fn link(
+        label: impl Into<String>,
+        href: impl Into<String>,
+        icon: impl Into<String>,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            href: href.into(),
+            icon: icon.into(),
+            hx_boost: String::new(),
+            current: false,
+        }
+    }
+
+    pub fn current(label: impl Into<String>, icon: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            href: String::new(),
+            icon: icon.into(),
+            hx_boost: String::new(),
+            current: true,
+        }
+    }
+
+    pub fn with_hx_boost(mut self, value: impl Into<String>) -> Self {
+        self.hx_boost = value.into();
+        self
+    }
+}
+
+pub fn home_breadcrumb() -> BreadcrumbItem {
+    BreadcrumbItem::link("ホーム", "/", "")
+}
+
 /// Web ダッシュボードルーター
 pub fn router() -> Router<AppState> {
     Router::new()

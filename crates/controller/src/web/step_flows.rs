@@ -12,7 +12,7 @@ use mrs_harris_common::models::step_flow::{
 use sqlx::Row;
 use std::collections::HashMap;
 
-use super::auth::WebClaims;
+use super::{BreadcrumbItem, auth::WebClaims, home_breadcrumb};
 use crate::app::AppState;
 
 #[derive(Clone)]
@@ -57,6 +57,7 @@ struct StepFlowGroupView {
 #[derive(Template)]
 #[template(path = "step_flows/list.html")]
 struct StepFlowListTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     flows: Vec<StepFlowListItem>,
     spaces: Vec<StepFlowSpaceTab>,
     current_space: String,
@@ -76,6 +77,7 @@ crate::impl_into_response!(StepFlowListPartialTemplate);
 #[derive(Template)]
 #[template(path = "step_flows/form.html")]
 struct StepFlowFormTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     jobs: Vec<JobOption>,
     spaces: Vec<mrs_harris_common::models::space::Space>,
     form: StepFlowFormValues,
@@ -86,6 +88,7 @@ crate::impl_into_response!(StepFlowFormTemplate);
 #[derive(Template)]
 #[template(path = "step_flows/detail.html")]
 struct StepFlowDetailTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     flow: StepFlow,
     groups: Vec<StepFlowGroupView>,
     latest_version: u32,
@@ -95,6 +98,7 @@ crate::impl_into_response!(StepFlowDetailTemplate);
 #[derive(Template)]
 #[template(path = "step_flows/run_detail.html")]
 struct StepFlowRunDetailTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     flow: StepFlow,
     run: StepFlowRun,
 }
@@ -146,6 +150,43 @@ impl Default for StepFlowFormValues {
 struct StepFlowCopyCandidate {
     name: String,
     description: String,
+}
+
+fn step_flows_breadcrumb_item(current: bool) -> BreadcrumbItem {
+    if current {
+        BreadcrumbItem::current("ステップフロー", "git-branch")
+    } else {
+        BreadcrumbItem::link("ステップフロー", "/step-flows", "git-branch")
+    }
+}
+
+fn step_flow_list_breadcrumbs() -> Vec<BreadcrumbItem> {
+    vec![home_breadcrumb(), step_flows_breadcrumb_item(true)]
+}
+
+fn step_flow_form_breadcrumbs() -> Vec<BreadcrumbItem> {
+    vec![
+        home_breadcrumb(),
+        step_flows_breadcrumb_item(false),
+        BreadcrumbItem::current("新規作成", ""),
+    ]
+}
+
+fn step_flow_detail_breadcrumbs(flow_name: &str) -> Vec<BreadcrumbItem> {
+    vec![
+        home_breadcrumb(),
+        step_flows_breadcrumb_item(false),
+        BreadcrumbItem::current(flow_name, ""),
+    ]
+}
+
+fn step_flow_run_breadcrumbs(flow_name: &str, run_number: i64) -> Vec<BreadcrumbItem> {
+    vec![
+        home_breadcrumb(),
+        step_flows_breadcrumb_item(false),
+        BreadcrumbItem::link(flow_name, format!("/step-flows/{}", flow_name), ""),
+        BreadcrumbItem::current(format!("#{}", run_number), ""),
+    ]
 }
 
 pub fn router() -> Router<AppState> {
@@ -204,6 +245,7 @@ async fn list_page(
         StepFlowListPartialTemplate { flows }.into_response()
     } else {
         StepFlowListTemplate {
+            breadcrumbs: step_flow_list_breadcrumbs(),
             flows,
             spaces: build_space_tabs(&state, &current_space).await,
             current_space,
@@ -228,6 +270,7 @@ async fn new_page(
         None => StepFlowFormValues::default(),
     };
     StepFlowFormTemplate {
+        breadcrumbs: step_flow_form_breadcrumbs(),
         jobs: load_job_options(&state, &form).await,
         spaces: load_spaces(&state).await,
         form,
@@ -245,6 +288,7 @@ async fn create_submit(
         Ok(groups) => groups,
         Err(message) => {
             return StepFlowFormTemplate {
+                breadcrumbs: step_flow_form_breadcrumbs(),
                 jobs: load_job_options(&state, &form_values).await,
                 spaces: load_spaces(&state).await,
                 form: form_values,
@@ -275,6 +319,7 @@ async fn create_submit(
     match crate::db::step_flows::create_step_flow(&state.db, &new_flow, &claims.0.username).await {
         Ok(flow) => Redirect::to(&format!("/step-flows/{}", flow.name)).into_response(),
         Err(err) => StepFlowFormTemplate {
+            breadcrumbs: step_flow_form_breadcrumbs(),
             jobs: load_job_options(&state, &form_values).await,
             spaces: load_spaces(&state).await,
             form: form_values,
@@ -306,6 +351,7 @@ async fn detail_page(
         .unwrap_or(1);
 
     StepFlowDetailTemplate {
+        breadcrumbs: step_flow_detail_breadcrumbs(&flow.name),
         flow,
         groups,
         latest_version,
@@ -358,7 +404,12 @@ async fn run_detail_page(
         return Redirect::to(&format!("/step-flows/{}", name)).into_response();
     };
 
-    StepFlowRunDetailTemplate { flow, run }.into_response()
+    StepFlowRunDetailTemplate {
+        breadcrumbs: step_flow_run_breadcrumbs(&flow.name, run.run_number),
+        flow,
+        run,
+    }
+    .into_response()
 }
 
 fn build_groups_from_form(form: &StepFlowForm) -> Result<Vec<StepFlowGroup>, String> {

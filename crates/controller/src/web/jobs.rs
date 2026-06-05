@@ -17,7 +17,7 @@ use mrs_harris_common::models::job::{
 };
 use mrs_harris_common::models::run::JobRun;
 
-use super::auth::WebClaims;
+use super::{BreadcrumbItem, auth::WebClaims, home_breadcrumb};
 use crate::app::AppState;
 
 #[derive(Clone)]
@@ -118,6 +118,7 @@ pub struct JobCopyCandidate {
 #[derive(Template)]
 #[template(path = "jobs/list.html")]
 struct JobsListTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     jobs: Vec<JobRenderItem>,
     copy_candidates_json: String,
     spaces: Vec<JobSpaceTab>,
@@ -168,6 +169,7 @@ crate::impl_into_response!(JobRunsTableTemplate);
 #[derive(Template)]
 #[template(path = "jobs/detail.html")]
 struct JobDetailTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     job: Job,
     job_name: String,
     initial_tab: String,
@@ -215,6 +217,7 @@ crate::impl_into_response!(JobDetailTemplate);
 #[derive(Template)]
 #[template(path = "jobs/form.html")]
 struct JobFormTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     is_edit: bool,
     job_id: Option<i64>,
     original_name: Option<String>,
@@ -249,6 +252,41 @@ crate::impl_into_response!(JobFormTemplate);
 #[derive(Debug, serde::Deserialize, Default)]
 struct NewJobQuery {
     copy_from: Option<String>,
+}
+
+fn jobs_breadcrumb_item(current: bool) -> BreadcrumbItem {
+    if current {
+        BreadcrumbItem::current("ジョブ", "list")
+    } else {
+        BreadcrumbItem::link("ジョブ", "/jobs", "list")
+    }
+}
+
+fn jobs_list_breadcrumbs() -> Vec<BreadcrumbItem> {
+    vec![home_breadcrumb(), jobs_breadcrumb_item(true)]
+}
+
+fn job_detail_breadcrumbs(job_name: &str) -> Vec<BreadcrumbItem> {
+    vec![
+        home_breadcrumb(),
+        jobs_breadcrumb_item(false),
+        BreadcrumbItem::current(job_name, ""),
+    ]
+}
+
+fn job_form_breadcrumbs(is_edit: bool, original_name: Option<&str>) -> Vec<BreadcrumbItem> {
+    let mut breadcrumbs = vec![home_breadcrumb(), jobs_breadcrumb_item(false)];
+    if is_edit {
+        if let Some(name) = original_name {
+            breadcrumbs.push(
+                BreadcrumbItem::link(name, format!("/jobs/{}", name), "").with_hx_boost("false"),
+            );
+        }
+        breadcrumbs.push(BreadcrumbItem::current("編集", ""));
+    } else {
+        breadcrumbs.push(BreadcrumbItem::current("新規作成", ""));
+    }
+    breadcrumbs
 }
 
 #[cfg(test)]
@@ -531,6 +569,7 @@ async fn jobs_page(
         let current_is_active = query_filter.get("is_active").cloned().unwrap_or_default();
 
         JobsListTemplate {
+            breadcrumbs: jobs_list_breadcrumbs(),
             jobs,
             copy_candidates_json,
             spaces,
@@ -717,6 +756,7 @@ async fn build_job_form_template_from_job(
         }
 
         return JobFormTemplate {
+            breadcrumbs: job_form_breadcrumbs(is_edit, original_name.as_deref()),
             error_message: None,
             original_name,
             is_edit,
@@ -764,6 +804,7 @@ async fn build_job_form_template_from_job(
     }
 
     JobFormTemplate {
+        breadcrumbs: job_form_breadcrumbs(false, None),
         error_message: None,
         original_name: None,
         is_edit: false,
@@ -1019,6 +1060,7 @@ async fn create_job_submit(
                     .await
                     .unwrap_or_default();
                 return JobFormTemplate {
+                    breadcrumbs: job_form_breadcrumbs(false, None),
                     error_message: Some(
                         "指定されたジョブ名は既に使用されています。別の名前を指定してください。"
                             .to_string(),
@@ -1396,6 +1438,7 @@ async fn job_detail_page(
     };
 
     JobDetailTemplate {
+        breadcrumbs: job_detail_breadcrumbs(&job.name),
         job_name: job.name.clone(),
         job,
         job_type_str,
@@ -1738,6 +1781,7 @@ async fn edit_job_submit(
                     .await
                     .unwrap_or_default();
                 return JobFormTemplate {
+                    breadcrumbs: job_form_breadcrumbs(true, Some(&existing_job.name)),
                     error_message: Some(
                         "指定されたジョブ名は既に使用されています。別の名前を指定してください。"
                             .to_string(),

@@ -9,7 +9,7 @@ use axum::{
 use chrono::Utc;
 use sqlx::Row;
 
-use super::auth::WebClaims;
+use super::{BreadcrumbItem, auth::WebClaims, home_breadcrumb};
 use crate::app::AppState;
 
 #[derive(serde::Serialize, Clone, Debug)]
@@ -24,11 +24,19 @@ pub struct SpaceRenderItem {
 #[derive(Template)]
 #[template(path = "spaces/list.html")]
 struct SpaceListTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     spaces: Vec<SpaceRenderItem>,
     unclassified_job_count: i64,
     spaces_json: String,
 }
 crate::impl_into_response!(SpaceListTemplate);
+
+fn spaces_breadcrumbs() -> Vec<BreadcrumbItem> {
+    vec![
+        home_breadcrumb(),
+        BreadcrumbItem::current("スペース", "layout-grid"),
+    ]
+}
 
 #[derive(serde::Serialize, Clone, Debug)]
 struct SpaceModalItem {
@@ -104,6 +112,7 @@ async fn list_spaces(_claims: WebClaims, State(state): State<AppState>) -> impl 
     let spaces_json = serde_json::to_string(&spaces_modal).unwrap_or_else(|_| "[]".to_string());
 
     SpaceListTemplate {
+        breadcrumbs: spaces_breadcrumbs(),
         spaces,
         unclassified_job_count,
         spaces_json,

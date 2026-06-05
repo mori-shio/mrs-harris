@@ -1,0 +1,24 @@
+{% macro breadcrumbs(items) %}
+<nav class="breadcrumbs">
+    {% for item in items %}
+        {% if !loop.first %}
+        <span class="breadcrumbs-separator">/</span>
+        {% endif %}
+        {% if item.href.is_empty() %}
+        <span class="breadcrumb-item {% if item.current %}breadcrumb-current{% endif %}">
+            {% if !item.icon.is_empty() %}
+            <i data-lucide="{{ item.icon }}" class="breadcrumb-icon"></i>
+            {% endif %}
+            {{ item.label }}
+        </span>
+        {% else %}
+        <a href="{{ item.href }}" class="breadcrumb-item" {% if !item.hx_boost.is_empty() %}hx-boost="{{ item.hx_boost }}"{% endif %}>
+            {% if !item.icon.is_empty() %}
+            <i data-lucide="{{ item.icon }}" class="breadcrumb-icon"></i>
+            {% endif %}
+            {{ item.label }}
+        </a>
+        {% endif %}
+    {% endfor %}
+</nav>
+{% endmacro %}

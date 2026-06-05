@@ -10,7 +10,7 @@ use sqlx::Row;
 
 use std::str::FromStr;
 
-use super::auth::WebClaims;
+use super::{BreadcrumbItem, auth::WebClaims, home_breadcrumb};
 use crate::app::AppState;
 use mrs_harris_common::models::job::WorkerType;
 use mrs_harris_common::models::worker::{
@@ -20,6 +20,7 @@ use mrs_harris_common::models::worker::{
 #[derive(Template)]
 #[template(path = "worker_definitions/list.html")]
 struct WorkerDefListTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     defs: Vec<WorkerDefinition>,
     toast_message: Option<&'static str>,
 }
@@ -28,6 +29,7 @@ crate::impl_into_response!(WorkerDefListTemplate);
 #[derive(Template)]
 #[template(path = "worker_definitions/form.html")]
 struct WorkerDefFormTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     is_edit: bool,
     def_name: Option<String>,
     name: String,
@@ -41,6 +43,7 @@ crate::impl_into_response!(WorkerDefFormTemplate);
 #[derive(Template)]
 #[template(path = "worker_definitions/detail.html")]
 struct WorkerDefDetailTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     def: WorkerDefinition,
     history: Vec<WorkerDefinitionHistoryRenderItem>,
     latest_version: u32,
@@ -53,6 +56,34 @@ struct WorkerDefinitionHistoryRenderItem {
     payload_json: String,
     changed_by: String,
     changed_at_str: String,
+}
+
+fn worker_defs_breadcrumb_item(current: bool) -> BreadcrumbItem {
+    if current {
+        BreadcrumbItem::current("ワーカー定義", "server")
+    } else {
+        BreadcrumbItem::link("ワーカー定義", "/worker-definitions", "server")
+    }
+}
+
+fn worker_def_list_breadcrumbs() -> Vec<BreadcrumbItem> {
+    vec![home_breadcrumb(), worker_defs_breadcrumb_item(true)]
+}
+
+fn worker_def_form_breadcrumbs(is_edit: bool) -> Vec<BreadcrumbItem> {
+    vec![
+        home_breadcrumb(),
+        worker_defs_breadcrumb_item(false),
+        BreadcrumbItem::current(if is_edit { "編集" } else { "新規作成" }, ""),
+    ]
+}
+
+fn worker_def_detail_breadcrumbs(name: &str) -> Vec<BreadcrumbItem> {
+    vec![
+        home_breadcrumb(),
+        worker_defs_breadcrumb_item(false),
+        BreadcrumbItem::current(name, ""),
+    ]
 }
 
 #[derive(serde::Deserialize, Debug)]
@@ -97,6 +128,7 @@ async fn list_defs(
         _ => None,
     };
     WorkerDefListTemplate {
+        breadcrumbs: worker_def_list_breadcrumbs(),
         defs,
         toast_message,
     }
@@ -104,6 +136,7 @@ async fn list_defs(
 
 async fn new_def_page(_claims: WebClaims) -> impl IntoResponse {
     WorkerDefFormTemplate {
+        breadcrumbs: worker_def_form_breadcrumbs(false),
         is_edit: false,
         def_name: None,
         name: String::new(),
@@ -175,6 +208,7 @@ async fn def_detail_page(
         .unwrap_or_default();
     let latest_version = history.first().map(|h| h.version).unwrap_or(1);
     WorkerDefDetailTemplate {
+        breadcrumbs: worker_def_detail_breadcrumbs(&def.name),
         def,
         history,
         latest_version,
@@ -199,6 +233,7 @@ async fn edit_def_page(
         .to_string();
 
     WorkerDefFormTemplate {
+        breadcrumbs: worker_def_form_breadcrumbs(true),
         is_edit: true,
         def_name: Some(def.name.clone()),
         name: def.name,
