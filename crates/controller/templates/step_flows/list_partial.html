@@ -1,3 +1,60 @@
+<style>
+    .job-tags-list {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .job-tags-list[data-condensed="true"] {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        overflow: hidden;
+    }
+
+    .job-tag-chip {
+        font-size: 0.75rem;
+        background-color: rgba(56, 189, 248, 0.05);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.15);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+
+    .job-tag-ellipsis {
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.75rem;
+        color: #38bdf8;
+        padding: 2px 0;
+        line-height: 1;
+    }
+
+    .job-tags-tooltip {
+        position: fixed;
+        z-index: 1200;
+        max-width: 320px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: rgba(15, 23, 42, 0.96);
+        color: var(--text-primary);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+        font-size: 0.75rem;
+        line-height: 1.45;
+        pointer-events: none;
+        white-space: normal;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 0.12s ease, transform 0.12s ease;
+    }
+
+    .job-tags-tooltip[data-visible="true"] {
+        opacity: 1;
+        transform: translateY(0);
+    }
+</style>
 <div class="card" style="padding: 20px 24px;">
     <div class="table-container" style="margin-top: 0;">
         <table class="data-table">
@@ -5,7 +62,6 @@
                 <tr>
                     <th>名前</th>
                     <th>説明</th>
-                    <th>スペース</th>
                     <th>タグ</th>
                     <th>状態</th>
                     <th style="text-align: right;"></th>
@@ -14,7 +70,7 @@
             <tbody>
                 {% if flows.is_empty() %}
                 <tr>
-                    <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px 0;">
                         ステップフローはまだありません。
                     </td>
                 </tr>
@@ -28,19 +84,17 @@
                         </td>
                         <td style="color: var(--text-muted);">{{ flow.description }}</td>
                         <td>
-                            <span style="font-size: 0.85rem; display: flex; align-items: center; gap: 6px; color: var(--text-secondary);">
-                                <i data-lucide="folder" style="width: 14px; height: 14px; color: var(--color-primary);"></i>
-                                {{ flow.space_name }}
-                            </span>
-                        </td>
-                        <td>
-                            {% if flow.tags.is_empty() %}
-                            <span style="color: var(--text-muted); font-size: 0.8rem;">-</span>
-                            {% else %}
-                            {% for tag in flow.tags %}
-                            <span class="tag">{{ tag }}</span>
-                            {% endfor %}
-                            {% endif %}
+                            <div class="job-tags-list" data-tags-tooltip="{% for tag in flow.tags %}{{ tag }}{% if !loop.last %}, {% endif %}{% endfor %}">
+                                {% if flow.tags.is_empty() %}
+                                <span style="color: var(--text-muted); font-size: 0.8rem;">-</span>
+                                {% else %}
+                                {% for tag in flow.tags %}
+                                <span class="job-tag-chip" data-tag-text="{{ tag }}">
+                                    {{ tag }}
+                                </span>
+                                {% endfor %}
+                                {% endif %}
+                            </div>
                         </td>
                         <td>
                             {% if flow.is_active %}
@@ -66,3 +120,112 @@
         </table>
     </div>
 </div>
+<div id="job-tags-tooltip" class="job-tags-tooltip" aria-hidden="true"></div>
+<script>
+function applyCondensedJobTags(root) {
+    var scope = root || document;
+    scope.querySelectorAll('.job-tags-list').forEach(function(list) {
+        if (list.dataset.originalHtml === undefined) {
+            list.dataset.originalHtml = list.innerHTML;
+        } else {
+            list.innerHTML = list.dataset.originalHtml;
+        }
+
+        list.removeAttribute('data-condensed');
+
+        var chips = Array.from(list.querySelectorAll('.job-tag-chip'));
+        if (chips.length === 0) {
+            return;
+        }
+
+        var firstTop = chips[0].offsetTop;
+        var wrapped = chips.some(function(chip) { return chip.offsetTop > firstTop; });
+        if (!wrapped) {
+            return;
+        }
+
+        var summaryTags = chips.slice(0, 2).map(function(chip) {
+            return chip.dataset.tagText || chip.textContent.trim();
+        });
+        list.innerHTML = summaryTags.map(function(tag) {
+            return '<span class="job-tag-chip">' + tag + '</span>';
+        }).join('') + '<span class="job-tag-ellipsis">⋯</span>';
+        list.dataset.condensed = 'true';
+    });
+}
+
+function bindJobTagsTooltip(root) {
+    var scope = root || document;
+    var tooltip = document.getElementById('job-tags-tooltip');
+    if (!tooltip) {
+        return;
+    }
+
+    function hideTooltip() {
+        tooltip.dataset.visible = 'false';
+        tooltip.setAttribute('aria-hidden', 'true');
+    }
+
+    function positionTooltip(event) {
+        var offset = 14;
+        var left = event.clientX + offset;
+        var top = event.clientY + offset;
+        var maxLeft = window.innerWidth - tooltip.offsetWidth - 12;
+        var maxTop = window.innerHeight - tooltip.offsetHeight - 12;
+        tooltip.style.left = Math.max(12, Math.min(left, maxLeft)) + 'px';
+        tooltip.style.top = Math.max(12, Math.min(top, maxTop)) + 'px';
+    }
+
+    scope.querySelectorAll('.job-tags-list').forEach(function(list) {
+        list.onmouseenter = function(event) {
+            if (list.dataset.condensed !== 'true') {
+                hideTooltip();
+                return;
+            }
+            var text = list.dataset.tagsTooltip || '';
+            if (!text.trim()) {
+                return;
+            }
+            tooltip.textContent = text;
+            tooltip.dataset.visible = 'true';
+            tooltip.setAttribute('aria-hidden', 'false');
+            positionTooltip(event);
+        };
+
+        list.onmousemove = function(event) {
+            if (tooltip.dataset.visible === 'true') {
+                positionTooltip(event);
+            }
+        };
+
+        list.onmouseleave = hideTooltip;
+        list.onblur = hideTooltip;
+    });
+
+    document.addEventListener('scroll', hideTooltip, { passive: true });
+}
+
+function scheduleCondensedJobTags(root) {
+    var scope = root || document;
+    window.requestAnimationFrame(function() {
+        applyCondensedJobTags(scope);
+        bindJobTagsTooltip(scope);
+    });
+}
+
+scheduleCondensedJobTags(document);
+
+window.addEventListener('load', function() {
+    scheduleCondensedJobTags(document);
+});
+
+window.addEventListener('resize', function() {
+    scheduleCondensedJobTags(document);
+});
+
+if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function() {
+        scheduleCondensedJobTags(document);
+    });
+}
+</script>
