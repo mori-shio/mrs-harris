@@ -55,25 +55,26 @@ Group 1
   - ingest-orders
   - ingest-users
 
-Group 2
-  - normalize-data        run_condition = success_only
-  - notify-on-failure     run_condition = always
+Group 2                 run_condition = on_success
+  - normalize-data
+  - update-index
 
-Group 3
-  - publish-report        run_condition = success_only
+Group 3                 run_condition = always
+  - notify-result
 ```
 
 Execution rules:
 
 - Steps in the same group run in parallel.
 - Groups run sequentially by `group_order`.
-- Group 1 has no previous group, so its steps do not have `run_condition`.
-- Group 2 and later steps require `run_condition`.
-- `success_only` runs only when the previous group succeeded.
-- `always` runs even when the previous group failed.
+- Group 1 has no previous group, so it does not have `run_condition`.
+- Group 2 and later groups require `run_condition`.
+- `on_success` runs only when the previous group succeeded.
+- `always` runs when the previous group succeeded, failed, or was skipped.
 - A group succeeds when all launched child job runs succeed.
 - A group fails when at least one launched child job run fails.
-- A group with no launchable steps is skipped and evaluation continues to the next group.
+- A group that does not match its `run_condition` is skipped and evaluation continues to the next group.
+- A group with no launchable steps after condition evaluation is skipped and evaluation continues to the next group.
 - The StepFlow run succeeds only when evaluation reaches the end without any failed group.
 - The StepFlow run fails if any group failed, even if later `always` steps also ran.
 
@@ -142,9 +143,17 @@ Fields:
 id
 step_flow_id
 group_order
+run_condition NULL | on_success | always
 created_at
 updated_at
 ```
+
+Validation:
+
+- If `group_order = 1`, `run_condition` must be `NULL`.
+- If `group_order > 1`, `run_condition` must be `on_success` or `always`.
+
+Implement this validation in Rust when saving StepFlow definitions. MySQL `CHECK` constraints can be added later if the deployment target supports them consistently.
 
 ### `step_flow_steps`
 
@@ -157,17 +166,9 @@ id
 group_id
 step_order
 job_id
-run_condition NULL | success_only | always
 created_at
 updated_at
 ```
-
-Validation:
-
-- If `group_order = 1`, `run_condition` must be `NULL`.
-- If `group_order > 1`, `run_condition` must be `success_only` or `always`.
-
-Implement this validation in Rust when saving StepFlow definitions. MySQL `CHECK` constraints can be added later if the deployment target supports them consistently.
 
 ### `step_flow_runs`
 
@@ -318,8 +319,8 @@ Seed should include:
 - At least one StepFlow definition.
 - At least two groups.
 - At least one group with parallel steps.
-- At least one Group 2+ step with `success_only`.
-- At least one Group 2+ step with `always`.
+- At least one Group 2+ group with `on_success`.
+- At least one Group 2+ group with `always`.
 - StepFlow history v1.
 - Optional sample StepFlow run and StepFlow step run records if needed for UI development.
 
@@ -334,7 +335,7 @@ Before implementation, add UI checklist items under `docs/ui_checklists/` for:
 - StepFlow list shows StepFlow definitions.
 - StepFlow create/edit supports groups and steps.
 - Group 1 does not show a run condition selector.
-- Group 2+ steps show `前Group成功時のみ` and `前Group失敗でも実行`.
+- Group 2+ headers show `前Group成功時のみ` and `常に実行`.
 - Job selector includes jobs from all spaces and displays space context.
 - StepFlow detail shows groups, steps, referenced jobs, and latest version.
 - StepFlow run detail shows parent run status and child job run links.
