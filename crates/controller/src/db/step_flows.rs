@@ -7,6 +7,13 @@ use mrs_harris_common::models::step_flow::{
 use sqlx::{MySqlPool, Row};
 use std::str::FromStr;
 
+#[derive(Debug, Clone, Default)]
+pub struct StepFlowFilter {
+    pub search: Option<String>,
+    pub is_active: Option<bool>,
+    pub space_id: Option<String>,
+}
+
 fn map_step_flow(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<StepFlow> {
     let tags_val: serde_json::Value = row.try_get("tags")?;
     let is_active_val: i8 = row.try_get("is_active")?;
@@ -46,10 +53,52 @@ fn map_step_flow_run(row: &sqlx::mysql::MySqlRow) -> anyhow::Result<StepFlowRun>
     })
 }
 
-pub async fn list_step_flows(pool: &MySqlPool) -> anyhow::Result<Vec<StepFlow>> {
-    let rows = sqlx::query("SELECT * FROM step_flows ORDER BY created_at DESC")
-        .fetch_all(pool)
-        .await?;
+pub async fn list_step_flows(
+    pool: &MySqlPool,
+    filter: &StepFlowFilter,
+) -> anyhow::Result<Vec<StepFlow>> {
+    let mut sql = "SELECT * FROM step_flows WHERE 1 = 1".to_string();
+    let mut binds = Vec::<String>::new();
+
+    if let Some(search) = filter
+        .search
+        .as_ref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        sql.push_str(" AND (name LIKE ? OR description LIKE ?)");
+        let pattern = format!("%{}%", search.trim());
+        binds.push(pattern.clone());
+        binds.push(pattern);
+    }
+
+    if filter.is_active.is_some() {
+        sql.push_str(" AND is_active = ?");
+    }
+
+    if let Some(space_id) = filter.space_id.as_ref().filter(|value| !value.is_empty()) {
+        if space_id == "unclassified" {
+            sql.push_str(" AND space_id IS NULL");
+        } else {
+            sql.push_str(" AND space_id = ?");
+        }
+    }
+
+    sql.push_str(" ORDER BY created_at DESC");
+
+    let mut query = sqlx::query(&sql);
+    for bind in binds {
+        query = query.bind(bind);
+    }
+    if let Some(is_active) = filter.is_active {
+        query = query.bind(if is_active { 1i8 } else { 0i8 });
+    }
+    if let Some(space_id) = filter.space_id.as_ref().filter(|value| !value.is_empty())
+        && space_id != "unclassified"
+    {
+        query = query.bind(space_id.parse::<i64>()?);
+    }
+
+    let rows = query.fetch_all(pool).await?;
     rows.iter().map(map_step_flow).collect()
 }
 

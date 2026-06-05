@@ -21,52 +21,134 @@
     </a>
 </div>
 
-<div class="card" style="padding: 20px 24px;">
-    <div class="table-container" style="margin-top: 0;">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>名前</th>
-                    <th>説明</th>
-                    <th>タグ</th>
-                    <th>状態</th>
-                    <th style="text-align: right;"></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if flows.is_empty() %}
-                <tr>
-                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px 0;">
-                        ステップフローはまだありません。
-                    </td>
-                </tr>
+<style>
+    .space-tabs-shell {
+        position: relative;
+        margin-top: 12px;
+        margin-bottom: 24px;
+    }
+
+    .space-tabs-nav {
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        gap: 6px;
+        overflow-x: auto;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    .space-tabs-nav::-webkit-scrollbar {
+        display: none;
+    }
+
+    .space-tab {
+        background: none;
+        border: none;
+        padding: 10px 18px;
+        color: var(--text-muted);
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-sizing: border-box;
+        height: 44px;
+        line-height: 1;
+        margin-bottom: -1px;
+    }
+
+    .space-tab:hover {
+        color: var(--text-primary);
+        border-bottom-color: rgba(255, 255, 255, 0.72);
+        background: rgba(255, 255, 255, 0.01);
+    }
+
+    .space-tab.active {
+        color: var(--color-primary);
+        border-bottom-color: var(--color-primary);
+        font-weight: 600;
+        background: rgba(14, 165, 233, 0.04);
+    }
+</style>
+
+<div class="space-tabs-shell">
+    <div class="space-tabs-nav">
+        {% for tab in spaces %}
+        <button class="space-tab {% if tab.is_active %}active{% endif %}"
+                {% if tab.id.is_empty() %}
+                hx-get="/step-flows"
+                {% elif tab.id == "unclassified" %}
+                hx-get="/step-flows?space=unclassified"
                 {% else %}
-                    {% for flow in flows %}
-                    <tr>
-                        <td style="font-weight: 700;">
-                            <a href="/step-flows/{{ flow.name }}" style="color: var(--text-primary); text-decoration: none;">{{ flow.name }}</a>
-                        </td>
-                        <td style="color: var(--text-muted);">{{ flow.description }}</td>
-                        <td>
-                            {% for tag in flow.tags %}
-                            <span class="tag">{{ tag }}</span>
-                            {% endfor %}
-                        </td>
-                        <td>
-                            {% if flow.is_active %}
-                            <span class="status-badge succeeded">有効</span>
-                            {% else %}
-                            <span class="status-badge cancelled">無効</span>
-                            {% endif %}
-                        </td>
-                        <td style="text-align: right;">
-                            <a href="/step-flows/{{ flow.name }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">詳細</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                hx-get="/step-flows?space={{ tab.id }}"
                 {% endif %}
-            </tbody>
-        </table>
+                hx-target="#step-flows-list-container"
+                hx-push-url="true"
+                onclick="selectStepFlowSpaceTab(this, '{{ tab.id }}')">
+            {% if tab.id.is_empty() %}
+            <i data-lucide="layers" style="width: 14px; height: 14px;"></i>
+            {% elif tab.id == "unclassified" %}
+            <i data-lucide="help-circle" style="width: 14px; height: 14px;"></i>
+            {% else %}
+            <i data-lucide="folder" style="width: 14px; height: 14px;"></i>
+            {% endif %}
+            {{ tab.name }}
+        </button>
+        {% endfor %}
     </div>
+</div>
+
+<script>
+    function selectStepFlowSpaceTab(element, spaceId) {
+        document.getElementById('space').value = spaceId;
+        document.getElementById('search').value = '';
+        document.getElementById('is_active').value = '';
+        document.querySelectorAll('.space-tab').forEach(function(tab) {
+            tab.classList.remove('active');
+        });
+        element.classList.add('active');
+    }
+
+    document.addEventListener('htmx:configRequest', function(evt) {
+        if (evt.detail.elt && evt.detail.elt.closest('#step-flow-filter-form')) {
+            const params = evt.detail.parameters;
+            for (const key in params) {
+                if (params[key] === '') {
+                    delete params[key];
+                }
+            }
+        }
+    });
+</script>
+
+<div class="card" style="margin-bottom: 24px; padding: 16px 24px;">
+    <form id="step-flow-filter-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; align-items: flex-end;">
+        <input type="hidden" id="space" name="space" value="{{ current_space }}">
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="search" style="font-size: 0.8rem;">検索キーワード</label>
+            <input type="text" id="search" name="search" class="form-control" placeholder="名前や説明で検索..."
+                   value="{{ current_search }}"
+                   hx-get="/step-flows" hx-trigger="keyup changed delay:300ms" hx-target="#step-flows-list-container" hx-include="#step-flow-filter-form" hx-push-url="true">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+            <label for="is_active" style="font-size: 0.8rem;">ステータス</label>
+            <select id="is_active" name="is_active" class="form-control"
+                    hx-get="/step-flows" hx-trigger="change" hx-target="#step-flows-list-container" hx-include="#step-flow-filter-form" hx-push-url="true">
+                <option value="" {% if current_is_active.is_empty() %}selected{% endif %}>すべて</option>
+                <option value="true" {% if current_is_active == "true" %}selected{% endif %}>有効のみ</option>
+                <option value="false" {% if current_is_active == "false" %}selected{% endif %}>無効のみ</option>
+            </select>
+        </div>
+    </form>
+</div>
+
+<div id="step-flows-list-container">
+    {% include "step_flows/list_partial.html" %}
 </div>
 {% endblock %}

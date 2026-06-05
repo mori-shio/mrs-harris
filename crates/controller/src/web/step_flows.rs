@@ -1,7 +1,8 @@
 use askama::Template;
 use axum::{
     Form, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
+    http::HeaderMap,
     response::{IntoResponse, Redirect},
     routing::{get, post},
 };
@@ -9,6 +10,7 @@ use mrs_harris_common::models::step_flow::{
     NewStepFlow, StepFlow, StepFlowGroup, StepFlowRun, StepFlowRunCondition, StepFlowStep,
 };
 use sqlx::Row;
+use std::collections::HashMap;
 
 use super::auth::WebClaims;
 use crate::app::AppState;
@@ -23,8 +25,17 @@ struct JobOption {
 struct StepFlowListItem {
     name: String,
     description: String,
+    space_id: Option<i64>,
+    space_name: String,
     is_active: bool,
     tags: Vec<String>,
+}
+
+#[derive(Clone)]
+struct StepFlowSpaceTab {
+    id: String,
+    name: String,
+    is_active: bool,
 }
 
 #[derive(Clone)]
@@ -44,8 +55,19 @@ struct StepFlowGroupView {
 #[template(path = "step_flows/list.html")]
 struct StepFlowListTemplate {
     flows: Vec<StepFlowListItem>,
+    spaces: Vec<StepFlowSpaceTab>,
+    current_space: String,
+    current_search: String,
+    current_is_active: String,
 }
 crate::impl_into_response!(StepFlowListTemplate);
+
+#[derive(Template)]
+#[template(path = "step_flows/list_partial.html")]
+struct StepFlowListPartialTemplate {
+    flows: Vec<StepFlowListItem>,
+}
+crate::impl_into_response!(StepFlowListPartialTemplate);
 
 #[derive(Template)]
 #[template(path = "step_flows/form.html")]
@@ -95,20 +117,52 @@ pub fn router() -> Router<AppState> {
         .route("/step-flows/{name}/runs/{run_number}", get(run_detail_page))
 }
 
-async fn list_page(State(state): State<AppState>, _claims: WebClaims) -> impl IntoResponse {
-    let flows = crate::db::step_flows::list_step_flows(&state.db)
+async fn list_page(
+    State(state): State<AppState>,
+    _claims: WebClaims,
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    let current_search = query.get("search").cloned().unwrap_or_default();
+    let current_is_active = query.get("is_active").cloned().unwrap_or_default();
+    let current_space = query.get("space").cloned().unwrap_or_default();
+
+    let is_active = current_is_active
+        .parse::<bool>()
+        .ok()
+        .filter(|_| !current_is_active.is_empty());
+
+    let filter = crate::db::step_flows::StepFlowFilter {
+        search: Some(current_search.clone()).filter(|value| !value.trim().is_empty()),
+        is_active,
+        space_id: Some(current_space.clone()).filter(|value| !value.trim().is_empty()),
+    };
+
+    let flows = crate::db::step_flows::list_step_flows(&state.db, &filter)
         .await
         .unwrap_or_default()
         .into_iter()
-        .map(|flow| StepFlowListItem {
-            name: flow.name,
-            description: flow.description.unwrap_or_default(),
-            is_active: flow.is_active,
-            tags: flow.tags,
-        })
+        .map(step_flow_list_item_from_flow)
         .collect();
 
-    StepFlowListTemplate { flows }
+    let flows = attach_space_names(&state, flows).await;
+    let is_partial = headers
+        .get("hx-target")
+        .map(|value| value == "step-flows-list-container")
+        .unwrap_or(false);
+
+    if is_partial {
+        StepFlowListPartialTemplate { flows }.into_response()
+    } else {
+        StepFlowListTemplate {
+            flows,
+            spaces: build_space_tabs(&state, &current_space).await,
+            current_space,
+            current_search,
+            current_is_active,
+        }
+        .into_response()
+    }
 }
 
 async fn new_page(State(state): State<AppState>, _claims: WebClaims) -> impl IntoResponse {
@@ -345,6 +399,75 @@ async fn load_spaces(state: &AppState) -> Vec<mrs_harris_common::models::space::
             })
         })
         .collect()
+}
+
+fn step_flow_list_item_from_flow(flow: StepFlow) -> StepFlowListItem {
+    StepFlowListItem {
+        name: flow.name,
+        description: flow.description.unwrap_or_default(),
+        space_id: flow.space_id,
+        space_name: "未分類".to_string(),
+        is_active: flow.is_active,
+        tags: flow.tags,
+    }
+}
+
+async fn attach_space_names(
+    state: &AppState,
+    flows: Vec<StepFlowListItem>,
+) -> Vec<StepFlowListItem> {
+    let rows = sqlx::query("SELECT id, name FROM spaces")
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default();
+    let mut space_names = std::collections::HashMap::<i64, String>::new();
+    for row in rows {
+        if let (Ok(id), Ok(name)) = (row.try_get("id"), row.try_get("name")) {
+            space_names.insert(id, name);
+        }
+    }
+
+    flows
+        .into_iter()
+        .map(|mut flow| {
+            if let Some(space_id) = flow.space_id
+                && let Some(space_name) = space_names.get(&space_id)
+            {
+                flow.space_name = space_name.clone();
+            }
+            flow
+        })
+        .collect()
+}
+
+async fn build_space_tabs(state: &AppState, current_space: &str) -> Vec<StepFlowSpaceTab> {
+    let rows = sqlx::query("SELECT id, name FROM spaces ORDER BY priority ASC, id ASC")
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default();
+    let mut tabs = vec![StepFlowSpaceTab {
+        id: String::new(),
+        name: "すべて".to_string(),
+        is_active: current_space.is_empty(),
+    }];
+
+    for row in rows {
+        let id: i64 = row.try_get("id").unwrap_or_default();
+        let id = id.to_string();
+        tabs.push(StepFlowSpaceTab {
+            is_active: current_space == id,
+            id,
+            name: row.try_get("name").unwrap_or_default(),
+        });
+    }
+
+    tabs.push(StepFlowSpaceTab {
+        id: "unclassified".to_string(),
+        name: "未分類".to_string(),
+        is_active: current_space == "unclassified",
+    });
+
+    tabs
 }
 
 async fn build_group_views(state: &AppState, step_flow_id: i64) -> Vec<StepFlowGroupView> {
