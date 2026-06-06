@@ -17,7 +17,7 @@ use mrs_harris_common::models::job::{
 };
 use mrs_harris_common::models::run::JobRun;
 
-use super::{BreadcrumbItem, auth::WebClaims, home_breadcrumb};
+use super::{BreadcrumbItem, auth::WebClaims, home_breadcrumb, linked_space_breadcrumb};
 use crate::app::AppState;
 
 #[derive(Clone)]
@@ -271,10 +271,15 @@ fn jobs_list_breadcrumbs(space: Option<(&str, &str)>) -> Vec<BreadcrumbItem> {
     breadcrumbs
 }
 
-fn job_detail_breadcrumbs(job_name: &str) -> Vec<BreadcrumbItem> {
+async fn job_detail_breadcrumbs(
+    pool: &MySqlPool,
+    job_name: &str,
+    space_id: Option<i64>,
+) -> Vec<BreadcrumbItem> {
     vec![
         home_breadcrumb(),
         jobs_breadcrumb_item(false),
+        linked_space_breadcrumb(pool, space_id, "/jobs").await,
         BreadcrumbItem::current(job_name, ""),
     ]
 }
@@ -1460,8 +1465,10 @@ async fn job_detail_page(
         Vec::new()
     };
 
+    let breadcrumbs = job_detail_breadcrumbs(&state.db, &job.name, job.space_id).await;
+
     JobDetailTemplate {
-        breadcrumbs: job_detail_breadcrumbs(&job.name),
+        breadcrumbs,
         job_name: job.name.clone(),
         job,
         job_type_str,

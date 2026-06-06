@@ -12,7 +12,7 @@ use mrs_harris_common::models::step_flow::{
 use sqlx::Row;
 use std::collections::HashMap;
 
-use super::{BreadcrumbItem, auth::WebClaims, home_breadcrumb};
+use super::{BreadcrumbItem, auth::WebClaims, home_breadcrumb, linked_space_breadcrumb};
 use crate::app::AppState;
 
 #[derive(Clone)]
@@ -177,10 +177,15 @@ fn step_flow_form_breadcrumbs() -> Vec<BreadcrumbItem> {
     ]
 }
 
-fn step_flow_detail_breadcrumbs(flow_name: &str) -> Vec<BreadcrumbItem> {
+async fn step_flow_detail_breadcrumbs(
+    state: &AppState,
+    flow_name: &str,
+    space_id: Option<i64>,
+) -> Vec<BreadcrumbItem> {
     vec![
         home_breadcrumb(),
         step_flows_breadcrumb_item(false),
+        linked_space_breadcrumb(&state.db, space_id, "/step-flows").await,
         BreadcrumbItem::current(flow_name, ""),
     ]
 }
@@ -368,8 +373,10 @@ async fn detail_page(
         .map(|history| history.version)
         .unwrap_or(1);
 
+    let breadcrumbs = step_flow_detail_breadcrumbs(&state, &flow.name, flow.space_id).await;
+
     StepFlowDetailTemplate {
-        breadcrumbs: step_flow_detail_breadcrumbs(&flow.name),
+        breadcrumbs,
         flow,
         groups,
         latest_version,

@@ -15,7 +15,7 @@ use std::str::FromStr;
 
 use mrs_harris_common::models::run::{JobRun, LogArchiveStatus, LogLine, LogStream};
 
-use super::{BreadcrumbItem, auth::WebClaims, home_breadcrumb};
+use super::{BreadcrumbItem, auth::WebClaims, home_breadcrumb, linked_space_breadcrumb};
 use crate::app::AppState;
 
 #[cfg(test)]
@@ -163,10 +163,21 @@ struct RunDetailLiveTemplate {
 }
 crate::impl_into_response!(RunDetailLiveTemplate);
 
-fn run_detail_breadcrumbs(job_name: &str, run_number: i64) -> Vec<BreadcrumbItem> {
+async fn run_detail_breadcrumbs(
+    pool: &MySqlPool,
+    job_name: &str,
+    run_number: i64,
+) -> Vec<BreadcrumbItem> {
+    let space_id = crate::db::jobs::get_job_by_name(pool, job_name)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|job| job.space_id);
+
     vec![
         home_breadcrumb(),
         BreadcrumbItem::link("ジョブ", "/jobs", "list").with_hx_boost("true"),
+        linked_space_breadcrumb(pool, space_id, "/jobs").await,
         BreadcrumbItem::link(job_name, format!("/jobs/{}", job_name), "").with_hx_boost("false"),
         BreadcrumbItem::current(format!("実行履歴  #{}", run_number), ""),
     ]
@@ -436,7 +447,7 @@ async fn run_detail_page(
 ) -> impl IntoResponse {
     match fetch_run_detail_data(&state.db, id).await {
         Ok(data) => RunDetailTemplate {
-            breadcrumbs: run_detail_breadcrumbs(&data.1, data.2),
+            breadcrumbs: run_detail_breadcrumbs(&state.db, &data.1, data.2).await,
             is_live_polling: should_live_polling(&data.0),
             use_log_websocket: should_use_log_websocket(&data.0),
             run: data.0,
@@ -476,7 +487,7 @@ async fn run_detail_live(
 ) -> impl IntoResponse {
     match fetch_run_detail_data(&state.db, id).await {
         Ok(data) => RunDetailLiveTemplate {
-            breadcrumbs: run_detail_breadcrumbs(&data.1, data.2),
+            breadcrumbs: run_detail_breadcrumbs(&state.db, &data.1, data.2).await,
             is_live_polling: should_live_polling(&data.0),
             use_log_websocket: should_use_log_websocket(&data.0),
             run: data.0,
@@ -554,7 +565,7 @@ async fn run_detail_by_number(
 
     match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
         Ok(data) => RunDetailTemplate {
-            breadcrumbs: run_detail_breadcrumbs(&data.1, data.2),
+            breadcrumbs: run_detail_breadcrumbs(&state.db, &data.1, data.2).await,
             is_live_polling: should_live_polling(&data.0),
             use_log_websocket: should_use_log_websocket(&data.0),
             run: data.0,
@@ -602,7 +613,7 @@ async fn run_detail_by_number_live(
 
     match fetch_run_detail_data_by_number(&state.db, job_id, run_number).await {
         Ok(data) => RunDetailLiveTemplate {
-            breadcrumbs: run_detail_breadcrumbs(&data.1, data.2),
+            breadcrumbs: run_detail_breadcrumbs(&state.db, &data.1, data.2).await,
             is_live_polling: should_live_polling(&data.0),
             use_log_websocket: should_use_log_websocket(&data.0),
             run: data.0,

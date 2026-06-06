@@ -1,5 +1,6 @@
 use crate::app::AppState;
 use axum::Router;
+use sqlx::{MySqlPool, Row};
 
 pub mod auth;
 pub mod calendar;
@@ -55,6 +56,31 @@ impl BreadcrumbItem {
 
 pub fn home_breadcrumb() -> BreadcrumbItem {
     BreadcrumbItem::link("ホーム", "/", "")
+}
+
+pub async fn linked_space_breadcrumb(
+    pool: &MySqlPool,
+    space_id: Option<i64>,
+    list_path: &str,
+) -> BreadcrumbItem {
+    let Some(space_id) = space_id else {
+        return BreadcrumbItem::link(
+            "未分類",
+            format!("{list_path}?space=unclassified"),
+            "help-circle",
+        );
+    };
+
+    let name = sqlx::query("SELECT name FROM spaces WHERE id = ?")
+        .bind(space_id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|row| row.try_get("name").ok())
+        .unwrap_or_else(|| "未分類".to_string());
+
+    BreadcrumbItem::link(name, format!("{list_path}?space={space_id}"), "folder")
 }
 
 /// Web ダッシュボードルーター
