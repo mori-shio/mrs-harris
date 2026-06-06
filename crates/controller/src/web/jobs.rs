@@ -17,7 +17,10 @@ use mrs_harris_common::models::job::{
 };
 use mrs_harris_common::models::run::JobRun;
 
-use super::{BreadcrumbItem, auth::WebClaims, home_breadcrumb, linked_space_breadcrumb};
+use super::{
+    BreadcrumbItem, auth::WebClaims, home_breadcrumb, linked_space_breadcrumb,
+    space_scoped_list_url,
+};
 use crate::app::AppState;
 
 #[derive(Clone)]
@@ -171,6 +174,7 @@ crate::impl_into_response!(JobRunsTableTemplate);
 #[template(path = "jobs/detail.html")]
 struct JobDetailTemplate {
     breadcrumbs: Vec<BreadcrumbItem>,
+    back_href: String,
     job: Job,
     job_name: String,
     initial_tab: String,
@@ -1469,6 +1473,7 @@ async fn job_detail_page(
 
     JobDetailTemplate {
         breadcrumbs,
+        back_href: space_scoped_list_url("/jobs", job.space_id),
         job_name: job.name.clone(),
         job,
         job_type_str,

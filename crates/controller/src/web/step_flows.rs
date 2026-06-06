@@ -12,7 +12,10 @@ use mrs_harris_common::models::step_flow::{
 use sqlx::Row;
 use std::collections::HashMap;
 
-use super::{BreadcrumbItem, auth::WebClaims, home_breadcrumb, linked_space_breadcrumb};
+use super::{
+    BreadcrumbItem, auth::WebClaims, home_breadcrumb, linked_space_breadcrumb,
+    space_scoped_list_url,
+};
 use crate::app::AppState;
 
 #[derive(Clone)]
@@ -90,6 +93,7 @@ crate::impl_into_response!(StepFlowFormTemplate);
 #[template(path = "step_flows/detail.html")]
 struct StepFlowDetailTemplate {
     breadcrumbs: Vec<BreadcrumbItem>,
+    back_href: String,
     flow: StepFlow,
     groups: Vec<StepFlowGroupView>,
     latest_version: u32,
@@ -377,6 +381,7 @@ async fn detail_page(
 
     StepFlowDetailTemplate {
         breadcrumbs,
+        back_href: space_scoped_list_url("/step-flows", flow.space_id),
         flow,
         groups,
         latest_version,

@@ -83,6 +83,13 @@ pub async fn linked_space_breadcrumb(
     BreadcrumbItem::link(name, format!("{list_path}?space={space_id}"), "folder")
 }
 
+pub fn space_scoped_list_url(list_path: &str, space_id: Option<i64>) -> String {
+    match space_id {
+        Some(space_id) => format!("{list_path}?space={space_id}"),
+        None => format!("{list_path}?space=unclassified"),
+    }
+}
+
 /// Web ダッシュボードルーター
 pub fn router() -> Router<AppState> {
     Router::new()

@@ -9,7 +9,12 @@
 
 <div class="page-header">
     <div class="page-title">
-        <h2>{{ flow.name }}</h2>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <a href="{{ back_href }}" class="title-back-link" hx-boost="true">
+                <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+            </a>
+            <h2>{{ flow.name }}</h2>
+        </div>
         <p>{{ flow.description.as_deref().unwrap_or("") }}</p>
     </div>
     <form method="POST" action="/step-flows/{{ flow.name }}/run" hx-boost="false">
