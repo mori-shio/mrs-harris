@@ -1,0 +1,5 @@
+{% import "components/breadcrumbs.html" as breadcrumb_components %}
+<div id="breadcrumbs-container" hx-swap-oob="true">
+    {% call breadcrumb_components::breadcrumbs(breadcrumbs) %}
+</div>
+{% include "step_flows/list_partial.html" %}

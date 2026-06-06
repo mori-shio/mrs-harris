@@ -130,11 +130,12 @@ struct JobsListTemplate {
 crate::impl_into_response!(JobsListTemplate);
 
 #[derive(Template)]
-#[template(path = "jobs/list_partial.html")]
-struct JobsListPartialTemplate {
+#[template(path = "jobs/list_update.html")]
+struct JobsListUpdateTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     jobs: Vec<JobRenderItem>,
 }
-crate::impl_into_response!(JobsListPartialTemplate);
+crate::impl_into_response!(JobsListUpdateTemplate);
 
 #[derive(Clone, serde::Serialize)]
 struct JobHistoryRenderItem {
@@ -262,8 +263,12 @@ fn jobs_breadcrumb_item(current: bool) -> BreadcrumbItem {
     }
 }
 
-fn jobs_list_breadcrumbs() -> Vec<BreadcrumbItem> {
-    vec![home_breadcrumb(), jobs_breadcrumb_item(true)]
+fn jobs_list_breadcrumbs(space: Option<(&str, &str)>) -> Vec<BreadcrumbItem> {
+    let mut breadcrumbs = vec![home_breadcrumb(), jobs_breadcrumb_item(true)];
+    if let Some((space_name, icon)) = space {
+        breadcrumbs.push(BreadcrumbItem::current(space_name, icon));
+    }
+    breadcrumbs
 }
 
 fn job_detail_breadcrumbs(job_name: &str) -> Vec<BreadcrumbItem> {
@@ -441,10 +446,14 @@ async fn jobs_page(
 
     let mut space_id = None;
     let mut current_space_name = String::new();
+    let mut breadcrumb_space_name = None::<String>;
+    let mut breadcrumb_space_icon = None::<&'static str>;
     if let Some(sp) = space_param {
         if sp == "unclassified" || sp == "未分類" {
             space_id = Some("unclassified".to_string());
             current_space_name = "unclassified".to_string();
+            breadcrumb_space_name = Some("未分類".to_string());
+            breadcrumb_space_icon = Some("help-circle");
         } else if let Ok(parsed_id) = sp.parse::<i64>() {
             space_id = Some(sp.clone());
             // Look up space name by ID for current_space_name
@@ -456,7 +465,9 @@ async fn jobs_page(
                 .flatten()
                 .map(|row| row.try_get("name").unwrap_or_default());
             if let Some(rname) = resolved_name {
-                current_space_name = rname;
+                current_space_name = rname.clone();
+                breadcrumb_space_name = Some(rname);
+                breadcrumb_space_icon = Some("folder");
             }
         } else {
             // It's a space name. Query the DB for the space ID.
@@ -469,11 +480,15 @@ async fn jobs_page(
                 .map(|row| row.try_get("id").unwrap_or_default());
             if let Some(rid) = resolved_id {
                 space_id = Some(rid.to_string());
-                current_space_name = sp;
+                current_space_name = sp.clone();
+                breadcrumb_space_name = Some(sp);
+                breadcrumb_space_icon = Some("folder");
             } else {
                 // If space name is not found, default to showing no space matches
                 space_id = Some("-1".to_string());
-                current_space_name = sp;
+                current_space_name = sp.clone();
+                breadcrumb_space_name = Some(sp);
+                breadcrumb_space_icon = Some("folder");
             }
         }
     }
@@ -526,7 +541,13 @@ async fn jobs_page(
         .unwrap_or(false);
 
     if is_partial {
-        JobsListPartialTemplate { jobs }.into_response()
+        JobsListUpdateTemplate {
+            breadcrumbs: jobs_list_breadcrumbs(
+                breadcrumb_space_name.as_deref().zip(breadcrumb_space_icon),
+            ),
+            jobs,
+        }
+        .into_response()
     } else {
         // Fetch spaces for the dynamic space tabs filter
         let spaces_rows = sqlx::query("SELECT id, name FROM spaces ORDER BY priority ASC, id ASC")
@@ -569,7 +590,9 @@ async fn jobs_page(
         let current_is_active = query_filter.get("is_active").cloned().unwrap_or_default();
 
         JobsListTemplate {
-            breadcrumbs: jobs_list_breadcrumbs(),
+            breadcrumbs: jobs_list_breadcrumbs(
+                breadcrumb_space_name.as_deref().zip(breadcrumb_space_icon),
+            ),
             jobs,
             copy_candidates_json,
             spaces,

@@ -5,7 +5,9 @@
 {% block nav_step_flows %}active{% endblock %}
 
 {% block content %}
-{% call breadcrumb_components::breadcrumbs(breadcrumbs) %}
+<div id="breadcrumbs-container">
+    {% call breadcrumb_components::breadcrumbs(breadcrumbs) %}
+</div>
 
 <div class="page-header">
     <div class="page-title">

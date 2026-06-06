@@ -68,11 +68,12 @@ struct StepFlowListTemplate {
 crate::impl_into_response!(StepFlowListTemplate);
 
 #[derive(Template)]
-#[template(path = "step_flows/list_partial.html")]
-struct StepFlowListPartialTemplate {
+#[template(path = "step_flows/list_update.html")]
+struct StepFlowListUpdateTemplate {
+    breadcrumbs: Vec<BreadcrumbItem>,
     flows: Vec<StepFlowListItem>,
 }
-crate::impl_into_response!(StepFlowListPartialTemplate);
+crate::impl_into_response!(StepFlowListUpdateTemplate);
 
 #[derive(Template)]
 #[template(path = "step_flows/form.html")]
@@ -160,8 +161,12 @@ fn step_flows_breadcrumb_item(current: bool) -> BreadcrumbItem {
     }
 }
 
-fn step_flow_list_breadcrumbs() -> Vec<BreadcrumbItem> {
-    vec![home_breadcrumb(), step_flows_breadcrumb_item(true)]
+fn step_flow_list_breadcrumbs(space: Option<(&str, &str)>) -> Vec<BreadcrumbItem> {
+    let mut breadcrumbs = vec![home_breadcrumb(), step_flows_breadcrumb_item(true)];
+    if let Some((space_name, icon)) = space {
+        breadcrumbs.push(BreadcrumbItem::current(space_name, icon));
+    }
+    breadcrumbs
 }
 
 fn step_flow_form_breadcrumbs() -> Vec<BreadcrumbItem> {
@@ -227,6 +232,7 @@ async fn list_page(
         .collect();
 
     let flows = attach_space_names(&state, flows).await;
+    let breadcrumb_space = resolve_step_flow_breadcrumb_space(&state, &current_space).await;
     let copy_candidates = flows
         .iter()
         .map(|flow| StepFlowCopyCandidate {
@@ -242,10 +248,22 @@ async fn list_page(
         .unwrap_or(false);
 
     if is_partial {
-        StepFlowListPartialTemplate { flows }.into_response()
+        StepFlowListUpdateTemplate {
+            breadcrumbs: step_flow_list_breadcrumbs(
+                breadcrumb_space
+                    .as_ref()
+                    .map(|space| (space.0.as_str(), space.1)),
+            ),
+            flows,
+        }
+        .into_response()
     } else {
         StepFlowListTemplate {
-            breadcrumbs: step_flow_list_breadcrumbs(),
+            breadcrumbs: step_flow_list_breadcrumbs(
+                breadcrumb_space
+                    .as_ref()
+                    .map(|space| (space.0.as_str(), space.1)),
+            ),
             flows,
             spaces: build_space_tabs(&state, &current_space).await,
             current_space,
@@ -660,6 +678,28 @@ async fn build_space_tabs(state: &AppState, current_space: &str) -> Vec<StepFlow
     });
 
     tabs
+}
+
+async fn resolve_step_flow_breadcrumb_space(
+    state: &AppState,
+    current_space: &str,
+) -> Option<(String, &'static str)> {
+    if current_space.is_empty() {
+        return None;
+    }
+    if current_space == "unclassified" {
+        return Some(("未分類".to_string(), "help-circle"));
+    }
+
+    let space_id = current_space.parse::<i64>().ok()?;
+    let row = sqlx::query("SELECT name FROM spaces WHERE id = ?")
+        .bind(space_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()?;
+    let name = row.try_get("name").ok()?;
+    Some((name, "folder"))
 }
 
 async fn build_group_views(state: &AppState, step_flow_id: i64) -> Vec<StepFlowGroupView> {
