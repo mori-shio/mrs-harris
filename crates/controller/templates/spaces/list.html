@@ -7,26 +7,19 @@
 
 {% block content %}
 <style>
-    .space-jobs-link {
+    .space-count-link {
         color: var(--text-primary);
-        font-size: 0.95rem;
         text-decoration: none;
-        font-weight: 600;
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
     }
 
-    .space-jobs-link:hover {
+    .space-count-link:hover {
         color: var(--color-primary) !important;
-        text-decoration: underline !important;
     }
 
-    tr[data-space-id]:hover .space-jobs-link {
-        color: var(--color-primary);
-    }
-
-    .space-jobs-link-icon {
+    .space-count-link-icon {
         width: 13px;
         height: 13px;
         color: var(--text-muted);
@@ -34,12 +27,14 @@
         transition: color 0.18s ease;
     }
 
-    .space-jobs-link:hover .space-jobs-link-icon {
+    .space-count-link:hover .space-count-link-icon {
         color: var(--color-primary);
     }
 
-    tr[data-space-id]:hover .space-jobs-link-icon {
-        color: var(--color-primary);
+    .space-count-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
     }
 </style>
 <!-- Breadcrumbs -->
@@ -80,19 +75,26 @@
                     {% for space in spaces %}
                     <tr data-space-id="{{ space.id }}">
                         <td style="font-weight: 600; vertical-align: middle;">
-                            <a href="/jobs?space={{ space.id }}" class="space-jobs-link" hx-boost="false">
-                                <span>{{ space.name }}</span>
-                                <i data-lucide="square-arrow-out-up-right" class="space-jobs-link-icon"></i>
-                            </a>
+                            {{ space.name }}
                         </td>
                         <td style="vertical-align: middle;">
-                            <span class="badge" style="background-color: rgba(14,165,233,0.1); color: var(--color-primary); border-color: rgba(14,165,233,0.2); font-weight: 700; font-size: 0.8rem; padding: 2px 10px; border-radius: 20px;">
-                                {{ space.job_count }}
+                            <span class="space-count-cell">
+                                <span class="badge" style="background-color: rgba(14,165,233,0.1); color: var(--color-primary); border-color: rgba(14,165,233,0.2); font-weight: 700; font-size: 0.8rem; padding: 2px 10px; border-radius: 20px;">
+                                    {{ space.job_count }}
+                                </span>
+                                <a href="/jobs?space={{ space.id }}" class="space-count-link" title="このスペースのジョブ一覧を開く" aria-label="{{ space.name }}のジョブ一覧を開く" hx-boost="false">
+                                    <i data-lucide="square-arrow-out-up-right" class="space-count-link-icon"></i>
+                                </a>
                             </span>
                         </td>
                         <td style="vertical-align: middle;">
-                            <span class="badge" style="background-color: rgba(99,102,241,0.1); color: #818cf8; border-color: rgba(99,102,241,0.2); font-weight: 700; font-size: 0.8rem; padding: 2px 10px; border-radius: 20px;">
-                                {{ space.step_flow_count }}
+                            <span class="space-count-cell">
+                                <span class="badge" style="background-color: rgba(99,102,241,0.1); color: #818cf8; border-color: rgba(99,102,241,0.2); font-weight: 700; font-size: 0.8rem; padding: 2px 10px; border-radius: 20px;">
+                                    {{ space.step_flow_count }}
+                                </span>
+                                <a href="/step-flows?space={{ space.id }}" class="space-count-link" title="このスペースのステップフロー一覧を開く" aria-label="{{ space.name }}のステップフロー一覧を開く" hx-boost="false">
+                                    <i data-lucide="square-arrow-out-up-right" class="space-count-link-icon"></i>
+                                </a>
                             </span>
                         </td>
                         <td style="color: var(--text-muted); font-size: 0.9rem; vertical-align: middle;">
