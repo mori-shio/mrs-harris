@@ -60,6 +60,12 @@
   migration を追加・変更した場合は、関連する Rust のDBアクセス、テンプレート表示、テストデータ、UI表示の整合性を確認すること。`job_runs` のような履歴データでは、採番・履歴ID・表示番号の一貫性を必ず確認すること。
 
 ## 6. サーバー起動とBrowser確認
+- **開発中の自動リロード優先**:
+  UI実装やテンプレート/静的ファイル/Rustコードを連続して修正する場合は、毎回手動で `cargo build` とサーバー再起動を行うのではなく、可能な限り `cargo-watch` 等で変更検知による自動再ビルド・再起動を利用すること。推奨例:
+  `cargo watch -w crates -w static -w config -x "run --bin mrs-harris -- controller --config config/controller.toml"`。
+  `cargo-watch` が未導入、起動に失敗、または既存の確認用サーバーと競合する場合は、従来の `screen` / `nohup` / `target/debug/mrs-harris` 起動へフォールバックしてよい。
+- **自動リロード利用時の確認**:
+  `cargo-watch` 等を利用している場合でも、変更反映後に `lsof -nP -iTCP:8080 -sTCP:LISTEN`、ログ確認、または Browser 到達確認で最新サーバーが起動していることを確認すること。Askama テンプレートはコンパイル時反映のため、ブラウザ確認前に watch による再ビルドが完了していることを確認すること。
 - **サーバープロセスの切り離し**:
   `cargo run` やサーバープロセスを起動する際は、エージェント自身のタスクが UI 上で永続的に「task running」状態として残らないよう、`nohup ... > server.log 2>&1 &`、`screen -dmS ...` などの手法でバックグラウンドプロセスとして切り離すこと。
 - **起動確認**:
