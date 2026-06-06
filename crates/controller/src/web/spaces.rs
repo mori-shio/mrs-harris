@@ -19,6 +19,7 @@ pub struct SpaceRenderItem {
     pub description: String,
     pub priority: i32,
     pub job_count: i64,
+    pub step_flow_count: i64,
 }
 
 #[derive(Template)]
@@ -65,11 +66,14 @@ pub fn router() -> Router<AppState> {
 async fn list_spaces(_claims: WebClaims, State(state): State<AppState>) -> impl IntoResponse {
     let pool = &state.db;
 
-    // スペース一覧および各スペースのジョブ数を取得
+    // スペース一覧および各スペースのジョブ数・ステップフロー数を取得
     let rows = sqlx::query(
-        r#"SELECT s.id, s.name, s.description, s.priority, COUNT(j.id) as job_count
+        r#"SELECT s.id, s.name, s.description, s.priority,
+                  COUNT(DISTINCT j.id) as job_count,
+                  COUNT(DISTINCT sf.id) as step_flow_count
            FROM spaces s
            LEFT JOIN jobs j ON j.space_id = s.id
+           LEFT JOIN step_flows sf ON sf.space_id = s.id
            GROUP BY s.id
            ORDER BY s.priority ASC, s.id ASC"#,
     )
@@ -86,6 +90,7 @@ async fn list_spaces(_claims: WebClaims, State(state): State<AppState>) -> impl 
         let description_text = description.unwrap_or_default();
         let priority: i32 = row.try_get("priority").unwrap_or_default();
         let job_count: i64 = row.try_get("job_count").unwrap_or(0);
+        let step_flow_count: i64 = row.try_get("step_flow_count").unwrap_or(0);
 
         spaces.push(SpaceRenderItem {
             id: id.to_string(),
@@ -93,6 +98,7 @@ async fn list_spaces(_claims: WebClaims, State(state): State<AppState>) -> impl 
             description: description_text.clone(),
             priority,
             job_count,
+            step_flow_count,
         });
         spaces_modal.push(SpaceModalItem {
             id,
