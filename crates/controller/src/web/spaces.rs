@@ -27,7 +27,6 @@ pub struct SpaceRenderItem {
 struct SpaceListTemplate {
     breadcrumbs: Vec<BreadcrumbItem>,
     spaces: Vec<SpaceRenderItem>,
-    unclassified_job_count: i64,
     spaces_json: String,
 }
 crate::impl_into_response!(SpaceListTemplate);
@@ -108,19 +107,11 @@ async fn list_spaces(_claims: WebClaims, State(state): State<AppState>) -> impl 
         });
     }
 
-    // 未分類のジョブ数をカウント
-    let unclassified_row =
-        sqlx::query("SELECT COUNT(id) as job_count FROM jobs WHERE space_id IS NULL")
-            .fetch_one(pool)
-            .await
-            .unwrap();
-    let unclassified_job_count: i64 = unclassified_row.try_get("job_count").unwrap_or(0);
     let spaces_json = serde_json::to_string(&spaces_modal).unwrap_or_else(|_| "[]".to_string());
 
     SpaceListTemplate {
         breadcrumbs: spaces_breadcrumbs(),
         spaces,
-        unclassified_job_count,
         spaces_json,
     }
 }
