@@ -65,7 +65,6 @@ struct StepFlowListTemplate {
     spaces: Vec<StepFlowSpaceTab>,
     current_space: String,
     current_search: String,
-    current_is_active: String,
     copy_candidates_json: String,
 }
 crate::impl_into_response!(StepFlowListTemplate);
@@ -277,7 +276,6 @@ async fn list_page(
             spaces: build_space_tabs(&state, &current_space).await,
             current_space,
             current_search,
-            current_is_active,
             copy_candidates_json,
         }
         .into_response()

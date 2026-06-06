@@ -15,7 +15,16 @@
         <h2 class="page-title-heading"><i data-lucide="list" class="page-title-icon"></i>ジョブ</h2>
         <p>登録されているスケジュールジョブの管理</p>
     </div>
-    <div style="display: flex; gap: 12px;">
+    <div style="display: flex; gap: 12px; align-items: center;">
+        <form id="filter-form" class="list-header-search-form">
+            <input type="hidden" id="space" name="space" value="{{ current_space_name }}">
+            <div class="list-header-search">
+                <i data-lucide="search" class="list-header-search-icon"></i>
+                <input type="search" id="search" name="search" class="form-control list-header-search-input" placeholder="ジョブを検索..."
+                       value="{{ current_search }}"
+                       hx-get="/jobs" hx-trigger="keyup changed delay:300ms, search" hx-target="#jobs-list-container" hx-include="#filter-form" hx-push-url="true">
+            </div>
+        </form>
         <button type="button" class="btn btn-secondary" onclick="openCopyJobModal()">
             <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
             コピーして作成
@@ -149,6 +158,32 @@
         box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3);
     }
 
+    .list-header-search-form {
+        margin: 0;
+    }
+
+    .list-header-search {
+        position: relative;
+        width: min(32vw, 320px);
+        min-width: 240px;
+    }
+
+    .list-header-search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 15px;
+        height: 15px;
+        color: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .list-header-search-input {
+        height: 38px;
+        padding-left: 36px;
+    }
+
     .copy-job-result {
         display: flex;
         flex-direction: column;
@@ -261,8 +296,6 @@
     function selectSpaceTab(element, spaceName) {
         document.getElementById('space').value = spaceName;
         document.getElementById('search').value = '';
-        document.getElementById('job_type').value = '';
-        document.getElementById('is_active').value = '';
         document.querySelectorAll('.space-tab').forEach(t => t.classList.remove('active'));
         element.classList.add('active');
     }
@@ -279,37 +312,6 @@
         }
     });
 </script>
-
-<!-- Filter controls -->
-<div class="card" style="margin-bottom: 24px; padding: 16px 24px;">
-    <form id="filter-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: flex-end;">
-        <input type="hidden" id="space" name="space" value="{{ current_space_name }}">
-        <div class="form-group" style="margin-bottom: 0;">
-            <label for="search" style="font-size: 0.8rem;">検索キーワード</label>
-            <input type="text" id="search" name="search" class="form-control" placeholder="名前や説明で検索..." 
-                   value="{{ current_search }}"
-                   hx-get="/jobs" hx-trigger="keyup changed delay:300ms" hx-target="#jobs-list-container" hx-include="#filter-form" hx-push-url="true">
-        </div>
-        <div class="form-group" style="margin-bottom: 0;">
-            <label for="job_type" style="font-size: 0.8rem;">ジョブタイプ</label>
-            <select id="job_type" name="job_type" class="form-control" 
-                    hx-get="/jobs" hx-trigger="change" hx-target="#jobs-list-container" hx-include="#filter-form" hx-push-url="true">
-                <option value="" {% if current_job_type.is_empty() %}selected{% endif %}>すべて</option>
-                <option value="cron" {% if current_job_type == "cron" %}selected{% endif %}>Cron</option>
-                <option value="one_shot" {% if current_job_type == "one_shot" %}selected{% endif %}>OneShot</option>
-            </select>
-        </div>
-        <div class="form-group" style="margin-bottom: 0;">
-            <label for="is_active" style="font-size: 0.8rem;">ステータス</label>
-            <select id="is_active" name="is_active" class="form-control" 
-                    hx-get="/jobs" hx-trigger="change" hx-target="#jobs-list-container" hx-include="#filter-form" hx-push-url="true">
-                <option value="" {% if current_is_active.is_empty() %}selected{% endif %}>すべて</option>
-                <option value="true" {% if current_is_active == "true" %}selected{% endif %}>有効のみ</option>
-                <option value="false" {% if current_is_active == "false" %}selected{% endif %}>無効のみ</option>
-            </select>
-        </div>
-    </form>
-</div>
 
 <!-- Jobs container -->
 <div id="jobs-list-container">

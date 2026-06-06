@@ -127,8 +127,6 @@ struct JobsListTemplate {
     spaces: Vec<JobSpaceTab>,
     current_space_name: String,
     current_search: String,
-    current_job_type: String,
-    current_is_active: String,
 }
 crate::impl_into_response!(JobsListTemplate);
 
@@ -595,8 +593,6 @@ async fn jobs_page(
         });
 
         let current_search = query_filter.get("search").cloned().unwrap_or_default();
-        let current_job_type = query_filter.get("job_type").cloned().unwrap_or_default();
-        let current_is_active = query_filter.get("is_active").cloned().unwrap_or_default();
 
         JobsListTemplate {
             breadcrumbs: jobs_list_breadcrumbs(
@@ -607,8 +603,6 @@ async fn jobs_page(
             spaces,
             current_space_name,
             current_search,
-            current_job_type,
-            current_is_active,
         }
         .into_response()
     }

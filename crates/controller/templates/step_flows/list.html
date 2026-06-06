@@ -14,7 +14,16 @@
         <h2 class="page-title-heading"><i data-lucide="git-branch" class="page-title-icon"></i>ステップフロー</h2>
         <p>登録済みジョブをグループ単位で直列・並列実行するフローの管理</p>
     </div>
-    <div style="display: flex; gap: 12px;">
+    <div style="display: flex; gap: 12px; align-items: center;">
+        <form id="step-flow-filter-form" class="list-header-search-form">
+            <input type="hidden" id="space" name="space" value="{{ current_space }}">
+            <div class="list-header-search">
+                <i data-lucide="search" class="list-header-search-icon"></i>
+                <input type="search" id="search" name="search" class="form-control list-header-search-input" placeholder="ステップフローを検索..."
+                       value="{{ current_search }}"
+                       hx-get="/step-flows" hx-trigger="keyup changed delay:300ms, search" hx-target="#step-flows-list-container" hx-include="#step-flow-filter-form" hx-push-url="true">
+            </div>
+        </form>
         <button type="button" class="btn btn-secondary" onclick="openCopyStepFlowModal()">
             <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
             コピーして作成
@@ -79,6 +88,32 @@
         border-bottom-color: var(--color-primary);
         font-weight: 600;
         background: rgba(14, 165, 233, 0.04);
+    }
+
+    .list-header-search-form {
+        margin: 0;
+    }
+
+    .list-header-search {
+        position: relative;
+        width: min(32vw, 320px);
+        min-width: 240px;
+    }
+
+    .list-header-search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 15px;
+        height: 15px;
+        color: var(--text-muted);
+        pointer-events: none;
+    }
+
+    .list-header-search-input {
+        height: 38px;
+        padding-left: 36px;
     }
 
     .copy-step-flow-result {
@@ -162,7 +197,6 @@
     function selectStepFlowSpaceTab(element, spaceId) {
         document.getElementById('space').value = spaceId;
         document.getElementById('search').value = '';
-        document.getElementById('is_active').value = '';
         document.querySelectorAll('.space-tab').forEach(function(tab) {
             tab.classList.remove('active');
         });
@@ -256,27 +290,6 @@
         modal.classList.remove('active');
     }
 </script>
-
-<div class="card" style="margin-bottom: 24px; padding: 16px 24px;">
-    <form id="step-flow-filter-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; align-items: flex-end;">
-        <input type="hidden" id="space" name="space" value="{{ current_space }}">
-        <div class="form-group" style="margin-bottom: 0;">
-            <label for="search" style="font-size: 0.8rem;">検索キーワード</label>
-            <input type="text" id="search" name="search" class="form-control" placeholder="名前や説明で検索..."
-                   value="{{ current_search }}"
-                   hx-get="/step-flows" hx-trigger="keyup changed delay:300ms" hx-target="#step-flows-list-container" hx-include="#step-flow-filter-form" hx-push-url="true">
-        </div>
-        <div class="form-group" style="margin-bottom: 0;">
-            <label for="is_active" style="font-size: 0.8rem;">ステータス</label>
-            <select id="is_active" name="is_active" class="form-control"
-                    hx-get="/step-flows" hx-trigger="change" hx-target="#step-flows-list-container" hx-include="#step-flow-filter-form" hx-push-url="true">
-                <option value="" {% if current_is_active.is_empty() %}selected{% endif %}>すべて</option>
-                <option value="true" {% if current_is_active == "true" %}selected{% endif %}>有効のみ</option>
-                <option value="false" {% if current_is_active == "false" %}selected{% endif %}>無効のみ</option>
-            </select>
-        </div>
-    </form>
-</div>
 
 <div id="step-flows-list-container">
     {% include "step_flows/list_partial.html" %}
