@@ -18,7 +18,7 @@
                 <a href="{% if is_edit %}/worker-definitions/{{ def_name.as_ref().unwrap() }}{% else %}/worker-definitions{% endif %}" class="title-back-link" hx-boost="true">
                     <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
                 </a>
-                <h2>{% if is_edit %}ワーカー定義編集{% else %}ワーカー定義 新規作成{% endif %}</h2>
+                <h2 class="page-title-heading"><i data-lucide="server" class="page-title-icon"></i>{% if is_edit %}ワーカー定義編集{% else %}ワーカー定義 新規作成{% endif %}</h2>
             </div>
         </div>
 

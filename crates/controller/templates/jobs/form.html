@@ -72,7 +72,7 @@
                     <a href="{% if is_edit %}/jobs/{{ original_name.as_ref().unwrap() }}{% else %}/jobs{% endif %}" class="title-back-link" {% if is_edit %}hx-boost="false"{% else %}hx-boost="true"{% endif %}>
                         <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
                     </a>
-                    <h2>{% if is_edit %}ジョブ 編集{% else %}ジョブ 新規作成{% endif %}</h2>
+                    <h2 class="page-title-heading"><i data-lucide="list" class="page-title-icon"></i>{% if is_edit %}ジョブ 編集{% else %}ジョブ 新規作成{% endif %}</h2>
                 </div>
             </div>
             

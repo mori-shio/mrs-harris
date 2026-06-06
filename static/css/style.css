@@ -493,8 +493,21 @@ main.main-content {
     font-family: 'Outfit', sans-serif;
     font-size: 2rem;
     font-weight: 700;
-    letter-spacing: -0.5px;
+    letter-spacing: 0;
     color: var(--text-primary);
+}
+
+.page-title-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.page-title-icon {
+    width: 26px;
+    height: 26px;
+    color: var(--color-primary);
+    flex-shrink: 0;
 }
 
 .page-title p {

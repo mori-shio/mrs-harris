@@ -128,7 +128,8 @@
             <a href="{{ back_href }}" class="title-back-link" hx-boost="true">
                 <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
             </a>
-            <h2 style="font-family: 'Outfit', sans-serif; display: flex; align-items: center; gap: 10px;">
+            <h2 class="page-title-heading" style="font-family: 'Outfit', sans-serif;">
+                <i data-lucide="list" class="page-title-icon"></i>
                 {{ job.name }}
                 {% if job.is_active %}
                 <span style="display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--color-success); box-shadow: 0 0 8px var(--color-success);"></span>

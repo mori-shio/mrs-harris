@@ -13,7 +13,7 @@
             <a href="{{ back_href }}" class="title-back-link" hx-boost="true">
                 <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
             </a>
-            <h2>{{ flow.name }}</h2>
+            <h2 class="page-title-heading"><i data-lucide="git-branch" class="page-title-icon"></i>{{ flow.name }}</h2>
         </div>
         <p>{{ flow.description.as_deref().unwrap_or("") }}</p>
     </div>

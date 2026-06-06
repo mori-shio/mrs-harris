@@ -8,7 +8,7 @@
             <a href="/jobs/{{ job_name }}" class="title-back-link" hx-boost="false">
                 <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
             </a>
-            <h2>実行履歴&nbsp;&nbsp;<span style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">#{{ run_number }}</span></h2>
+            <h2 class="page-title-heading"><i data-lucide="history" class="page-title-icon"></i>実行履歴&nbsp;&nbsp;<span style="font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">#{{ run_number }}</span></h2>
             {% if is_live_polling %}
             <div id="polling-indicator" class="htmx-indicator" style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-muted);">
                 <i data-lucide="refresh-cw" class="spin" style="width: 12px; height: 12px;"></i>
