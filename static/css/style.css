@@ -510,6 +510,10 @@ main.main-content {
     flex-shrink: 0;
 }
 
+.search-match-highlight {
+    color: var(--color-primary);
+}
+
 .page-title p {
     color: var(--text-secondary);
     font-size: 0.95rem;

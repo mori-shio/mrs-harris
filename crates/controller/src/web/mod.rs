@@ -90,6 +90,60 @@ pub fn space_scoped_list_url(list_path: &str, space_id: Option<i64>) -> String {
     }
 }
 
+pub fn highlight_search_match_html(text: &str, search: Option<&str>) -> String {
+    let Some(query) = search.map(str::trim).filter(|value| !value.is_empty()) else {
+        return escape_html(text);
+    };
+
+    let query_lower = query.to_lowercase();
+    let Some((start_byte, end_byte)) = find_case_insensitive_match_bounds(text, &query_lower)
+    else {
+        return escape_html(text);
+    };
+
+    format!(
+        "{}<span class=\"search-match-highlight\">{}</span>{}",
+        escape_html(&text[..start_byte]),
+        escape_html(&text[start_byte..end_byte]),
+        escape_html(&text[end_byte..])
+    )
+}
+
+fn find_case_insensitive_match_bounds(text: &str, query_lower: &str) -> Option<(usize, usize)> {
+    let mut boundaries = text.char_indices().map(|(idx, _)| idx).collect::<Vec<_>>();
+    boundaries.push(text.len());
+
+    for start_pos in 0..boundaries.len().saturating_sub(1) {
+        let start_byte = boundaries[start_pos];
+        for end_byte in boundaries.iter().skip(start_pos + 1).copied() {
+            let candidate = text[start_byte..end_byte].to_lowercase();
+            if candidate == query_lower {
+                return Some((start_byte, end_byte));
+            }
+            if candidate.len() >= query_lower.len() {
+                break;
+            }
+        }
+    }
+
+    None
+}
+
+fn escape_html(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&#39;"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
+}
+
 /// Web ダッシュボードルーター
 pub fn router() -> Router<AppState> {
     Router::new()

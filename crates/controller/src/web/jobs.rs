@@ -18,14 +18,15 @@ use mrs_harris_common::models::job::{
 use mrs_harris_common::models::run::JobRun;
 
 use super::{
-    BreadcrumbItem, auth::WebClaims, home_breadcrumb, linked_space_breadcrumb,
-    space_scoped_list_url,
+    BreadcrumbItem, auth::WebClaims, highlight_search_match_html, home_breadcrumb,
+    linked_space_breadcrumb, space_scoped_list_url,
 };
 use crate::app::AppState;
 
 #[derive(Clone)]
 pub struct JobRenderItem {
     pub name: String,
+    pub highlighted_name: String,
     pub job_type_label: &'static str,
     pub worker_name: String,
     pub schedule_display: String,
@@ -410,6 +411,7 @@ pub fn router() -> Router<AppState> {
 pub fn map_job_to_render(
     job: &Job,
     worker_name_map: &std::collections::HashMap<i64, String>,
+    search: Option<&str>,
 ) -> JobRenderItem {
     let worker_name = job
         .worker_definition_id
@@ -418,6 +420,7 @@ pub fn map_job_to_render(
 
     JobRenderItem {
         name: job.name.clone(),
+        highlighted_name: highlight_search_match_html(&job.name, search),
         job_type_label: job_type_label(&job.job_type),
         worker_name,
         schedule_display: schedule_display(job.schedule_expr.as_deref()),
@@ -530,7 +533,7 @@ async fn jobs_page(
 
     let jobs = jobs_db
         .iter()
-        .map(|j| map_job_to_render(j, &worker_name_map))
+        .map(|j| map_job_to_render(j, &worker_name_map, search.as_deref()))
         .collect::<Vec<_>>();
     let copy_candidates = jobs_db
         .iter()

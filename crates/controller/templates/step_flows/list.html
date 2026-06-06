@@ -140,10 +140,6 @@
         font-weight: 600;
     }
 
-    .copy-step-flow-result-name-match {
-        color: var(--color-primary);
-    }
-
     .copy-step-flow-result-description {
         font-size: 0.8rem;
         color: var(--text-muted);
@@ -256,7 +252,7 @@
         const prefixLength = trimmed.length;
         const matched = name.slice(0, prefixLength);
         const rest = name.slice(prefixLength);
-        return '<span class="copy-step-flow-result-name-match">' + escapeHtml(matched) + '</span>' + escapeHtml(rest);
+        return '<span class="search-match-highlight">' + escapeHtml(matched) + '</span>' + escapeHtml(rest);
     }
 
     function escapeHtml(text) {

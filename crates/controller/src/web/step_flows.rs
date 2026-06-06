@@ -13,8 +13,8 @@ use sqlx::Row;
 use std::collections::HashMap;
 
 use super::{
-    BreadcrumbItem, auth::WebClaims, home_breadcrumb, linked_space_breadcrumb,
-    space_scoped_list_url,
+    BreadcrumbItem, auth::WebClaims, highlight_search_match_html, home_breadcrumb,
+    linked_space_breadcrumb, space_scoped_list_url,
 };
 use crate::app::AppState;
 
@@ -30,7 +30,9 @@ struct JobOption {
 #[derive(Clone)]
 struct StepFlowListItem {
     name: String,
+    highlighted_name: String,
     description: String,
+    highlighted_description: String,
     space_id: Option<i64>,
     space_name: String,
     is_active: bool,
@@ -236,7 +238,7 @@ async fn list_page(
         .await
         .unwrap_or_default()
         .into_iter()
-        .map(step_flow_list_item_from_flow)
+        .map(|flow| step_flow_list_item_from_flow(flow, Some(&current_search)))
         .collect();
 
     let flows = attach_space_names(&state, flows).await;
@@ -621,10 +623,14 @@ async fn load_spaces(state: &AppState) -> Vec<mrs_harris_common::models::space::
         .collect()
 }
 
-fn step_flow_list_item_from_flow(flow: StepFlow) -> StepFlowListItem {
+fn step_flow_list_item_from_flow(flow: StepFlow, search: Option<&str>) -> StepFlowListItem {
+    let name = flow.name;
+    let description = flow.description.unwrap_or_default();
     StepFlowListItem {
-        name: flow.name,
-        description: flow.description.unwrap_or_default(),
+        highlighted_name: highlight_search_match_html(&name, search),
+        highlighted_description: highlight_search_match_html(&description, search),
+        name,
+        description,
         space_id: flow.space_id,
         space_name: "未分類".to_string(),
         is_active: flow.is_active,
