@@ -30,6 +30,7 @@ struct JobOption {
 #[derive(Clone)]
 struct StepFlowListItem {
     name: String,
+    search_text: String,
     highlighted_name: String,
     description: String,
     highlighted_description: String,
@@ -629,6 +630,7 @@ fn step_flow_list_item_from_flow(flow: StepFlow, search: Option<&str>) -> StepFl
     StepFlowListItem {
         highlighted_name: highlight_search_match_html(&name, search),
         highlighted_description: highlight_search_match_html(&description, search),
+        search_text: format!("{name} {description}"),
         name,
         description,
         space_id: flow.space_id,

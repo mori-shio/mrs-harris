@@ -21,8 +21,7 @@
             <div class="list-header-search">
                 <i data-lucide="search" class="list-header-search-icon"></i>
                 <input type="search" id="search" name="search" class="form-control list-header-search-input" placeholder="ジョブを検索..."
-                       value="{{ current_search }}"
-                       hx-get="/jobs" hx-trigger="keyup changed delay:300ms, search" hx-target="#jobs-list-container" hx-include="#filter-form" hx-push-url="true">
+                       value="{{ current_search }}">
             </div>
         </form>
         <button type="button" class="btn btn-secondary" onclick="openCopyJobModal()">
@@ -316,16 +315,26 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    initJobListSearch();
     scheduleCondensedJobTags(document);
     initSpaceTabsScrollShadow(document);
 });
 
 document.body.addEventListener('htmx:afterSwap', function(event) {
     if (event.target && event.target.id === 'jobs-list-container') {
+        initJobListSearch();
         scheduleCondensedJobTags(event.target);
     }
     initSpaceTabsScrollShadow(document);
 });
+
+function initJobListSearch() {
+    window.appListSearch({
+        formSelector: '#filter-form',
+        containerSelector: '#jobs-list-container',
+        path: '/jobs'
+    });
+}
 
 window.addEventListener('resize', function() {
     initSpaceTabsScrollShadow(document);
@@ -349,7 +358,7 @@ function renderCopyJobResults(query) {
 
     list.innerHTML = matches.map(function(job) {
         const description = job.description && job.description.trim() !== ''
-            ? '<span class="copy-job-result-description">' + escapeHtml(job.description) + '</span>'
+            ? '<span class="copy-job-result-description">' + window.appEscapeHtml(job.description) + '</span>'
             : '';
         return '<button type="button" class="copy-job-result" data-copy-job="' + encodeURIComponent(job.name) + '">' +
             '<span class="copy-job-result-name">' + renderHighlightedCopyJobName(job.name, query || '') + '</span>' +
@@ -367,22 +376,13 @@ function renderCopyJobResults(query) {
 function renderHighlightedCopyJobName(name, query) {
     const trimmed = (query || '').trim();
     if (trimmed === '') {
-        return escapeHtml(name);
+        return window.appEscapeHtml(name);
     }
 
     const prefixLength = trimmed.length;
     const matched = name.slice(0, prefixLength);
     const rest = name.slice(prefixLength);
-    return '<span class="search-match-highlight">' + escapeHtml(matched) + '</span>' + escapeHtml(rest);
-}
-
-function escapeHtml(text) {
-    return String(text)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
+    return '<span class="search-match-highlight">' + window.appEscapeHtml(matched) + '</span>' + window.appEscapeHtml(rest);
 }
 
 function goToCopyJob(encodedName) {

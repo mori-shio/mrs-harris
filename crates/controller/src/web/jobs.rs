@@ -26,6 +26,7 @@ use crate::app::AppState;
 #[derive(Clone)]
 pub struct JobRenderItem {
     pub name: String,
+    pub search_text: String,
     pub highlighted_name: String,
     pub job_type_label: &'static str,
     pub worker_name: String,
@@ -418,8 +419,11 @@ pub fn map_job_to_render(
         .and_then(|id| worker_name_map.get(&id).cloned())
         .unwrap_or_else(|| "-".to_string());
 
+    let description = job.description.as_deref().unwrap_or_default();
+
     JobRenderItem {
         name: job.name.clone(),
+        search_text: format!("{} {}", job.name, description),
         highlighted_name: highlight_search_match_html(&job.name, search),
         job_type_label: job_type_label(&job.job_type),
         worker_name,

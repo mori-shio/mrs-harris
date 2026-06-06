@@ -20,8 +20,7 @@
             <div class="list-header-search">
                 <i data-lucide="search" class="list-header-search-icon"></i>
                 <input type="search" id="search" name="search" class="form-control list-header-search-input" placeholder="ステップフローを検索..."
-                       value="{{ current_search }}"
-                       hx-get="/step-flows" hx-trigger="keyup changed delay:300ms, search" hx-target="#step-flows-list-container" hx-include="#step-flow-filter-form" hx-push-url="true">
+                       value="{{ current_search }}">
             </div>
         </form>
         <button type="button" class="btn btn-secondary" onclick="openCopyStepFlowModal()">
@@ -210,6 +209,24 @@
         }
     });
 
+    document.addEventListener('DOMContentLoaded', function() {
+        initStepFlowListSearch();
+    });
+
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.target && event.target.id === 'step-flows-list-container') {
+            initStepFlowListSearch();
+        }
+    });
+
+    function initStepFlowListSearch() {
+        window.appListSearch({
+            formSelector: '#step-flow-filter-form',
+            containerSelector: '#step-flows-list-container',
+            path: '/step-flows'
+        });
+    }
+
     const copyStepFlowCandidates = {{ copy_candidates_json|safe }};
 
     function renderCopyStepFlowResults(query) {
@@ -228,7 +245,7 @@
 
         list.innerHTML = matches.map(function(flow) {
             const description = flow.description && flow.description.trim() !== ''
-                ? '<span class="copy-step-flow-result-description">' + escapeHtml(flow.description) + '</span>'
+                ? '<span class="copy-step-flow-result-description">' + window.appEscapeHtml(flow.description) + '</span>'
                 : '';
             return '<button type="button" class="copy-step-flow-result" data-copy-step-flow="' + encodeURIComponent(flow.name) + '">' +
                 '<span class="copy-step-flow-result-name">' + renderHighlightedCopyStepFlowName(flow.name, query || '') + '</span>' +
@@ -246,22 +263,13 @@
     function renderHighlightedCopyStepFlowName(name, query) {
         const trimmed = (query || '').trim();
         if (trimmed === '') {
-            return escapeHtml(name);
+            return window.appEscapeHtml(name);
         }
 
         const prefixLength = trimmed.length;
         const matched = name.slice(0, prefixLength);
         const rest = name.slice(prefixLength);
-        return '<span class="search-match-highlight">' + escapeHtml(matched) + '</span>' + escapeHtml(rest);
-    }
-
-    function escapeHtml(text) {
-        return String(text)
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#39;');
+        return '<span class="search-match-highlight">' + window.appEscapeHtml(matched) + '</span>' + window.appEscapeHtml(rest);
     }
 
     function goToCopyStepFlow(encodedName) {

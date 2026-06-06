@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Mrs. Harris{% endblock %}</title>
     <!-- Premium Stylesheet -->
-    <link rel="stylesheet" href="/static/css/style.css?v=20260606b">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260606c">
     <!-- HTMX for AJAX and SPA transitions -->
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <meta name="htmx-config" content='{"historyCacheSize": 0, "refreshOnHistoryMiss": true}'>
@@ -373,6 +373,110 @@
             host.appendChild(notice);
 
             return notice;
+        };
+
+        window.appEscapeHtml = function(text) {
+            return String(text)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        };
+
+        window.appHighlightSearchText = function(text, query) {
+            const raw = String(text || '');
+            const trimmed = String(query || '').trim();
+            if (trimmed === '') {
+                return window.appEscapeHtml(raw);
+            }
+
+            const lower = raw.toLowerCase();
+            const needle = trimmed.toLowerCase();
+            const index = lower.indexOf(needle);
+            if (index < 0) {
+                return window.appEscapeHtml(raw);
+            }
+
+            return window.appEscapeHtml(raw.slice(0, index)) +
+                '<span class="search-match-highlight">' + window.appEscapeHtml(raw.slice(index, index + trimmed.length)) + '</span>' +
+                window.appEscapeHtml(raw.slice(index + trimmed.length));
+        };
+
+        window.appListSearch = function(options) {
+            if (!options) return;
+
+            const form = document.querySelector(options.formSelector);
+            const input = form ? form.querySelector('input[name="search"]') : null;
+            const container = document.querySelector(options.containerSelector);
+            if (!form || !input || !container) return;
+
+            if (!input.dataset.committedSearch) {
+                input.dataset.committedSearch = input.value || '';
+            }
+
+            const applyLocalFilter = function() {
+                const query = (input.value || '').trim().toLowerCase();
+                container.querySelectorAll('tbody tr[data-search-text]').forEach(function(row) {
+                    const searchText = (row.dataset.searchText || '').toLowerCase();
+                    row.style.display = query === '' || searchText.includes(query) ? '' : 'none';
+                    row.querySelectorAll('.search-highlight-target').forEach(function(target) {
+                        target.innerHTML = window.appHighlightSearchText(target.textContent || '', input.value || '');
+                    });
+                });
+            };
+
+            const buildUrl = function() {
+                const params = new URLSearchParams();
+                const space = form.querySelector('input[name="space"]');
+                if (space && space.value.trim() !== '') {
+                    params.set('space', space.value.trim());
+                }
+                if (input.value.trim() !== '') {
+                    params.set('search', input.value.trim());
+                }
+                const query = params.toString();
+                return options.path + (query ? '?' + query : '');
+            };
+
+            const commitSearch = function() {
+                const nextSearch = input.value || '';
+                if (nextSearch === input.dataset.committedSearch) {
+                    return;
+                }
+                input.dataset.committedSearch = nextSearch;
+                const url = buildUrl();
+                if (window.htmx) {
+                    window.htmx.ajax('GET', options.path, {
+                        source: form,
+                        target: options.containerSelector,
+                        swap: 'innerHTML',
+                        push: url
+                    });
+                } else {
+                    window.history.pushState({}, '', url);
+                }
+            };
+
+            if (!input.dataset.localSearchBound) {
+                input.addEventListener('input', applyLocalFilter);
+                input.addEventListener('keydown', function(event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        commitSearch();
+                    }
+                });
+                input.addEventListener('blur', commitSearch);
+                input.addEventListener('focusout', commitSearch);
+                document.addEventListener('mousedown', function(event) {
+                    if (document.activeElement === input && !form.contains(event.target)) {
+                        commitSearch();
+                    }
+                }, true);
+                input.dataset.localSearchBound = 'true';
+            }
+
+            applyLocalFilter();
         };
 
         if (!window.appUi.requestSubmitPatched && window.HTMLFormElement && window.HTMLFormElement.prototype.requestSubmit) {

@@ -78,10 +78,10 @@
                 </tr>
                 {% else %}
                 {% for job in jobs %}
-                <tr>
+                <tr data-search-text="{{ job.search_text }}">
                     <td style="font-weight: 600;">
                         <a href="/jobs/{{ job.name }}" class="table-entity-link" style="flex-direction: column; gap: 4px; align-items: flex-start;" hx-boost="false">
-                            <span>{{ job.highlighted_name|safe }}</span>
+                            <span class="search-highlight-target">{{ job.highlighted_name|safe }}</span>
                         </a>
                     </td>
                     <td>
