@@ -127,7 +127,7 @@ struct JobsListTemplate {
     jobs: Vec<JobRenderItem>,
     copy_candidates_json: String,
     spaces: Vec<JobSpaceTab>,
-    current_space_name: String,
+    current_space: String,
     current_search: String,
 }
 crate::impl_into_response!(JobsListTemplate);
@@ -459,18 +459,16 @@ async fn jobs_page(
         .cloned();
 
     let mut space_id = None;
-    let mut current_space_name = String::new();
     let mut breadcrumb_space_name = None::<String>;
     let mut breadcrumb_space_icon = None::<&'static str>;
     if let Some(sp) = space_param {
         if sp == "unclassified" || sp == "未分類" {
             space_id = Some("unclassified".to_string());
-            current_space_name = "unclassified".to_string();
             breadcrumb_space_name = Some("未分類".to_string());
             breadcrumb_space_icon = Some("help-circle");
         } else if let Ok(parsed_id) = sp.parse::<i64>() {
             space_id = Some(sp.clone());
-            // Look up space name by ID for current_space_name
+            // Look up space name by ID for breadcrumb display.
             let resolved_name: Option<String> = sqlx::query("SELECT name FROM spaces WHERE id = ?")
                 .bind(parsed_id)
                 .fetch_optional(&state.db)
@@ -479,7 +477,6 @@ async fn jobs_page(
                 .flatten()
                 .map(|row| row.try_get("name").unwrap_or_default());
             if let Some(rname) = resolved_name {
-                current_space_name = rname.clone();
                 breadcrumb_space_name = Some(rname);
                 breadcrumb_space_icon = Some("folder");
             }
@@ -494,13 +491,11 @@ async fn jobs_page(
                 .map(|row| row.try_get("id").unwrap_or_default());
             if let Some(rid) = resolved_id {
                 space_id = Some(rid.to_string());
-                current_space_name = sp.clone();
                 breadcrumb_space_name = Some(sp);
                 breadcrumb_space_icon = Some("folder");
             } else {
                 // If space name is not found, default to showing no space matches
                 space_id = Some("-1".to_string());
-                current_space_name = sp.clone();
                 breadcrumb_space_name = Some(sp);
                 breadcrumb_space_icon = Some("folder");
             }
@@ -608,7 +603,7 @@ async fn jobs_page(
             jobs,
             copy_candidates_json,
             spaces,
-            current_space_name,
+            current_space: current_sid,
             current_search,
         }
         .into_response()

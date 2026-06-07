@@ -426,7 +426,7 @@
                 });
             };
 
-            const buildUrl = function() {
+            const buildSearchParams = function() {
                 const params = new URLSearchParams();
                 const space = form.querySelector('input[name="space"]');
                 if (space && space.value.trim() !== '') {
@@ -435,11 +435,16 @@
                 if (input.value.trim() !== '') {
                     params.set('search', input.value.trim());
                 }
+                return params;
+            };
+
+            const buildUrl = function() {
+                const params = buildSearchParams();
                 const query = params.toString();
                 return options.path + (query ? '?' + query : '');
             };
 
-            const commitSearch = function(options = {}) {
+            const commitSearch = function(commitOptions = {}) {
                 const nextSearch = input.value || '';
                 if (nextSearch === input.dataset.committedSearch) {
                     return;
@@ -454,20 +459,22 @@
                     });
                 };
 
-                if (options.blurInput && document.activeElement === input) {
+                if (commitOptions.blurInput && document.activeElement === input) {
                     input.blur();
                 }
 
                 if (window.htmx) {
-                    const request = window.htmx.ajax('GET', options.path, {
-                        source: form,
+                    const request = window.htmx.ajax('GET', url, {
                         target: options.containerSelector,
-                        swap: 'innerHTML',
-                        push: url
+                        swap: 'innerHTML'
                     });
                     if (request && typeof request.then === 'function') {
-                        request.then(restoreScroll);
+                        request.then(function() {
+                            window.history.pushState({}, '', url);
+                            restoreScroll();
+                        });
                     } else {
+                        window.history.pushState({}, '', url);
                         restoreScroll();
                     }
                 } else {
